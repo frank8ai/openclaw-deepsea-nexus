@@ -634,8 +634,8 @@ class NexusCorePlugin(NexusPlugin):
             logger.error(f"Delete document error: {e}")
             return deleted
     
-    async def _get_stats(self) -> Dict[str, Any]:
-        """Get internal stats"""
+    def _collect_stats(self) -> Dict[str, Any]:
+        """Collect internal stats synchronously."""
         lexical_count = len(self._lexical_docs)
         if not self._vector_backend:
             return {
@@ -677,26 +677,14 @@ class NexusCorePlugin(NexusPlugin):
                 "lexical_documents": lexical_count,
                 "status": "error",
             }
+
+    async def _get_stats(self) -> Dict[str, Any]:
+        """Async wrapper for compatibility with async callers."""
+        return self._collect_stats()
     
     def stats(self) -> Dict[str, Any]:
         """Get public stats"""
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                return {
-                    "total_documents": len(self._lexical_docs),
-                    "vector_available": bool(self._vector_available),
-                    "status": "estimating",
-                }
-            else:
-                return loop.run_until_complete(self._get_stats())
-        except Exception:
-            return {
-                "total_documents": len(self._lexical_docs),
-                "vector_available": bool(self._vector_available),
-                "status": "cached",
-            }
+        return self._collect_stats()
     
     def health(self) -> Dict[str, Any]:
         """Get health status"""

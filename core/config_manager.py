@@ -57,7 +57,7 @@ class ConfigManager:
     DEFAULTS = {
         "nexus": {
             "base_path": "~/.openclaw/workspace/memory",
-            "vector_db_path": "~/.openclaw/workspace/memory/.vector_db",
+            "vector_db_path": "~/.openclaw/workspace/memory/.vector_db_restored",
             "collection_name": "deepsea_nexus_restored",
             "embedder_name": "all-MiniLM-L6-v2",
             "embedder_dim": 384,

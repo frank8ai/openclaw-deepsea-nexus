@@ -18,6 +18,18 @@ bash scripts/deploy_local_v4.sh --full
 说明：
 - `--full`：执行 `run_tests.py` 全量门禁 + 运行态 smoke 检查
 - `--quick`：仅执行 `tests/test_units.py` + 运行态 smoke 检查
+- 脚本默认优先使用 `~/miniconda3/envs/openclaw-nexus/bin/python`，并默认主库：
+  - `NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored`
+  - `NEXUS_COLLECTION=deepsea_nexus_restored`
+
+如需显式指定：
+
+```bash
+NEXUS_PYTHON_PATH=~/miniconda3/envs/openclaw-nexus/bin/python \
+NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored \
+NEXUS_COLLECTION=deepsea_nexus_restored \
+bash scripts/deploy_local_v4.sh --full
+```
 
 ## 推荐运行参数（智能上下文）
 当前建议生产参数（已在 `config.json` 默认值中）：
@@ -64,6 +76,11 @@ PY
 - `hooks.internal.entries.context-optimizer.enabled = true`
 - `nexus-auto-recall`（workspace hook）保持启用
 - `deepsea-rag-recall`（managed hook）建议保持关闭，避免重复注入
+
+并建议在 Gateway 进程环境固定以下变量（防止重启后写错库）：
+- `NEXUS_PYTHON_PATH=~/miniconda3/envs/openclaw-nexus/bin/python`
+- `NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored`
+- `NEXUS_COLLECTION=deepsea_nexus_restored`
 
 可选 compaction 建议：
 - `agents.defaults.compaction.reserveTokensFloor = 28000`

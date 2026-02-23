@@ -61,6 +61,10 @@ class VectorStore:
         # 设置持久化路径
         if persist_path is None:
             persist_path = os.path.expanduser("~/.openclaw/workspace/memory/.vector_db_final")
+        else:
+            persist_path = os.path.expanduser(str(persist_path))
+
+        persist_path = os.path.abspath(persist_path)
         
         self.persist_path = persist_path
         os.makedirs(persist_path, exist_ok=True)
