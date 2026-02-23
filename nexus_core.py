@@ -588,11 +588,53 @@ def nexus_search(query: str, n: int = 5) -> List[RecallResult]:
 
 
 def nexus_add(content: str, title: str, tags: str = "") -> Optional[str]:
-    """添加笔记"""
+    """添加笔记（兼容旧接口）。"""
     compat_result = _compat_call("nexus_add", content, title, tags)
     if compat_result is not None:
         return compat_result
     return _get_nexus().add(content, title, tags)
+
+
+def nexus_write(
+    content: str,
+    title: str = "",
+    *,
+    priority: str = "P1",
+    kind: str = "fact",
+    source: str = "",
+    tags: str = "",
+) -> Optional[str]:
+    """分层写入契约：统一 schema 写入入口（推荐）。
+
+    - priority: P0/P1/P2/GOLD
+    - kind: fact/decision/strategy/pitfall/code_pattern/summary/task
+    - source: agent/channel/session identifier
+
+    Note: 仍然复用底层 `nexus_add` 存储（tags 里编码结构），避免破坏兼容性。
+    """
+
+    pr = str(priority or "P1").strip().upper()
+    if pr == "#GOLD":
+        pr = "GOLD"
+    if pr not in {"P0", "P1", "P2", "GOLD"}:
+        pr = "P1"
+
+    kd = str(kind or "fact").strip().lower()
+    if kd not in {"fact", "decision", "strategy", "pitfall", "code_pattern", "summary", "task"}:
+        kd = "fact"
+
+    src = str(source or "").strip()
+
+    tag_parts = []
+    if tags:
+        tag_parts.append(str(tags))
+    tag_parts.append(f"priority:{pr}")
+    tag_parts.append(f"kind:{kd}")
+    if src:
+        tag_parts.append(f"source:{src}")
+
+    merged_tags = ",".join([p for p in tag_parts if p])
+    return nexus_add(content, title or (kd + ":"), merged_tags)
 
 
 def nexus_add_structured_summary(

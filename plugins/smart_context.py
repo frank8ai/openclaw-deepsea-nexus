@@ -1529,7 +1529,7 @@ class SmartContextPlugin(NexusPlugin):
 
 def store_conversation(conversation_id: str, user_message: str, ai_response: str) -> Dict:
     """存储对话摘要（便捷函数）"""
-    from ..compat import nexus_init, nexus_add
+    from ..compat import nexus_init, nexus_write
 
     if not nexus_init():
         return {"error": "nexus init failed", "stored": False}
@@ -1614,21 +1614,21 @@ def store_conversation(conversation_id: str, user_message: str, ai_response: str
         return uniq[:3]
 
     summary = _extract_summary(ai_response)
-    nexus_add(ai_response, f"对话 {conversation_id} - 原文", f"type:content,source:{conversation_id}")
+    nexus_write(ai_response, f"对话 {conversation_id} - 原文", priority="P2", kind="summary", source=str(conversation_id), tags="type:content")
     if summary:
-        nexus_add(f"[摘要] {summary}", f"对话 {conversation_id} - 摘要", f"type:summary,source:{conversation_id}")
+        nexus_write(f"[摘要] {summary}", f"对话 {conversation_id} - 摘要", priority="P1", kind="summary", source=str(conversation_id), tags="type:summary")
 
     keywords = _extract_keywords(user_message + " " + ai_response)
     if keywords:
-        nexus_add(" ".join(keywords), f"对话 {conversation_id} - 关键词", f"type:keywords,source:{conversation_id}")
+        nexus_write(" ".join(keywords), f"对话 {conversation_id} - 关键词", priority="P2", kind="fact", source=str(conversation_id), tags="type:keywords")
 
     decisions = _extract_decisions(user_message + "\\n" + ai_response)
     for idx, block in enumerate(decisions, 1):
-        nexus_add(block, f"决策块 {conversation_id} - ({idx})", f"type:decision_block,source:{conversation_id}")
+        nexus_write(block, f"决策块 {conversation_id} - ({idx})", priority="P0", kind="decision", source=str(conversation_id), tags="type:decision_block")
 
     topics = _extract_topics(user_message + "\\n" + ai_response)
     for idx, topic in enumerate(topics, 1):
-        nexus_add(topic, f"主题块 {conversation_id} - ({idx})", f"type:topic_block,source:{conversation_id}")
+        nexus_write(topic, f"主题块 {conversation_id} - ({idx})", priority="P1", kind="strategy", source=str(conversation_id), tags="type:topic_block")
 
     return {"stored": True, "conversation_id": conversation_id}
 

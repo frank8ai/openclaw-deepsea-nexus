@@ -65,14 +65,17 @@ def save_to_nexus(content: str, tags: str = "auto-summary") -> str:
     """
     try:
         sys.path.insert(0, NEXUS_PATH)
-        from nexus_core import nexus_init, nexus_add
+        from deepsea_nexus import nexus_init, nexus_write
         
         nexus_init(blocking=False)
         
-        result = nexus_add(
-            content=content,
-            title=f"自动摘要 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            tags=f"type:summary,{tags}"
+        result = nexus_write(
+            content,
+            f"自动摘要 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            priority="P1",
+            kind="summary",
+            source="nexus_auto_save",
+            tags=f"type:summary,{tags}",
         )
         
         return result

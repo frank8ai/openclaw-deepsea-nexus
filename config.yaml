@@ -3,9 +3,9 @@
 # Vector Database Settings
 vector_store:
   # Local ChromaDB path
-  persist_directory: "/Users/yizhi/.openclaw/workspace/memory/.vector_db_final"
+  persist_directory: "/Users/yizhi/.openclaw/workspace/memory/.vector_db_restored"
   # Collection name for notes
-  collection_name: "deepsea_nexus_full"
+  collection_name: "deepsea_nexus_restored"
   # Distance function: l2, ip, or cosine
   distance_metric: "cosine"
 

@@ -236,6 +236,54 @@ def nexus_add(content: str, title: str, tags: str = "") -> Optional[str]:
 nexus_add_document = nexus_add
 
 
+def nexus_write(
+    content: str,
+    title: str = "",
+    *,
+    priority: str = "P1",
+    kind: str = "fact",
+    source: str = "",
+    tags: str = "",
+    strict: bool = False,
+) -> Optional[str]:
+    """Tiered write contract (recommended).
+
+    Encodes structured fields into tags so all agents share the same schema while
+    keeping the underlying storage API backward compatible.
+
+    strict:
+        - True: invalid priority/kind => reject (return None)
+        - False: invalid values are normalized to safe defaults
+    """
+
+    pr = str(priority or "P1").strip().upper()
+    if pr == "#GOLD":
+        pr = "GOLD"
+    if pr not in {"P0", "P1", "P2", "GOLD"}:
+        if strict:
+            return None
+        pr = "P1"
+
+    kd = str(kind or "fact").strip().lower()
+    if kd not in {"fact", "decision", "strategy", "pitfall", "code_pattern", "summary", "task"}:
+        if strict:
+            return None
+        kd = "fact"
+
+    src = str(source or "").strip()
+
+    tag_parts = []
+    if tags:
+        tag_parts.append(str(tags))
+    tag_parts.append(f"priority:{pr}")
+    tag_parts.append(f"kind:{kd}")
+    if src:
+        tag_parts.append(f"source:{src}")
+
+    merged_tags = ",".join([p for p in tag_parts if p])
+    return nexus_add(content=content, title=title or (kd + ":"), tags=merged_tags)
+
+
 def nexus_add_documents(documents: List[Dict[str, str]], batch_size: int = 10) -> List[str]:
     """
     Add multiple documents (v2.x compatible)

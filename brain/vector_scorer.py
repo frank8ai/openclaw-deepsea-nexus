@@ -31,7 +31,8 @@ class VectorScorer(Scorer):
             raise ValueError("dim must be positive")
         self.dim = dim
         self.model_name = model_name
-        self.use_sentence_transformers = bool(use_sentence_transformers)
+        env_disable = str(__import__('os').environ.get('NEXUS_DISABLE_SENTENCE_TRANSFORMERS', '')).strip().lower() in {'1','true','yes'}
+        self.use_sentence_transformers = bool(use_sentence_transformers) and (not env_disable)
         self._cache: Dict[str, list[float]] = {}
 
         self._st_model = None

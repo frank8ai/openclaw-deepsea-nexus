@@ -215,6 +215,10 @@ def create_vector_store(config: Optional[Dict[str, Any]] = None,
         persist_path = nexus_cfg.get("vector_db_path") or persist_path
         collection = nexus_cfg.get("collection_name") or collection
 
+    # Allow env overrides for all agents (main + subagents) to share the same store.
+    persist_path = os.environ.get("NEXUS_VECTOR_DB", "").strip() or persist_path
+    collection = os.environ.get("NEXUS_COLLECTION", "").strip() or collection
+
     return VectorStore(collection_name=collection, persist_path=persist_path)
 
 

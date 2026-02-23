@@ -47,9 +47,13 @@ class VectorStoreInit:
         """Initialize ChromaDB client and collection."""
         vs_config = self.config['vector_store']
         
-        # Resolve persist directory
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        persist_dir = os.path.abspath(os.path.join(base_dir, vs_config['persist_directory']))
+        # Resolve persist directory (allow env override for shared multi-agent store)
+        env_db = os.environ.get("NEXUS_VECTOR_DB", "").strip()
+        if env_db:
+            persist_dir = os.path.abspath(os.path.expanduser(env_db))
+        else:
+            base_dir = os.path.dirname(os.path.dirname(__file__))
+            persist_dir = os.path.abspath(os.path.join(base_dir, vs_config['persist_directory']))
         
         print(f"Initializing ChromaDB at: {persist_dir}")
         
@@ -64,8 +68,8 @@ class VectorStoreInit:
             database="default_database",
         )
         
-        # Get or create collection
-        collection_name = vs_config['collection_name']
+        # Get or create collection (allow env override for shared multi-agent store)
+        collection_name = os.environ.get("NEXUS_COLLECTION", "").strip() or vs_config['collection_name']
         distance_metric = vs_config.get('distance_metric', 'cosine')
         
         self.collection = self.client.get_or_create_collection(

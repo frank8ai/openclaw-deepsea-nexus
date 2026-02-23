@@ -58,6 +58,7 @@ class ConfigManager:
         "nexus": {
             "base_path": "~/.openclaw/workspace/memory",
             "vector_db_path": "~/.openclaw/workspace/memory/.vector_db",
+            "collection_name": "deepsea_nexus_restored",
             "embedder_name": "all-MiniLM-L6-v2",
             "embedder_dim": 384,
         },
@@ -118,6 +119,7 @@ class ConfigManager:
     ENV_MAPPINGS = {
         "NEXUS_BASE_PATH": ("nexus.base_path", str),
         "NEXUS_VECTOR_DB": ("nexus.vector_db_path", str),
+        "NEXUS_COLLECTION": ("nexus.collection_name", str),
         "NEXUS_EMBEDDER": ("nexus.embedder_name", str),
         "NEXUS_SESSION_ARCHIVE_DAYS": ("session.auto_archive_days", int),
         "NEXUS_FLUSH_ENABLED": ("flush.enabled", lambda x: x.lower() in ("true", "1", "yes")),

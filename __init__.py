@@ -144,6 +144,7 @@ from .compat import (
     nexus_add,
     nexus_add_document,
     nexus_add_documents,
+    nexus_write,
     nexus_stats,
     nexus_health,
     
@@ -251,6 +252,7 @@ __all__ = [
     "nexus_add",
     "nexus_add_document",
     "nexus_add_documents",
+    "nexus_write",
     "nexus_stats",
     "nexus_health",
     "get_session_manager",
