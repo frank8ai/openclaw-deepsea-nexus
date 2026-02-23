@@ -60,7 +60,7 @@ class VectorStore:
         
         # 设置持久化路径
         if persist_path is None:
-            persist_path = os.path.expanduser("~/.openclaw/workspace/memory/.vector_db_final")
+            persist_path = os.path.expanduser("~/.openclaw/workspace/memory/.vector_db_restored")
         else:
             persist_path = os.path.expanduser(str(persist_path))
 
@@ -79,8 +79,8 @@ class VectorStore:
         
         # 获取或创建集合
         self.collection = self.client.get_or_create_collection(
-            name=collection_name,
-            metadata={"description": "Deep-Sea Nexus Memory"}
+            name=collection_name if collection_name != "deepsea_nexus" else "deepsea_nexus_restored",
+            metadata={"description": "Deep-Sea Nexus Memory (Single Source of Truth)"}
         )
     
     def add(self, 
