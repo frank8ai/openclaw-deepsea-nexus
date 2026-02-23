@@ -31,6 +31,30 @@ NEXUS_COLLECTION=deepsea_nexus_restored \
 bash scripts/deploy_local_v4.sh --full
 ```
 
+## 一键巡检 + 自动修复（推荐日常）
+在仓库根目录执行：
+
+```bash
+# 只巡检（只读）
+bash scripts/nexus_doctor_local.sh --check
+
+# 巡检并自动修复（默认）
+bash scripts/nexus_doctor_local.sh --repair
+```
+
+说明：
+- 会校验并修复 Gateway 环境变量：
+  - `NEXUS_PYTHON_PATH`
+  - `NEXUS_VECTOR_DB`
+  - `NEXUS_COLLECTION`
+- 会校验并拉起关键 Hook：
+  - `context-optimizer`
+  - `nexus-auto-recall`
+  - `nexus-auto-save`
+- 会检查主向量库计数与 `nexus_init/nexus_health` 状态
+- `--repair` 模式下默认包含一次 `deploy_local_v4.sh --quick` 快速门禁
+- 可加 `--skip-deploy` 跳过快速门禁
+
 ## 推荐运行参数（智能上下文）
 当前建议生产参数（已在 `config.json` 默认值中）：
 
