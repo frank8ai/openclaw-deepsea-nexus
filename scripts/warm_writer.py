@@ -5,8 +5,8 @@ Warm writer: convert structured summaries into PARA Warm cards (L0/L1/L2).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
-import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -59,6 +59,8 @@ Key Links:
 Acceptance:
 {acceptance}
 """
+
+SIGNAL_FILENAME = ".memory_signal.json"
 
 
 def load_config(repo_root: Path) -> dict:
@@ -148,6 +150,74 @@ def _normalize_summary(data: dict) -> dict:
     }
 
 
+def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+    return max(low, min(high, value))
+
+
+def _confidence_to_score(raw: Any) -> float:
+    text = str(raw or "").strip().lower()
+    mapping = {
+        "high": 1.0,
+        "h": 1.0,
+        "高": 1.0,
+        "medium": 0.7,
+        "med": 0.7,
+        "m": 0.7,
+        "中": 0.7,
+        "low": 0.45,
+        "l": 0.45,
+        "低": 0.45,
+    }
+    if text in mapping:
+        return mapping[text]
+    try:
+        numeric = float(text)
+    except ValueError:
+        return 0.7
+    if numeric > 1.0:
+        numeric = numeric / 100.0
+    return _clamp(numeric)
+
+
+def _compute_signal(summary: dict, decisions: list[str], next_actions: list[str], pitfalls: list[str]) -> dict:
+    objective = str(summary.get("core_output", "")).strip()
+    confidence = str(summary.get("confidence", "medium")).strip()
+    confidence_score = _confidence_to_score(confidence)
+    decision_score = _clamp(len(decisions) / 6.0)
+    next_score = _clamp(len(next_actions) / 3.0)
+    pitfall_score = 1.0 if pitfalls else 0.0
+    importance = _clamp(
+        confidence_score * 0.5 + decision_score * 0.25 + next_score * 0.15 + pitfall_score * 0.1
+    )
+
+    if importance >= 0.85:
+        priority = "P0"
+    elif importance >= 0.65:
+        priority = "P1"
+    else:
+        priority = "P2"
+
+    decay_half_life_days = {"P0": 45, "P1": 21, "P2": 7}[priority]
+    payload = {
+        "objective": objective,
+        "decision_context": summary.get("decision_context", ""),
+        "pitfall_record": summary.get("pitfall_record", ""),
+        "keywords": summary.get("search_keywords", []),
+    }
+    entry_id = hashlib.sha1(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:12]
+
+    return {
+        "entry_id": entry_id,
+        "importance_score": round(importance, 4),
+        "priority": priority,
+        "confidence": confidence or "medium",
+        "confidence_score": round(confidence_score, 4),
+        "decay_half_life_days": decay_half_life_days,
+    }
+
+
 def _summary_from_response(response: str) -> dict | None:
     try:
         from auto_summary import SummaryParser  # type: ignore
@@ -181,7 +251,14 @@ def load_summary(source: Path) -> dict | None:
     return None
 
 
-def write_l0_l1(project_dir: Path, objective: str, decisions: list[str], next_actions: list[str], keywords: list[str]) -> None:
+def write_l0_l1(
+    project_dir: Path,
+    objective: str,
+    decisions: list[str],
+    next_actions: list[str],
+    keywords: list[str],
+    signal: dict,
+) -> None:
     abstract_path = project_dir / ".abstract.md"
     overview_path = project_dir / ".overview.md"
     abstract = f"{objective}".strip() or "Project update"
@@ -192,6 +269,8 @@ def write_l0_l1(project_dir: Path, objective: str, decisions: list[str], next_ac
     overview_lines = [
         "# Overview",
         f"- Objective: {objective or '未填写'}",
+        f"- Importance: {signal.get('importance_score', 0.0):.2f} ({signal.get('priority', 'P1')})",
+        f"- Decay Half-Life: {signal.get('decay_half_life_days', 21)} days",
     ]
     if decisions:
         overview_lines.append(f"- Decisions: {'; '.join(decisions[:3])}")
@@ -218,12 +297,103 @@ def format_block(lines: list[str]) -> str:
     return "\n".join(f"- {line}" for line in lines)
 
 
-def write_warm(project_dir: Path, summary: dict, memory_link: str, acceptance: str) -> None:
+def write_signal(project_dir: Path, signal: dict) -> Path:
+    signal_path = project_dir / SIGNAL_FILENAME
+    now_iso = datetime.now().isoformat(timespec="seconds")
+    existing = {}
+    if signal_path.exists():
+        try:
+            existing = json.loads(signal_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            existing = {}
+    payload = {
+        "schema_version": "2026-02-23",
+        "created_at": existing.get("created_at", now_iso),
+        "updated_at": now_iso,
+        **signal,
+    }
+    signal_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return signal_path
+
+
+def append_area_promotion(
+    areas_dir: Path,
+    project: str,
+    summary: dict,
+    signal: dict,
+    decisions: list[str],
+    next_actions: list[str],
+    pitfalls: list[str],
+) -> tuple[Path, bool]:
+    areas_note = areas_dir / f"{_sanitize_project(project)}.md"
+    entry_id = str(signal.get("entry_id", "")).strip()
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    objective = str(summary.get("core_output", "")).strip() or "Untitled Objective"
+    keywords = summary.get("search_keywords", [])
+
+    if areas_note.exists():
+        content = areas_note.read_text(encoding="utf-8")
+        if entry_id and f"nexus-entry-id:{entry_id}" in content:
+            return areas_note, False
+    else:
+        header = [
+            f"# {project} - Area Memory",
+            "",
+            "自动晋升条目（来自 Warm Writer）。",
+            "",
+        ]
+        areas_note.write_text("\n".join(header), encoding="utf-8")
+        content = areas_note.read_text(encoding="utf-8")
+
+    lines = [
+        f"## {date_str} | {objective}",
+        f"<!-- nexus-entry-id:{entry_id} -->",
+        f"- Importance: {signal.get('importance_score', 0.0):.2f} ({signal.get('priority', 'P1')})",
+        f"- Confidence: {signal.get('confidence', 'medium')}",
+        f"- Decay Half-Life: {signal.get('decay_half_life_days', 21)} days",
+        "- Decisions:",
+    ]
+    for item in decisions[:5]:
+        lines.append(f"  - {item}")
+    if not decisions:
+        lines.append("  - (none)")
+
+    lines.append("- Next Actions:")
+    for item in next_actions[:3]:
+        lines.append(f"  - {item}")
+    if not next_actions:
+        lines.append("  - (none)")
+
+    lines.append("- Pitfalls:")
+    for item in pitfalls[:3]:
+        lines.append(f"  - {item}")
+    if not pitfalls:
+        lines.append("  - (none)")
+
+    lines.append(f"- Keywords: {', '.join(keywords[:8]) if keywords else '(none)'}")
+    lines.append(f"- Source: [[10_Projects/{_sanitize_project(project)}/Warm]]")
+    lines.append("")
+
+    with areas_note.open("a", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+    return areas_note, True
+
+
+def write_warm(
+    project_dir: Path,
+    areas_dir: Path,
+    project: str,
+    summary: dict,
+    memory_link: str,
+    acceptance: str,
+) -> dict:
     objective = summary.get("core_output") or "TBD"
     decisions = _split_lines(summary.get("decision_context", "")) + summary.get("tech_points", [])
     decisions = [d for d in decisions if d][:7]
     next_actions = summary.get("next_actions") or []
     pitfalls = _split_lines(summary.get("pitfall_record", ""))
+    signal = _compute_signal(summary, decisions, next_actions, pitfalls)
     links = [memory_link]
     if summary.get("code_pattern"):
         links.append("Code pattern: " + summary["code_pattern"])
@@ -239,7 +409,30 @@ def write_warm(project_dir: Path, summary: dict, memory_link: str, acceptance: s
     )
     (project_dir / "Warm.md").write_text(warm_content, encoding="utf-8")
 
-    write_l0_l1(project_dir, objective, decisions, next_actions, summary.get("search_keywords", []))
+    write_l0_l1(
+        project_dir,
+        objective,
+        decisions,
+        next_actions,
+        summary.get("search_keywords", []),
+        signal,
+    )
+    signal_path = write_signal(project_dir, signal)
+    areas_note, promoted = append_area_promotion(
+        areas_dir,
+        project,
+        summary,
+        signal,
+        decisions,
+        next_actions,
+        pitfalls,
+    )
+    return {
+        "signal_path": str(signal_path),
+        "areas_note_path": str(areas_note),
+        "areas_promoted": promoted,
+        "signal": signal,
+    }
 
 
 def main() -> None:
@@ -273,9 +466,17 @@ def main() -> None:
         return
 
     project_dir = ensure_project(dirs["projects"], project, summary.get("core_output", ""), memory_link, args.force_blueprint)
-    write_warm(project_dir, summary, memory_link, acceptance)
+    result = write_warm(project_dir, dirs["areas"], project, summary, memory_link, acceptance)
 
     print(f"✅ Warm updated: {project_dir / 'Warm.md'}")
+    print(
+        f"✅ Signal updated: {result['signal_path']} "
+        f"(importance={result['signal']['importance_score']:.2f}, priority={result['signal']['priority']})"
+    )
+    if result["areas_promoted"]:
+        print(f"✅ Promoted to Area note: {result['areas_note_path']}")
+    else:
+        print(f"ℹ️ Area note already up-to-date: {result['areas_note_path']}")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,37 @@
 # Changelog - Deep-Sea Nexus v4.x
 
+## Version 4.4.1 (2026-02-23)
+### 🧪 v4.4.1 - Memory Contract Ops + PARA Scoring Iteration
+- ✅ `nexus_audit_contract.py` 增强为可运营审计：
+  - 兼容 `tags` 的 `list/str/tag` 解析
+  - metadata fallback (`priority/kind/source/source_file`)
+  - 新增 `group_coverage`（`new_contract` / `legacy_source_file` / `legacy_unknown`）
+  - 新增 `--show-missing` 缺失样本输出
+- ✅ `para_recall.py` 升级为三维评分：
+  - `relevance + importance + recency` 可调权重
+  - 读取 `.memory_signal.json`（importance/half-life）
+  - 输出 `score_breakdown` 便于解释排序
+- ✅ `warm_writer.py` 增强：
+  - 自动写入 `.memory_signal.json`
+  - 自动晋升到 `20_Knowledge/Areas/<Project>.md`（`entry_id` 去重）
+- ✅ 文档补全：
+  - `docs/SOP_MEMORY_GAP_ITERATION_2026-02-23.md`
+  - `docs/reports/2026-02-23-contract-audit.md`
+
+#### 实测（sample=200）
+- 审计命令：
+  - `NEXUS_VECTOR_DB=/Users/yizhi/.openclaw/workspace/memory/.vector_db_restored`
+  - `NEXUS_COLLECTION=deepsea_nexus_restored`
+  - `python scripts/nexus_audit_contract.py --limit 200 --show-missing 12`
+- 覆盖率：
+  - `priority`: `0.0`
+  - `kind`: `0.0`
+  - `source`: `0.965`
+- 分组：
+  - `legacy_source_file`: 191
+  - `legacy_unknown`: 9
+- 结论：历史库仍以 legacy 样本为主，新契约写入链路已具备可验证审计能力。
+
 ## Version 4.4.0 (2026-02-18)
 ### 🧠 v4.4.0 - Smart Context Completion Release
 - ✅ 将 Smart Context 全链路从 4.3.1 正式提升到 4.4.0（代码/配置/文档/脚本统一）

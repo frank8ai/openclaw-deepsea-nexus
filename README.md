@@ -1,10 +1,10 @@
-# 🧠 Deep-Sea Nexus v4.4.0
+# 🧠 Deep-Sea Nexus v4.4.1
 
 ## AI Agent 长期记忆系统 - 热插拔架构
 
-**版本**: 4.4.0  
+**版本**: 4.4.1  
 **状态**: ✅ 生产就绪  
-**更新**: 2026-02-18
+**更新**: 2026-02-23
 
 ---
 
@@ -26,7 +26,9 @@
 | 🧭 **v4.2 PARA 二脑** | L0/L1/L2 目录递归检索 + Warm 自动写入 | 🆕 v4.2 |
 | 🛡️ **v4.3 稳态升级** | 缺依赖降级可用 + 混合召回 + 门禁稳定绿灯 | 🆕 v4.3 |
 | 🧠 **v4.4.0 智能上下文升级** | Pack/Card 模板 + 字段检查 + 安全 digest cron + 指标 schema 统一 | 🆕 v4.4.0 |
+| 🧪 **v4.4.1 记忆契约运营化** | 契约审计分组覆盖率 + PARA 三维评分 + Warm 信号晋升 | 🆕 v4.4.1 |
 
+> v4.4.1 迭代详见：`docs/SOP_MEMORY_GAP_ITERATION_2026-02-23.md`、`docs/reports/2026-02-23-contract-audit.md`。
 > v4.4.0 使用与验收详见：`docs/SMART_CONTEXT_V4_4_0.md`、`docs/SECOND_BRAIN_PARA.md`、`docs/USAGE_GUIDE.md` 与 `docs/LOCAL_DEPLOY.md`。
 
 ---

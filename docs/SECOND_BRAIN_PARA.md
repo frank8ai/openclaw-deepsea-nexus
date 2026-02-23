@@ -63,3 +63,10 @@ python scripts/para_validate.py --project "YourProject" --max-age-minutes 120
 ## 常见坑
 - `warm_writer.py` 识别项目名优先使用 `project`/`project_name` 等字段；仅写 `project_association` 可能被归到 `Untitled`。
 - `para_validate.py` 只检查目标项目目录（`10_Projects/<ProjectName>`），项目名需与 Warm 目标一致。
+
+## 2026-02-23 增强（可运营 + 可演进）
+- `warm_writer.py` 新增 `.memory_signal.json`（importance/priority/half-life），并自动晋升到 `20_Knowledge/Areas/<Project>.md`。
+- `para_recall.py` 改为三维排序：`relevance + importance + recency`，支持可调权重与 score breakdown trace。
+- `nexus_audit_contract.py` 增强：兼容 list/str/metadata 解析，输出 `new_contract vs legacy` 分组覆盖率。
+
+详见 SOP：`docs/SOP_MEMORY_GAP_ITERATION_2026-02-23.md`
