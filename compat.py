@@ -26,12 +26,105 @@ try:
     from .core.plugin_system import get_plugin_registry, PluginState
     from .core.config_manager import get_config_manager
     from .plugins.nexus_core_plugin import RecallResult
+    from .write_guard import validate_write_target, emit_write_guard_alert
 except ImportError:
     from core.plugin_system import get_plugin_registry, PluginState
     from core.config_manager import get_config_manager
     from plugins.nexus_core_plugin import RecallResult
+    from write_guard import validate_write_target, emit_write_guard_alert
 
 logger = logging.getLogger(__name__)
+
+
+def _enforce_write_guard(context: str) -> bool:
+    ok, detail = validate_write_target(context=context)
+    if ok:
+        return True
+
+    alert = {
+        "event": "write_guard_blocked",
+        "context": context,
+        "reason": detail.get("reason", "unknown"),
+        "vector_db": detail.get("vector_db", ""),
+        "collection": detail.get("collection", ""),
+        "expected_vector_db": detail.get("expected_vector_db", ""),
+        "expected_collection": detail.get("expected_collection", ""),
+    }
+    emit_write_guard_alert(alert)
+    logger.error(
+        "[NEXUS_WRITE_GUARD_BLOCK] context=%s reason=%s vector_db=%s collection=%s",
+        context,
+        detail.get("reason", "unknown"),
+        detail.get("vector_db", ""),
+        detail.get("collection", ""),
+    )
+    return False
+
+
+def _verify_write_hit(plugin: Any, doc_id: str, context: str) -> bool:
+    if not doc_id:
+        return False
+    backend = getattr(plugin, "_vector_backend", None)
+    if backend is None:
+        emit_write_guard_alert(
+            {
+                "event": "write_verify_backend_missing",
+                "context": context,
+                "doc_id": str(doc_id),
+            }
+        )
+        logger.error("[NEXUS_WRITE_VERIFY_BACKEND_MISSING] context=%s doc_id=%s", context, doc_id)
+        return False
+
+    # Fallback backend is memory-only and should not be treated as durable write success.
+    if bool(getattr(backend, "is_fallback", False)):
+        emit_write_guard_alert(
+            {
+                "event": "write_verify_fallback_backend",
+                "context": context,
+                "doc_id": str(doc_id),
+            }
+        )
+        logger.error("[NEXUS_WRITE_VERIFY_FALLBACK_BACKEND] context=%s doc_id=%s", context, doc_id)
+        return False
+
+    try:
+        verify_ids: List[str] = []
+        # legacy dict backend: {manager, recall, ...}
+        if isinstance(backend, dict) and "manager" in backend:
+            manager = backend.get("manager")
+            collection = getattr(manager, "collection", None)
+            if collection is not None and hasattr(collection, "get"):
+                data = collection.get(ids=[doc_id], include=[])
+                verify_ids = data.get("ids") or []
+        # vector store wrapper (vector_store.py / vector_store_legacy.py)
+        elif hasattr(backend, "get"):
+            data = backend.get(ids=[doc_id], limit=1)
+            verify_ids = data.get("ids") or []
+
+        if doc_id in verify_ids:
+            return True
+
+        emit_write_guard_alert(
+            {
+                "event": "write_verify_vector_miss",
+                "context": context,
+                "doc_id": str(doc_id),
+            }
+        )
+        logger.error("[NEXUS_WRITE_VERIFY_VECTOR_MISS] context=%s doc_id=%s", context, doc_id)
+        return False
+    except Exception as exc:
+        emit_write_guard_alert(
+            {
+                "event": "write_verify_error",
+                "context": context,
+                "doc_id": str(doc_id),
+                "reason": str(exc),
+            }
+        )
+        logger.error("[NEXUS_WRITE_VERIFY_ERROR] context=%s doc_id=%s error=%s", context, doc_id, exc)
+        return False
 
 
 def _resolve_default_config_path() -> Optional[str]:
@@ -215,6 +308,9 @@ def nexus_add(content: str, title: str, tags: str = "") -> Optional[str]:
     """
     registry = get_plugin_registry()
     plugin = registry.get("nexus_core")
+
+    if not _enforce_write_guard("compat.nexus_add"):
+        return None
     
     # Auto-initialize if needed
     if plugin is None or plugin.state != PluginState.ACTIVE:
@@ -226,7 +322,12 @@ def nexus_add(content: str, title: str, tags: str = "") -> Optional[str]:
         return None
     
     try:
-        return run_coro_sync(plugin.add_document(content, title, tags))
+        doc_id = run_coro_sync(plugin.add_document(content, title, tags))
+        if not doc_id:
+            return None
+        if not _verify_write_hit(plugin, str(doc_id), "compat.nexus_add"):
+            return None
+        return str(doc_id)
     except Exception as e:
         logger.error(f"Add error: {e}")
         return None
@@ -255,6 +356,9 @@ def nexus_write(
         - True: invalid priority/kind => reject (return None)
         - False: invalid values are normalized to safe defaults
     """
+
+    if not _enforce_write_guard("compat.nexus_write"):
+        return None
 
     pr = str(priority or "P1").strip().upper()
     if pr == "#GOLD":

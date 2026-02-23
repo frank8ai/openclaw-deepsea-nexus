@@ -1,5 +1,28 @@
 # Changelog - Deep-Sea Nexus v4.x
 
+## Version 4.4.2 (2026-02-23)
+### 🛡️ v4.4.2 - Write Guard Hardening + Recent Summary Audit
+- ✅ 新增统一写入护栏模块：`write_guard.py`
+  - 强制检查 `NEXUS_VECTOR_DB` / `NEXUS_COLLECTION`
+  - 默认目标锁定主库：
+    - `~/.openclaw/workspace/memory/.vector_db_restored`
+    - `deepsea_nexus_restored`
+  - 违规写入会落审计日志：`~/.openclaw/workspace/logs/nexus_write_guard_alerts.jsonl`
+- ✅ 写入入口 hard-guard + 写后校验：
+  - `compat.nexus_add` / `compat.nexus_write`
+  - `plugins.nexus_core_plugin.add_document`（防止绕过 compat）
+  - `hooks/agent_end/save_context.py`
+  - `scripts/nexus_auto_save.py`
+- ✅ 新增跨库摘要审计与迁移脚本：`scripts/audit_recent_summaries.py`
+  - 可扫描所有向量库最近摘要分布
+  - 可将“主库缺失摘要”迁移回主库
+  - 自动生成 JSON/Markdown 报告与可回滚脚本
+- ✅ 本轮验收结果（7天窗口）：
+  - `recent_non_main_missing_candidates = 0`
+  - `migrated = 0`
+  - `main_count_after = 2822`
+  - 报告：`docs/reports/summary_audit_20260223T083842Z.{json,md}`
+
 ## Version 4.4.1 (2026-02-23)
 ### 🧪 v4.4.1 - Memory Contract Ops + PARA Scoring Iteration
 - ✅ `nexus_audit_contract.py` 增强为可运营审计：

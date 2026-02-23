@@ -1,0 +1,216 @@
+{
+  "run_at": "2026-02-23T08:38:42.747562+00:00",
+  "cutoff_days": 7,
+  "cutoff_iso": "2026-02-16T08:38:42.747562+00:00",
+  "main_db": "/Users/yizhi/.openclaw/workspace/memory/.vector_db_restored",
+  "main_collection": "deepsea_nexus_restored",
+  "scanned_stores": [
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db_restored",
+      "collections": [
+        {
+          "name": "deepsea_nexus_restored",
+          "count": 2822,
+          "summary_count": 15,
+          "recent_summary_count": 1
+        },
+        {
+          "name": "deepsea_nexus_full",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        }
+      ]
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db",
+      "collections": []
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db.corrupt.archived_20260223",
+      "collections": [
+        {
+          "name": "deepsea_nexus",
+          "count": 5,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus_backup",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus_notes",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deep_sea_nexus_notes",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus_full",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        }
+      ]
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db_final",
+      "collections": []
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db_final.archived_20260223",
+      "collections": [
+        {
+          "name": "deepsea_nexus_full",
+          "count": 45,
+          "summary_count": 44,
+          "recent_summary_count": 44
+        },
+        {
+          "name": "deepsea_nexus_restored",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        }
+      ]
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db_master.archived_20260223",
+      "collections": [
+        {
+          "name": "deepsea_nexus_restored",
+          "count": 512,
+          "summary_count": 2,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus_master",
+          "count": 1280,
+          "summary_count": 3,
+          "recent_summary_count": 0
+        }
+      ]
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db_restored.pre_rebuild_20260223_141146",
+      "collections": [
+        {
+          "name": "deepsea_nexus",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus_restored",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus_full",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        }
+      ]
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/archives/.vector_db_restored.backup_20260223_125208",
+      "collections": [
+        {
+          "name": "deepsea_nexus",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus_restored",
+          "count": 2212,
+          "summary_count": 6,
+          "recent_summary_count": 0
+        },
+        {
+          "name": "deepsea_nexus_full",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        }
+      ]
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/skills/memory/.vector_db",
+      "collections": [
+        {
+          "name": "deepsea_nexus",
+          "count": 0,
+          "summary_count": 0,
+          "recent_summary_count": 0
+        }
+      ]
+    }
+  ],
+  "scan_errors": [
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db.corrupt.archived_20260223",
+      "collection": "deepsea_nexus_backup",
+      "error": "Error executing plan: Error sending backfill request to compactor: Failed to apply logs to the metadata segment"
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db.corrupt.archived_20260223",
+      "collection": "deepsea_nexus_notes",
+      "error": "Error executing plan: Error sending backfill request to compactor: Failed to apply logs to the metadata segment"
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db.corrupt.archived_20260223",
+      "collection": "deep_sea_nexus_notes",
+      "error": "Error executing plan: Error sending backfill request to compactor: Failed to apply logs to the metadata segment"
+    },
+    {
+      "db_path": "/Users/yizhi/.openclaw/workspace/memory/.vector_db_restored.pre_rebuild_20260223_141146",
+      "collection": "deepsea_nexus_restored",
+      "error": "Error executing plan: Error sending backfill request to compactor: Failed to apply logs to the hnsw segment writer"
+    }
+  ],
+  "summary_records_total": 70,
+  "summary_records_main": 15,
+  "recent_summary_distribution": {
+    ".vector_db_final.archived_20260223:deepsea_nexus_full": 44,
+    ".vector_db_restored:deepsea_nexus_restored": 1
+  },
+  "recent_non_main_missing_candidates": 0,
+  "missing_candidates_preview": [],
+  "migration": {
+    "enabled": true,
+    "attempted": 0,
+    "inserted": 0,
+    "failed": 0,
+    "inserted_ids": [],
+    "errors": [],
+    "main_count_before": 2822,
+    "main_count_after": 2822
+  },
+  "rollback": {
+    "available": false,
+    "rollback_script": ""
+  }
+}

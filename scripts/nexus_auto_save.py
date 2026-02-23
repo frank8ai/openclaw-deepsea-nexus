@@ -9,10 +9,13 @@ import sys
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 # DeepSea Nexus 路径
 NEXUS_PATH = os.path.expanduser("~/.openclaw/workspace/skills/deepsea-nexus")
-VECTOR_DB_PATH = os.path.expanduser("~/.openclaw/workspace/memory/.vector_db_final")
+VECTOR_DB_PATH = os.path.expanduser(
+    os.environ.get("NEXUS_VECTOR_DB", "~/.openclaw/workspace/memory/.vector_db_restored")
+)
 LOG_DIR = os.path.expanduser("~/.openclaw/logs")
 
 
@@ -59,13 +62,28 @@ def extract_summaries_from_logs(hours: int = 1) -> list:
     return summaries
 
 
-def save_to_nexus(content: str, tags: str = "auto-summary") -> str:
+def save_to_nexus(content: str, tags: str = "auto-summary") -> Optional[str]:
     """
     保存摘要到向量库
     """
     try:
         sys.path.insert(0, NEXUS_PATH)
         from deepsea_nexus import nexus_init, nexus_write
+        from deepsea_nexus.write_guard import validate_write_target, emit_write_guard_alert
+
+        ok, detail = validate_write_target(context="scripts.nexus_auto_save")
+        if not ok:
+            emit_write_guard_alert(
+                {
+                    "event": "write_guard_blocked",
+                    "context": "scripts.nexus_auto_save",
+                    "reason": detail.get("reason", "unknown"),
+                    "vector_db": detail.get("vector_db", ""),
+                    "collection": detail.get("collection", ""),
+                }
+            )
+            print(f"[AutoSave] 写入阻断: {detail.get('reason', 'unknown')}")
+            return None
         
         nexus_init(blocking=False)
         

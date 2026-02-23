@@ -55,6 +55,34 @@ bash scripts/nexus_doctor_local.sh --repair
 - `--repair` 模式下默认包含一次 `deploy_local_v4.sh --quick` 快速门禁
 - 可加 `--skip-deploy` 跳过快速门禁
 
+## 写入护栏（防止写错库）
+当前版本默认启用写入护栏，所有主要写入入口都会检查：
+
+- 必须存在：`NEXUS_VECTOR_DB`、`NEXUS_COLLECTION`
+- 默认主库目标：
+  - `NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored`
+  - `NEXUS_COLLECTION=deepsea_nexus_restored`
+
+违规会被阻断并记录到：
+- `~/.openclaw/workspace/logs/nexus_write_guard_alerts.jsonl`
+
+可选开关：
+- `NEXUS_ENFORCE_WRITE_GUARD=0`：关闭护栏（不建议生产）
+- `NEXUS_WRITE_GUARD_ALLOW_ANY=1`：允许非主库目标（仅迁移/实验）
+
+## 最近摘要跨库审计与迁移
+用于确认“最近摘要是否都在主库”，并可迁移缺失项回主库：
+
+```bash
+/Users/yizhi/.openclaw/workspace/.venv-nexus/bin/python \
+  scripts/audit_recent_summaries.py --days 7 --migrate-missing
+```
+
+输出：
+- JSON 报告：`docs/reports/summary_audit_<timestamp>.json`
+- Markdown 报告：`docs/reports/summary_audit_<timestamp>.md`
+- 若发生迁移，会生成回滚脚本：`docs/reports/summary_audit_<timestamp>_rollback.sh`
+
 ## 推荐运行参数（智能上下文）
 当前建议生产参数（已在 `config.json` 默认值中）：
 

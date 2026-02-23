@@ -21,6 +21,13 @@ from ..storage.base import RecallResult
 import logging
 logger = logging.getLogger(__name__)
 
+try:
+    from ..write_guard import validate_write_target, emit_write_guard_alert, get_guard_policy
+except Exception:
+    validate_write_target = None
+    emit_write_guard_alert = None
+    get_guard_policy = None
+
 
 class NexusCorePlugin(NexusPlugin):
     """
@@ -118,6 +125,92 @@ class NexusCorePlugin(NexusPlugin):
                 fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
         except Exception:
             return
+
+    def _guard_write_target(self, context: str) -> bool:
+        if validate_write_target is None:
+            return True
+
+        ok, detail = validate_write_target(context=context)
+        if ok:
+            return True
+
+        event = {
+            "event": "write_guard_blocked",
+            "context": context,
+            "reason": detail.get("reason", "unknown"),
+            "vector_db": detail.get("vector_db", ""),
+            "collection": detail.get("collection", ""),
+            "expected_vector_db": detail.get("expected_vector_db", ""),
+            "expected_collection": detail.get("expected_collection", ""),
+        }
+        if emit_write_guard_alert is not None:
+            emit_write_guard_alert(event)
+        self._append_metrics(event)
+        logger.error(
+            "[NEXUS_WRITE_GUARD_BLOCK] context=%s reason=%s vector_db=%s collection=%s",
+            context,
+            detail.get("reason", "unknown"),
+            detail.get("vector_db", ""),
+            detail.get("collection", ""),
+        )
+        return False
+
+    def _verify_backend_hit(self, doc_id: str, context: str) -> bool:
+        backend = self._vector_backend
+        if backend is None:
+            if emit_write_guard_alert is not None:
+                emit_write_guard_alert(
+                    {"event": "write_verify_backend_missing", "context": context, "doc_id": str(doc_id)}
+                )
+            return False
+
+        if bool(getattr(backend, "is_fallback", False)):
+            if emit_write_guard_alert is not None:
+                emit_write_guard_alert(
+                    {"event": "write_verify_fallback_backend", "context": context, "doc_id": str(doc_id)}
+                )
+            return False
+
+        try:
+            verify_ids: List[str] = []
+            if isinstance(backend, dict) and "manager" in backend:
+                manager = backend.get("manager")
+                collection = getattr(manager, "collection", None)
+                if collection is not None and hasattr(collection, "get"):
+                    data = collection.get(ids=[doc_id], include=[])
+                    verify_ids = data.get("ids") or []
+            elif hasattr(backend, "get"):
+                data = backend.get(ids=[doc_id], limit=1)
+                verify_ids = data.get("ids") or []
+
+            if doc_id in verify_ids:
+                return True
+        except Exception as exc:
+            if emit_write_guard_alert is not None:
+                emit_write_guard_alert(
+                    {
+                        "event": "write_verify_error",
+                        "context": context,
+                        "doc_id": str(doc_id),
+                        "reason": str(exc),
+                    }
+                )
+            logger.warning("[NEXUS_WRITE_VERIFY_ERROR] context=%s doc_id=%s error=%s", context, doc_id, exc)
+            return False
+
+        if emit_write_guard_alert is not None:
+            emit_write_guard_alert(
+                {"event": "write_verify_vector_miss", "context": context, "doc_id": str(doc_id)}
+            )
+        return False
+
+    def _strict_persist_mode(self) -> bool:
+        if get_guard_policy is None:
+            return False
+        try:
+            return get_guard_policy().get("enforce", "1") == "1"
+        except Exception:
+            return True
 
     def _tokenize(self, text: str) -> Set[str]:
         return {t for t in re.findall(r"[\w\u4e00-\u9fff]+", (text or "").lower()) if t}
@@ -474,6 +567,9 @@ class NexusCorePlugin(NexusPlugin):
         Returns:
             str: Document ID on success, None on failure
         """
+        if not self._guard_write_target("plugins.nexus_core_plugin.add_document"):
+            return None
+
         resolved_id = (doc_id or str(uuid.uuid4())[:8]).strip()
         metadata = {"title": title or "Untitled"}
         if tags:
@@ -542,6 +638,9 @@ class NexusCorePlugin(NexusPlugin):
                     )
                     vector_written = True
 
+            if vector_written and not self._verify_backend_hit(resolved_id, "plugins.nexus_core_plugin.add_document"):
+                raise RuntimeError(f"write verification miss for doc_id={resolved_id}")
+
             # Emit event
             await self.emit(EventTypes.DOCUMENT_ADDED, {
                 "doc_id": resolved_id,
@@ -571,6 +670,8 @@ class NexusCorePlugin(NexusPlugin):
                     "error": write_error,
                 }
             )
+            if self._strict_persist_mode():
+                return None
             return resolved_id
     
     async def add_documents(self, documents: List[Dict[str, str]], 
