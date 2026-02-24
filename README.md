@@ -33,6 +33,56 @@
 
 ---
 
+## ✅ 生产核验清单（2026-02）
+
+用于确认“主库对接正确且正在工作”，避免只看配置不看实测。
+
+### 1) 主库契约（Single Source of Truth）
+
+- `NEXUS_VECTOR_DB=/Users/yizhi/.openclaw/workspace/memory/.vector_db_restored`
+- `NEXUS_COLLECTION=deepsea_nexus_restored`
+
+### 2) 一条命令做体检
+
+```bash
+bash scripts/nexus_doctor_local.sh --check --skip-deploy
+```
+
+通过标准：
+- `pass>0` 且 `fail=0`
+- `hook ready: context-optimizer`
+- `hook ready: deepsea-rag-recall`
+- `vector DB count (deepsea_nexus_restored): <正整数>`
+
+### 3) 一条命令做写读 smoke
+
+```bash
+/Users/yizhi/.openclaw/workspace/.venv-nexus/bin/python3 \
+  /Users/yizhi/.openclaw/workspace/skills/evolution-loop/scripts/smoke_chroma.py
+```
+
+通过标准：
+- `ok: true`
+- `collection: deepsea_nexus_restored`
+- `write_read_probe: true`
+
+### 4) 计数口径说明（为什么会变）
+
+`collection_count` 会因以下行为小幅波动（通常 +1 / +2）：
+- smoke/probe 写入验证 marker
+- 新会话摘要或巡查脚本写入
+
+这是预期行为，不代表写错库。核验应以“路径+集合+可写可读”为主，而不是某个固定数字。
+
+### 5) 关键运行日志
+
+- `~/.openclaw/workspace/logs/nexus_core_metrics.log`
+- `~/.openclaw/workspace/logs/smart_context_metrics.log`
+
+建议观察是否持续出现 `recall` / `add_document` 事件，确认召回与写入链路都在运行。
+
+---
+
 ## 🎯 核心功能详解
 
 ### 1. 语义搜索与 RAG 召回
@@ -390,14 +440,13 @@ export NEXUS_PYTHON_PATH="$HOME/miniconda3/envs/openclaw-nexus/bin/python"
 
 # 检查 Hook 状态
 openclaw hooks list
-openclaw hooks info nexus-auto-recall
-openclaw hooks info nexus-auto-save
+openclaw hooks info context-optimizer
+openclaw hooks info deepsea-rag-recall
 ```
 
 建议的 OpenClaw 联动：
 - 开启 `context-optimizer`（输入前做分层压缩）
-- 保持 `nexus-auto-recall` + `nexus-auto-save` 为 ready
-- 保持 `deepsea-rag-recall` 关闭（避免重复注入）
+- 开启 `deepsea-rag-recall`（统一管理入口，避免 legacy workspace hook 漂移）
 
 ### 运行指标看板（低成本可观测）
 ```bash
@@ -413,7 +462,7 @@ python3 scripts/context_metrics_export.py --window 200 --write-html
 
 ### 自动刷新（每 5 分钟）
 ```bash
-*/5 * * * * $HOME/.openclaw/workspace/skills/deepsea-nexus/.venv-3.13/bin/python \
+*/5 * * * * $HOME/.openclaw/workspace/.venv-nexus/bin/python3 \
   $HOME/.openclaw/workspace/skills/deepsea-nexus/scripts/context_metrics_export.py --window 200 --write-html
 ```
 

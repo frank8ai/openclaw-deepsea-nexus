@@ -49,8 +49,7 @@ bash scripts/nexus_doctor_local.sh --repair
   - `NEXUS_COLLECTION`
 - 会校验并拉起关键 Hook：
   - `context-optimizer`
-  - `nexus-auto-recall`
-  - `nexus-auto-save`
+  - `deepsea-rag-recall`
 - 会检查主向量库计数与 `nexus_init/nexus_health` 状态
 - `--repair` 模式下默认包含一次 `deploy_local_v4.sh --quick` 快速门禁
 - 可加 `--skip-deploy` 跳过快速门禁
@@ -82,6 +81,31 @@ bash scripts/nexus_doctor_local.sh --repair
 - JSON 报告：`docs/reports/summary_audit_<timestamp>.json`
 - Markdown 报告：`docs/reports/summary_audit_<timestamp>.md`
 - 若发生迁移，会生成回滚脚本：`docs/reports/summary_audit_<timestamp>_rollback.sh`
+
+## 计数口径说明（避免误判）
+主库条数不是常量。以下动作会导致 `deepsea_nexus_restored` 的 count 小幅变化：
+
+- smoke/probe 写入验证 marker
+- 巡查脚本写入测试样本
+- 新会话摘要落库
+
+因此验收优先级应为：
+1. 路径正确（`NEXUS_VECTOR_DB`）
+2. 集合正确（`NEXUS_COLLECTION`）
+3. 可写可读（`write_read_probe: true`）
+4. count 为正且持续可查询
+
+不建议把某个固定 count（例如 1234/1236/2800）当成唯一正确性标准。
+
+## 旧链路清理策略（先归档，后删除）
+为防误删，旧 hook/旧目录按“3天观察窗口”处理：
+
+- 归档根目录：`~/.openclaw/workspace/.tmp/legacy-hooks-archive`
+- 清单文件：`archive_manifest.json`（包含 `delete_after`）
+- 自动清理脚本：`~/.openclaw/workspace/scripts/cleanup_legacy_archives.py`
+- 定时清理日志：`~/.openclaw/workspace/logs/archive_cleanup.log`
+
+这套策略确保：出现回归时可快速回滚，稳定后再自动清理。
 
 ## 推荐运行参数（智能上下文）
 当前建议生产参数（已在 `config.json` 默认值中）：
@@ -126,8 +150,7 @@ PY
 如果你希望输入侧先压缩上下文，再由 Deep-Sea 注入记忆，建议启用：
 
 - `hooks.internal.entries.context-optimizer.enabled = true`
-- `nexus-auto-recall`（workspace hook）保持启用
-- `deepsea-rag-recall`（managed hook）建议保持关闭，避免重复注入
+- `hooks.internal.entries.deepsea-rag-recall.enabled = true`
 
 并建议在 Gateway 进程环境固定以下变量（防止重启后写错库）：
 - `NEXUS_PYTHON_PATH=~/miniconda3/envs/openclaw-nexus/bin/python`
