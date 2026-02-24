@@ -287,14 +287,14 @@ def nexus_recall(query: str, n: int = 5) -> List[RecallResult]:
 nexus_search = nexus_recall
 
 
-def nexus_add(content: str, title: str, tags: str = "") -> Optional[str]:
+def nexus_add(content: str, title: str, tags: Any = "") -> Optional[str]:
     """
     Add document to index (v2.x compatible)
     
     Args:
         content: Document content
         title: Document title
-        tags: Comma-separated tags
+        tags: Comma-separated tags (str) or list[str]
         
     Returns:
         str: Document ID on success, None on failure
@@ -322,7 +322,15 @@ def nexus_add(content: str, title: str, tags: str = "") -> Optional[str]:
         return None
     
     try:
-        doc_id = run_coro_sync(plugin.add_document(content, title, tags))
+        normalized_tags = tags
+        if isinstance(normalized_tags, list):
+            normalized_tags = ",".join([str(t).strip() for t in normalized_tags if str(t).strip()])
+        elif normalized_tags is None:
+            normalized_tags = ""
+        else:
+            normalized_tags = str(normalized_tags)
+
+        doc_id = run_coro_sync(plugin.add_document(content, title, normalized_tags))
         if not doc_id:
             return None
         if not _verify_write_hit(plugin, str(doc_id), "compat.nexus_add"):
