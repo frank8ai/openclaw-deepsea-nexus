@@ -1241,11 +1241,28 @@ class SmartContextPlugin(NexusPlugin):
 
             max_items, threshold = self._dynamic_inject_params(reason, items)
 
+            def _score(item: Dict[str, Any]) -> float:
+                try:
+                    return float(item.get("score", item.get("relevance", 0.0)))
+                except Exception:
+                    return 0.0
+
             filtered = [
                 item
                 for item in items
-                if float(item.get("score", item.get("relevance", 0.0))) >= threshold
+                if _score(item) >= threshold
             ]
+
+            # If recall retrieved candidates but thresholding filtered everything out,
+            # inject the top-1 candidate as a safety net.
+            fallback_used = False
+            fallback_reason = ""
+            if results and not filtered and items:
+                top1 = max(items, key=_score)
+                filtered = [top1]
+                fallback_used = True
+                fallback_reason = "fallback_top1"
+
             if self.config.inject_debug:
                 sources = [r.get("source", "unknown") for r in filtered]
                 sample = (filtered[0]["content"][: self.config.inject_debug_max_chars] if filtered else "")
@@ -1253,6 +1270,7 @@ class SmartContextPlugin(NexusPlugin):
                     f"[SmartContext] INJECT ok reason={reason} topk={len(filtered)}/{len(results)} "
                     f"threshold={threshold} sources={sources} sample={sample!r}"
                 )
+
             retrieved = len(results)
             injected = len(filtered)
             ratio = (injected / retrieved) if retrieved else 0.0
@@ -1265,17 +1283,15 @@ class SmartContextPlugin(NexusPlugin):
                     "ratio": round(ratio, 3),
                     "threshold": round(float(threshold), 3),
                     "max_items": int(max_items),
+                    "fallback": fallback_used,
+                    "fallback_reason": fallback_reason,
+                    "top_score": round(_score(filtered[0]), 3) if filtered else 0.0,
                 }
             )
-            
+
             graph_items = self._inject_graph_associations(user_message, reason)
             final = filtered + graph_items
             if self.config.inject_topk_only:
-                def _score(item: Dict[str, Any]) -> float:
-                    try:
-                        return float(item.get("score", item.get("relevance", 0.0)))
-                    except Exception:
-                        return 0.0
                 final = sorted(final, key=_score, reverse=True)[: max(1, int(max_items))]
             final = self._trim_injected_items(final)
             graph_ratio = (len(graph_items) / injected) if injected else 0.0
