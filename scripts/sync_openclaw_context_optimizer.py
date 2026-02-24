@@ -30,11 +30,12 @@ def read_json(path: Path) -> Optional[Dict[str, Any]]:
 
 def write_json_if_changed(path: Path, payload: Dict[str, Any]) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
-    new_text = json.dumps(payload, ensure_ascii=True, indent=2) + "\n"
-    if path.exists():
-        old_text = path.read_text(encoding="utf-8")
-        if old_text == new_text:
-            return False
+    existing = read_json(path) if path.exists() else None
+    if existing and comparable_payload(existing) == comparable_payload(payload):
+        return False
+    payload_to_write = dict(payload)
+    payload_to_write["generated_at"] = now_iso()
+    new_text = json.dumps(payload_to_write, ensure_ascii=True, indent=2) + "\n"
     path.write_text(new_text, encoding="utf-8")
     return True
 
@@ -68,7 +69,6 @@ def build_override(deepsea_config: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "schema_version": "1.0",
         "source": "deepsea-nexus/config.json",
-        "generated_at": now_iso(),
         "preserveRecent": preserve_recent,
         "compressionThreshold": compression_threshold,
         "tokenTriggerEstimate": token_trigger_estimate,
@@ -79,6 +79,19 @@ def build_override(deepsea_config: Dict[str, Any]) -> Dict[str, Any]:
             "compressionThreshold": "smart_context.summary_rounds",
             "tokenTriggerEstimate": "smart_context.full_tokens_max",
         },
+    }
+
+
+def comparable_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "schema_version": payload.get("schema_version"),
+        "source": payload.get("source"),
+        "preserveRecent": payload.get("preserveRecent"),
+        "compressionThreshold": payload.get("compressionThreshold"),
+        "tokenTriggerEstimate": payload.get("tokenTriggerEstimate"),
+        "enabled": payload.get("enabled"),
+        "verbose": payload.get("verbose"),
+        "mapping": payload.get("mapping"),
     }
 
 
@@ -193,7 +206,7 @@ def main() -> int:
         override_changed = write_json_if_changed(override_path, override)
     else:
         existing_override = read_json(override_path)
-        override_changed = existing_override != override
+        override_changed = comparable_payload(existing_override or {}) != comparable_payload(override)
 
     handler_result = ensure_handler(runtime_handler, template_handler, backups_dir, apply=apply)
     ok = bool(handler_result.get("ok", False))
