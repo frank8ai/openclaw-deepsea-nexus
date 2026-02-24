@@ -223,8 +223,8 @@ class SmartContextPlugin(NexusPlugin):
                 smart_cfg = config["smart_context"]
                 self.config = ContextCompressionConfig(
                     full_rounds=smart_cfg.get("full_rounds", 8),
-                    summary_rounds=smart_cfg.get("summary_rounds", 30),
-                    compress_after_rounds=smart_cfg.get("compress_after_rounds", 50),
+                    summary_rounds=smart_cfg.get("summary_rounds", 20),
+                    compress_after_rounds=smart_cfg.get("compress_after_rounds", 35),
                     full_tokens_max=smart_cfg.get("full_tokens_max", 8000),
                     summary_tokens_max=smart_cfg.get("summary_tokens_max", 3000),
                     compressed_tokens_max=smart_cfg.get("compressed_tokens_max", 2000),
