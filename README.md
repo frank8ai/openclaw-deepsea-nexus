@@ -433,6 +433,24 @@ bash scripts/deploy_local_v4.sh --full
 - `9-20` 轮按摘要保留
 - `35` 轮后进入压缩阶段（压缩前抢救决策/下一步/阻塞）
 
+### 单一真源（推荐）
+为避免 `OpenClaw Hook` 与 `deepsea-nexus` 参数漂移，v4.4.0 起建议启用单一真源同步：
+
+```bash
+cd ~/.openclaw/workspace/skills/deepsea-nexus
+python3 scripts/sync_openclaw_context_optimizer.py --apply
+```
+
+同步策略：
+- 以 `config.json -> smart_context` 为主
+- 自动生成 `~/.openclaw/state/context-optimizer-single-source.json`
+- 自动修复 `~/.openclaw/hooks/context-optimizer/handler.js` 漂移（例如升级后被覆盖）
+
+参数映射：
+- `smart_context.full_rounds -> preserveRecent`
+- `smart_context.summary_rounds -> compressionThreshold`
+- `smart_context.full_tokens_max -> tokenTriggerEstimate`
+
 ### OpenClaw Hook 快速接入（推荐）
 ```bash
 # 推荐指定 Python（可选，不指定时会自动解析）

@@ -161,6 +161,21 @@ PY
 - `agents.defaults.compaction.reserveTokensFloor = 28000`
 - `agents.defaults.compaction.memoryFlush.softThresholdTokens = 12000`
 
+### 单一真源防漂移（强烈建议）
+为避免 OpenClaw 升级后 `context-optimizer` 默认值回退，使用以下单一真源同步：
+
+```bash
+cd ~/.openclaw/workspace/skills/deepsea-nexus
+python3 scripts/sync_openclaw_context_optimizer.py --apply
+```
+
+该脚本会：
+- 读取 `config.json -> smart_context`（唯一真源）
+- 生成 `~/.openclaw/state/context-optimizer-single-source.json`
+- 校验并自动恢复 `~/.openclaw/hooks/context-optimizer/handler.js` 到受控模板
+
+建议配合 `~/.openclaw/scripts/config-guardian.sh` 的定时巡检（当前默认每 2 分钟）一起使用，实现升级后自动自愈。
+
 ## 可选：安装 Smart Context 安全 cron
 ```bash
 bash scripts/install_safe_cron.sh --install
