@@ -151,6 +151,29 @@ class ConversationContext:
 # ===================== Smart Context 核心 =====================
 
 class SmartContextPlugin(NexusPlugin):
+    def _content_signature(self, content: str) -> str:
+        """Stable signature for de-dup.
+
+        Aim: keep semantically same content stable even if it contains timestamps,
+        ids, or minor formatting differences.
+        """
+        try:
+            s = (content or "").strip().lower()
+            if not s:
+                return ""
+            # Strip fenced code blocks markers while keeping the code body.
+            s = re.sub(r"```[a-z0-9_-]*", "```", s)
+            # Normalize numbers that are often volatile (timestamps, ids).
+            s = re.sub(r"\b\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}(:\d{2})?\b", "<ts>", s)
+            s = re.sub(r"\b\d{10,}\b", "<num>", s)
+            s = re.sub(r"\b[0-9a-f]{8,}\b", "<hex>", s)
+            # Collapse whitespace.
+            s = re.sub(r"\s+", " ", s)
+            # Focus on a prefix to keep it cheap.
+            return s[:400]
+        except Exception:
+            return (content or "")[:120].strip().lower()
+
     """
     Smart Context 插件
     
@@ -1194,13 +1217,21 @@ class SmartContextPlugin(NexusPlugin):
                     }
                 )
             items: List[Dict[str, Any]] = []
+            seen_content = set()
             for r in results:
+                content = getattr(r, "content", "")
+                # De-dup injected items with a stable signature to avoid repeated context bloat.
+                sig = self._content_signature(content)
+                if sig in seen_content:
+                    continue
+                seen_content.add(sig)
+
                 metadata = getattr(r, "metadata", {}) or {}
                 tags = self._normalize_tags(metadata)
                 score = self._score_injected_item(float(getattr(r, "relevance", 0.0) or 0.0), tags, getattr(r, "source", ""))
                 items.append(
                     {
-                        "content": getattr(r, "content", ""),
+                        "content": content,
                         "source": getattr(r, "source", ""),
                         "relevance": getattr(r, "relevance", 0.0),
                         "score": score,
