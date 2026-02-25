@@ -99,6 +99,17 @@ const PHASE = {
   COMPRESSED: "compressed",
 };
 
+// Smart Context tier rules (Deep-Sea Nexus):
+// - Preserve full recent rounds (full_rounds)
+// - After summary_rounds => force compressed
+// - After compress_after_rounds => force compressed
+// These should be applied before token-based fallback triggers.
+const SMART_RULES = {
+  fullRounds: CONFIG.preserveRecent,
+  summaryRounds: CONFIG.compressionThreshold,
+  compressAfterRounds: 35,
+};
+
 function getEventType(event) {
   return String(event?.type || event?.event?.type || "unknown").toLowerCase();
 }
@@ -354,6 +365,31 @@ function evaluateTrigger(messages) {
     };
   }
 
+  // 1) Smart Context tier rules first (8-20-35 by default).
+  // NOTE: historyLength counts messages, not turns. We approximate turns as message pairs.
+  const estimatedRounds = Math.max(1, Math.ceil(historyLength / 2));
+  if (SMART_RULES.compressAfterRounds > 0 && estimatedRounds > SMART_RULES.compressAfterRounds) {
+    return {
+      shouldCompress: true,
+      phase: PHASE.COMPRESSED,
+      reason: "smart:compress-after-rounds",
+      historyLength,
+      tokenEstimate,
+      messages: normalized,
+    };
+  }
+  if (SMART_RULES.summaryRounds > 0 && estimatedRounds > SMART_RULES.summaryRounds) {
+    return {
+      shouldCompress: true,
+      phase: PHASE.COMPRESSED,
+      reason: "smart:summary-rounds",
+      historyLength,
+      tokenEstimate,
+      messages: normalized,
+    };
+  }
+
+  // 2) Fallback triggers (token estimate thresholds).
   const byHistory = historyLength > CONFIG.compressionThreshold;
   const byToken = tokenEstimate >= Number(CONFIG.tokenTriggerEstimate || 0);
 
