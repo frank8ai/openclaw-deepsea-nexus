@@ -64,6 +64,8 @@ function loadRuntimeConfig() {
         override.tokenTriggerEstimate,
         RUNTIME_DEFAULTS.tokenTriggerEstimate
       ),
+      triggerSoftRatio: Number(override.triggerSoftRatio ?? 0.7) || 0.7,
+      triggerHardRatio: Number(override.triggerHardRatio ?? 0.85) || 0.85,
       enabled: override.enabled !== false,
       verbose: Boolean(override.verbose),
       source: "single-source-override",
@@ -78,6 +80,8 @@ function loadRuntimeConfig() {
       preserveRecent: toPositiveInt(smart.full_rounds, RUNTIME_DEFAULTS.preserveRecent),
       compressionThreshold: toPositiveInt(smart.summary_rounds, RUNTIME_DEFAULTS.compressionThreshold),
       tokenTriggerEstimate: toPositiveInt(smart.full_tokens_max, RUNTIME_DEFAULTS.tokenTriggerEstimate),
+      triggerSoftRatio: Number(smart.trigger_soft_ratio ?? 0.7) || 0.7,
+      triggerHardRatio: Number(smart.trigger_hard_ratio ?? 0.85) || 0.85,
       enabled: true,
       verbose: false,
       source: "deepsea-config",
@@ -88,6 +92,27 @@ function loadRuntimeConfig() {
 }
 
 const CONFIG = loadRuntimeConfig();
+
+function readUsageRatio(event) {
+  const data = event?.data || {};
+  const ratioCandidates = [
+    data.contextUsedRatio,
+    data.context_ratio,
+    data.contextRatio,
+    data.percentUsed != null ? Number(data.percentUsed) / 100 : null,
+    data.remainingTokens != null && data.contextTokens
+      ? 1 - Number(data.remainingTokens) / Number(data.contextTokens)
+      : null,
+  ];
+  for (const candidate of ratioCandidates) {
+    const v = Number(candidate);
+    if (Number.isFinite(v) && v > 0 && v <= 2) {
+      return v;
+    }
+  }
+  return null;
+}
+
 
 const METRICS_LOG =
   process.env.OPENCLAW_SMART_CONTEXT_METRICS_LOG ||
@@ -108,6 +133,8 @@ const SMART_RULES = {
   fullRounds: CONFIG.preserveRecent,
   summaryRounds: CONFIG.compressionThreshold,
   compressAfterRounds: 35,
+  triggerSoftRatio: 0.7,
+  triggerHardRatio: 0.85,
 };
 
 function getEventType(event) {
@@ -349,7 +376,7 @@ function getHistoryFromEvent(event) {
   return getHistoryFromData(event?.data || {});
 }
 
-function evaluateTrigger(messages) {
+function evaluateTrigger(event, messages) {
   const normalized = normalizeMessages(messages);
   const historyLength = normalized.length;
   const tokenEstimate = estimateTokens(normalized);
@@ -364,6 +391,33 @@ function evaluateTrigger(messages) {
       messages: normalized,
     };
   }
+
+  // 0) Token-waterline fallback (70/85). Apply even before rounds rules.
+  // Keep preserveRecent semantics: we compress older history, not the most recent turns.
+  const usageRatio = readUsageRatio(event);
+  if (usageRatio != null) {
+    if (usageRatio >= Number(CONFIG.triggerHardRatio || SMART_RULES.triggerHardRatio || 0.85)) {
+      return {
+        shouldCompress: true,
+        phase: PHASE.COMPRESSED,
+        reason: "token:hard-ratio",
+        historyLength,
+        tokenEstimate,
+        messages: normalized,
+      };
+    }
+    if (usageRatio >= Number(CONFIG.triggerSoftRatio || SMART_RULES.triggerSoftRatio || 0.7)) {
+      return {
+        shouldCompress: true,
+        phase: PHASE.SUMMARY,
+        reason: "token:soft-ratio",
+        historyLength,
+        tokenEstimate,
+        messages: normalized,
+      };
+    }
+  }
+
 
   // 1) Smart Context tier rules first (8-20-35 by default).
   // NOTE: historyLength counts messages, not turns. We approximate turns as message pairs.
@@ -435,8 +489,8 @@ function buildSnapshot(compressed) {
     .join("\n");
 }
 
-function runCompression(messages) {
-  const trigger = evaluateTrigger(messages);
+function runCompression(event, messages) {
+  const trigger = evaluateTrigger(event, messages);
   if (!trigger.shouldCompress) {
     return { ok: false, trigger };
   }
@@ -497,7 +551,7 @@ function handleBootstrap(event) {
 
 async function handleBeforeAgentStart(event) {
   const history = getHistoryFromEvent(event);
-  const result = runCompression(history);
+  const result = runCompression(event, history);
   if (!result.ok) {
     return event;
   }
@@ -520,7 +574,7 @@ async function handleBeforeAgentStart(event) {
 
 async function handleBeforePromptBuild(event) {
   const history = getHistoryFromEvent(event);
-  const result = runCompression(history);
+  const result = runCompression(event, history);
   if (!result.ok) {
     return event;
   }
@@ -544,7 +598,7 @@ async function handleBeforePromptBuild(event) {
 async function handleInput(event) {
   const data = event?.data || {};
   const history = getHistoryFromEvent(event);
-  const result = runCompression(history);
+  const result = runCompression(event, history);
   if (!result.ok) {
     return event;
   }
