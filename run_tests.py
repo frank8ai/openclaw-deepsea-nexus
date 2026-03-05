@@ -8,6 +8,10 @@ Run all tests for the hot-pluggable architecture.
 import subprocess
 import sys
 import os
+
+# Mark test mode for write-guard so degraded-mode tests can exercise
+# lexical fallback without requiring vector DB env variables.
+os.environ.setdefault("NEXUS_TEST_MODE", "1")
 import importlib
 import importlib.util
 from pathlib import Path
@@ -105,6 +109,7 @@ def run_python_tests():
         tests_dir / "test_integration.py", 
         tests_dir / "test_performance.py",
         tests_dir / "test_smart_context_upgrade.py",
+        tests_dir / "test_memory_v5.py",
         tests_dir / "brain" / "test_brain_units.py",
         tests_dir / "brain" / "test_brain_integration.py",
     ]
@@ -223,7 +228,7 @@ def main():
     reexec_code = _maybe_reexec_in_venv()
     if reexec_code is not None:
         return reexec_code
-    print("🚀 Deep-Sea Nexus Test Suite (v4.4.0 release gate)")
+    print("🚀 Deep-Sea Nexus Test Suite (v5.0.0 release gate)")
     print("=" * 50)
     caps = get_runtime_capabilities()
     print(

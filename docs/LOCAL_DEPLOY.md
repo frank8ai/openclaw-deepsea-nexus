@@ -1,4 +1,4 @@
-# Deep-Sea Nexus v4.4.0 本地部署
+# Deep-Sea Nexus v5.0.0 本地部署
 
 ## 目标
 将当前仓库版本部署到本地 OpenClaw 工作区，并确保门禁与运行态可用。
@@ -12,13 +12,13 @@
 在仓库根目录执行：
 
 ```bash
-bash scripts/deploy_local_v4.sh --full
+bash scripts/deploy_local_v5.sh --full
 ```
 
 说明：
 - `--full`：执行 `run_tests.py` 全量门禁 + 运行态 smoke 检查
-- `--quick`：仅执行 `tests/test_units.py` + 运行态 smoke 检查
-- 脚本默认优先使用 `~/miniconda3/envs/openclaw-nexus/bin/python`，并默认主库：
+- `--quick`：仅执行 `tests/test_memory_v5.py` + 运行态 smoke + v5 benchmark
+- 脚本会优先使用 `NEXUS_PYTHON_PATH`，失败时自动回退到 `python3`，并默认主库：
   - `NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored`
   - `NEXUS_COLLECTION=deepsea_nexus_restored`
 
@@ -28,7 +28,7 @@ bash scripts/deploy_local_v4.sh --full
 NEXUS_PYTHON_PATH=~/miniconda3/envs/openclaw-nexus/bin/python \
 NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored \
 NEXUS_COLLECTION=deepsea_nexus_restored \
-bash scripts/deploy_local_v4.sh --full
+bash scripts/deploy_local_v5.sh --full
 ```
 
 ## 一键巡检 + 自动修复（推荐日常）
@@ -51,7 +51,7 @@ bash scripts/nexus_doctor_local.sh --repair
   - `context-optimizer`
   - `deepsea-rag-recall`
 - 会检查主向量库计数与 `nexus_init/nexus_health` 状态
-- `--repair` 模式下默认包含一次 `deploy_local_v4.sh --quick` 快速门禁
+- `--repair` 模式下默认包含一次 `deploy_local_v5.sh --quick` 快速门禁
 - 可加 `--skip-deploy` 跳过快速门禁
 
 ## 写入护栏（防止写错库）
@@ -123,7 +123,10 @@ bash scripts/nexus_doctor_local.sh --repair
   - `available: true`
   - `initialized: true`
   - `plugin_version: "3.0.0"`（插件协议版本）
-  - `package_version: "4.4.0"`（发布版本）
+  - `package_version: "5.0.0"`（发布版本）
+- v5 benchmark 输出至少满足：
+  - `any_scope_hit > 0`
+  - `any_scope_score > 0`
 
 ## 生效验收（白盒）
 部署完成后，建议执行一次白盒确认（不是只看 status）：
@@ -181,6 +184,15 @@ python3 scripts/sync_openclaw_context_optimizer.py --apply
 bash scripts/install_safe_cron.sh --install
 ```
 说明：该 cron 仅生成 digest 报告并执行 summary flush，不做对外动作。
+
+## 可选：安装向量库快照/健康检查 cron
+```bash
+bash scripts/install_vector_db_maintenance_cron.sh
+```
+说明：
+- 每日生成向量库快照（可恢复）
+- 每日健康检查（collection.count）
+- 如需自动恢复，运行 `vector_db_healthcheck.py --auto-restore`（默认不启用）
 
 ## 常见问题
 - `chromadb` 未安装：

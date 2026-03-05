@@ -1,0 +1,14 @@
+[
+  {
+    "query": "smoke test",
+    "expect_any": ["smoke", "SmokeTest"]
+  },
+  {
+    "query": "之前我们决定用哪个框架？",
+    "expect_any": ["FastAPI", "Django", "框架"]
+  },
+  {
+    "query": "上次的核心产出是什么？",
+    "expect_any": ["核心产出", "解决", "方案"]
+  }
+]

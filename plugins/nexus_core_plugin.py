@@ -78,6 +78,13 @@ class NexusCorePlugin(NexusPlugin):
         self._brain_min_score = 0.2
         self._brain_merge = "append"  # append|replace
 
+        # Memory v5 (memU-style) hook
+        self._mem_v5_enabled = False
+        self._mem_v5_available = False
+        self._mem_v5_merge = "rrf"  # rrf|append
+        self._mem_v5_service = None
+        self._full_config: Dict[str, Any] = {}
+
     def _detect_capabilities(self) -> Dict[str, Any]:
         def _has_module(name: str) -> bool:
             try:
@@ -253,6 +260,33 @@ class NexusCorePlugin(NexusPlugin):
             )
         scored.sort(key=lambda r: r.relevance, reverse=True)
         return scored[: max(0, int(n))]
+
+    def _get_mem_v5_service(self):
+        if not self._mem_v5_enabled:
+            return None
+        if self._mem_v5_service is not None:
+            return self._mem_v5_service
+        try:
+            from ..memory_v5 import MemoryV5Service
+            self._mem_v5_service = MemoryV5Service(self._full_config)
+            self._mem_v5_available = True
+            return self._mem_v5_service
+        except Exception as e:
+            self._mem_v5_available = False
+            logger.warning(f"memory_v5 init failed; continuing without v5: {e}")
+            return None
+
+    def _rrf_merge(self, groups: List[List[RecallResult]], limit: int, k: int = 60) -> List[RecallResult]:
+        scores: Dict[str, float] = {}
+        best: Dict[str, RecallResult] = {}
+        for group in groups:
+            for rank, item in enumerate(group, start=1):
+                key = (item.doc_id or "").strip() or f"{item.source}\n{item.content}".strip()
+                scores[key] = scores.get(key, 0.0) + 1.0 / float(k + rank)
+                if key not in best or item.relevance > best[key].relevance:
+                    best[key] = item
+        merged = sorted(best.values(), key=lambda r: scores.get((r.doc_id or "").strip() or f"{r.source}\n{r.content}".strip(), 0.0), reverse=True)
+        return merged[: max(1, int(limit))]
     
     async def initialize(self, config: Dict[str, Any]) -> bool:
         """Initialize Nexus Core"""
@@ -261,9 +295,11 @@ class NexusCorePlugin(NexusPlugin):
             self._capabilities = self._detect_capabilities()
             self._metrics_path = self._resolve_metrics_path(config if isinstance(config, dict) else {})
 
+            self._full_config = config if isinstance(config, dict) else {}
             nexus_cfg = config.get("nexus", {}) if isinstance(config.get("nexus", {}), dict) else {}
             recall_cfg = config.get("recall", {}) if isinstance(config.get("recall", {}), dict) else {}
             retrieval_cfg = config.get("retrieval", {}) if isinstance(config.get("retrieval", {}), dict) else {}
+            mem_v5_cfg = config.get("memory_v5", {}) if isinstance(config.get("memory_v5", {}), dict) else {}
 
             # Load configuration
             self._config = {
@@ -275,6 +311,9 @@ class NexusCorePlugin(NexusPlugin):
             self._hybrid_min_hits = max(1, int(retrieval_cfg.get("hybrid_min_hits", 2)))
             self._hybrid_lexical_boost = float(retrieval_cfg.get("hybrid_lexical_boost", 0.15))
             self._lexical_max_docs = max(200, int(retrieval_cfg.get("lexical_cache_max_docs", 5000)))
+
+            self._mem_v5_enabled = bool(mem_v5_cfg.get("enabled", True))
+            self._mem_v5_merge = str(mem_v5_cfg.get("merge_mode", "rrf")).lower()
 
             # Prefer in-repo implementation (no extra sys.path surgery).
             create_vector_store = None
@@ -381,6 +420,7 @@ class NexusCorePlugin(NexusPlugin):
                     "vector_reason": self._vector_reason,
                     "brain_enabled": bool(self._brain_enabled and self._brain_available),
                     "hybrid_enabled": bool(self._hybrid_enabled),
+                    "mem_v5_enabled": bool(self._mem_v5_enabled),
                     "capabilities": self._capabilities,
                 }
             )
@@ -416,6 +456,7 @@ class NexusCorePlugin(NexusPlugin):
         out: List[RecallResult] = []
         vector_results: List[RecallResult] = []
         lexical_results: List[RecallResult] = []
+        mem_v5_results: List[RecallResult] = []
         vector_error = ""
 
         # 1) Brain recall (optional)
@@ -503,15 +544,39 @@ class NexusCorePlugin(NexusPlugin):
         if need_lexical:
             lexical_results = self._lexical_recall(query, n=max(1, n))
 
+        # 4) Memory v5 recall (memU-style)
+        if self._mem_v5_enabled:
+            service = self._get_mem_v5_service()
+            if service is not None:
+                try:
+                    for hit in service.recall(query, limit=max(1, n)):
+                        mem_v5_results.append(
+                            RecallResult(
+                                content=hit.content,
+                                source=f"🧠v5 {hit.title}",
+                                relevance=float(hit.relevance),
+                                metadata={"origin": hit.origin, **(hit.metadata or {})},
+                                doc_id=hit.id,
+                            )
+                        )
+                except Exception as e:
+                    logger.warning(f"memory_v5 recall failed; continuing without v5: {e}")
+
         # Merge strategy:
         # - replace: brain-only
         # - append: vector/lexical primary, brain fills gaps
         merged: List[RecallResult]
-        if self._brain_enabled and self._brain_available and self._brain_merge == "replace":
+        if self._mem_v5_enabled and self._mem_v5_available and self._mem_v5_merge == "rrf":
+            merged = self._rrf_merge([vector_results, lexical_results, out, mem_v5_results], n)
+        elif self._brain_enabled and self._brain_available and self._brain_merge == "replace":
             merged = out
         else:
             merged = list(vector_results)
             for r in lexical_results:
+                if len(merged) >= n:
+                    break
+                merged.append(r)
+            for r in mem_v5_results:
                 if len(merged) >= n:
                     break
                 merged.append(r)
@@ -538,6 +603,7 @@ class NexusCorePlugin(NexusPlugin):
                 "vector_hits": len(vector_results),
                 "lexical_hits": len(lexical_results),
                 "brain_hits": len(out),
+                "mem_v5_hits": len(mem_v5_results),
                 "final_hits": len(final_results),
                 "vector_available": bool(self._vector_available),
                 "vector_error": vector_error,
@@ -613,6 +679,20 @@ class NexusCorePlugin(NexusPlugin):
                 )
             except Exception as e:
                 logger.warning(f"Brain write failed; continuing without brain: {e}")
+
+        # Optional memory_v5 write (best-effort)
+        if self._mem_v5_enabled:
+            try:
+                service = self._get_mem_v5_service()
+                if service is not None:
+                    service.ingest_document(
+                        title=title or resolved_id or "Untitled",
+                        content=content or "",
+                        tags=tag_list if tags else [],
+                        source_id=resolved_id,
+                    )
+            except Exception as e:
+                logger.warning(f"memory_v5 write failed; continuing without v5: {e}")
 
         backend = self._vector_backend
         vector_written = False

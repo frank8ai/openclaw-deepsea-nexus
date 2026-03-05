@@ -23,8 +23,8 @@
     "max_line_length": 80
   },
   "project": {
-    "version": "4.4.0",
-    "name": "Deep-Sea Nexus v4.4.0",
+    "version": "5.0.0",
+    "name": "Deep-Sea Nexus v5.0.0",
     "author": "OpenClaw"
   },
   "session": {
@@ -47,14 +47,14 @@
     ]
   },
   "smart_context": {
-    "full_rounds": 8,
-    "summary_rounds": 20,
-    "compress_after_rounds": 35,
-    "full_tokens_max": 8000,
+    "full_rounds": 6,
+    "summary_rounds": 16,
+    "compress_after_rounds": 29,
+    "full_tokens_max": 7200,
     "summary_tokens_max": 3000,
     "compressed_tokens_max": 2000,
-    "trigger_soft_ratio": 0.7,
-    "trigger_hard_ratio": 0.85,
+    "trigger_soft_ratio": 0.68,
+    "trigger_hard_ratio": 0.83,
     "summary_on_each_turn": true,
     "summary_template_enabled": true,
     "summary_template_fields": [
@@ -70,13 +70,13 @@
     "topic_switch_min_overlap_ratio": 0.2,
     "topic_switch_keywords_max": 8,
     "inject_enabled": true,
-    "inject_threshold": 0.6,
-    "inject_max_items": 4,
+    "inject_threshold": 0.35,
+    "inject_max_items": 6,
     "inject_topk_only": true,
     "inject_max_chars_per_item": 360,
     "inject_max_lines_per_item": 8,
     "inject_max_lines_total": 40,
-    "inject_debug": false,
+    "inject_debug": true,
     "inject_debug_max_chars": 200,
     "inject_mode": "aggressive",
     "association_enabled": true,
@@ -137,6 +137,23 @@
     "enabled": true,
     "db_path": "/Users/yizhi/.openclaw/workspace/brain/graph.sqlite3"
   },
+  "memory_v5": {
+    "enabled": true,
+    "root": "memory/95_MemoryV5",
+    "scope": {
+      "agent_id": "auto",
+      "user_id": "default"
+    },
+    "fts_enabled": true,
+    "async_ingest": true,
+    "graph_enabled": true,
+    "category_max_items": 50,
+    "merge_mode": "rrf",
+    "ttl_days_default": 0,
+    "decay_half_life_days": 30,
+    "archive_after_days": 180,
+    "usage_boost": 0.08
+  },
   "brain": {
     "enabled": true,
     "base_path": "/Users/yizhi/.openclaw/workspace",
@@ -154,8 +171,16 @@
     "decay_floor": 0.1,
     "decay_step": 0.05,
     "tiered_recall": true,
-    "tiered_order": ["P0", "P1", "P2"],
-    "tiered_limits": [3, 2, 1],
+    "tiered_order": [
+      "P0",
+      "P1",
+      "P2"
+    ],
+    "tiered_limits": [
+      3,
+      2,
+      1
+    ],
     "dedupe_on_recall": true
   },
   "retrieval": {
@@ -176,6 +201,17 @@
     "heavy_model": "sub2api/gpt-5.3-codex",
     "code_model": "sub2api/gpt-5.3-codex-x-high",
     "light_max_chars": 600,
-    "code_keywords": ["代码", "bug", "报错", "堆栈", "traceback", "stack", "test", "refactor", "compile", "build"]
+    "code_keywords": [
+      "代码",
+      "bug",
+      "报错",
+      "堆栈",
+      "traceback",
+      "stack",
+      "test",
+      "refactor",
+      "compile",
+      "build"
+    ]
   }
 }
