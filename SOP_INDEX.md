@@ -1,5 +1,22 @@
 # SOP Index
 
+## OpenClaw Closed-Loop Router (Local)
+- Minimal SOP (local copy): `docs/sop/closed-loop-minimal.md`
+- Production SOP (local copy): `docs/sop/closed-loop-production.md`
+- Comparison note (local copy): `docs/sop/closed-loop-comparison.md`
+- Minimal subagent template (local copy): `docs/sop/min_loop_subagent_template.md`
+
+Notes:
+- These are local workspace assets under `/Users/yizhi/.openclaw/workspace-coder` and are meant to be referenced by agents running in this repo.
+
+## SmartContext Ops (2026-02-28)
+- RCA + daily tuning SOP:
+  - `docs/sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
+- Daily advisor script (report-only):
+  - `scripts/smart_context_param_advisor.py`
+- Cron install helper:
+  - `scripts/install_smart_context_param_advisor_cron.sh`
+
 ## Catalog Entries
 - `P0-SOP目录 v1`
   - File: `resources/sop/2026-02/2026-02-17-p0-sop-catalog.md`

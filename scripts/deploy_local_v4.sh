@@ -9,7 +9,7 @@ elif [[ -x "${HOME}/miniconda3/envs/openclaw-nexus/bin/python" ]]; then
 elif [[ -x "${HOME}/.openclaw/workspace/skills/deepsea-nexus/.venv-3.13/bin/python" ]]; then
   PYTHON_BIN="${HOME}/.openclaw/workspace/skills/deepsea-nexus/.venv-3.13/bin/python"
 else
-  PYTHON_BIN="python3"
+  PYTHON_BIN="${NEXUS_PYTHON_PATH:-${HOME}/miniconda3/envs/openclaw-nexus/bin/python}"
 fi
 MODE="${1:---full}"
 export NEXUS_VECTOR_DB="${NEXUS_VECTOR_DB:-${HOME}/.openclaw/workspace/memory/.vector_db_restored}"

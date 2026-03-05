@@ -57,7 +57,13 @@ resolve_python() {
   elif [[ -x "${ROOT_DIR}/.venv-3.13/bin/python" ]]; then
     PYTHON_BIN="${ROOT_DIR}/.venv-3.13/bin/python"
   elif command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python3)"
+    # Avoid environment drift: prefer the dedicated Nexus runtime if present.
+    # Falling back to whatever `python3` is on PATH can silently disable chromadb.
+    if [[ -x "${HOME}/miniconda3/envs/openclaw-nexus/bin/python" ]]; then
+      PYTHON_BIN="${HOME}/miniconda3/envs/openclaw-nexus/bin/python"
+    else
+      PYTHON_BIN="$(command -v python3)"
+    fi
   else
     PYTHON_BIN=""
   fi

@@ -1,4 +1,7 @@
-# SOP: SmartContext (8/20/35) 规则生效与底层路径 (2026-02-27)
+# SOP: SmartContext 规则生效与底层路径 (2026-02-27, 2026-03-02 更新)
+
+> 当前推荐策略已升级到 `Context Policy v2`（事件触发摘要 + L1/L2/L3 + replay）；
+> 参考：`Context_Policy_v2_EventDriven.md`。
 
 ## 1. 现象描述
 - 会话 Context 占用高（86%+），但 `Compactions: 0`。
@@ -22,7 +25,8 @@
 - **验收信号**：`~/.openclaw/workspace/logs/smart_context_metrics.log` 出现 `event: "hook_compaction"`（这是 hook 实际执行的唯一可靠证据）。
 
 ### C. 规则同步 (Single Source of Truth)
-- **机制**：通过 `sync_openclaw_context_optimizer.py --apply` 将 Deep-Sea Nexus 的 8/20/35 配置物理写入 `~/.openclaw/state/context-optimizer-single-source.json`。
+- **机制**：通过 `sync_openclaw_context_optimizer.py --apply` 将 Deep-Sea Nexus `smart_context` 配置物理写入 `~/.openclaw/state/context-optimizer-single-source.json`。
+- **当前基线**：`6/16/29`（full/summary/compress_after），并支持 mode-aware 动态阈值（coding/general）。
 - **优先级**：此文件的内容具有最高优先级，会覆盖 `openclaw.json` 中的 `contextPruning` 设置。
 
 ## 3. 运维与防漂移指令

@@ -61,23 +61,55 @@ def to_positive_int(value: Any, fallback: int) -> int:
     return fallback
 
 
+def to_ratio(value: Any, fallback: float, minimum: float, maximum: float) -> float:
+    try:
+        num = float(value)
+    except Exception:
+        return fallback
+    if num < minimum or num > maximum:
+        return fallback
+    return num
+
+
 def build_override(deepsea_config: Dict[str, Any]) -> Dict[str, Any]:
     smart = deepsea_config.get("smart_context") if isinstance(deepsea_config.get("smart_context"), dict) else {}
     preserve_recent = to_positive_int(smart.get("full_rounds"), 8)
     compression_threshold = to_positive_int(smart.get("summary_rounds"), 20)
+    compress_after_rounds = to_positive_int(
+        smart.get("compress_after_rounds"),
+        max(compression_threshold + 8, 35),
+    )
     token_trigger_estimate = to_positive_int(smart.get("full_tokens_max"), 8000)
+    trigger_soft_ratio = to_ratio(smart.get("trigger_soft_ratio"), 0.7, 0.55, 0.9)
+    trigger_hard_ratio = to_ratio(
+        smart.get("trigger_hard_ratio"),
+        0.85,
+        max(trigger_soft_ratio + 0.05, 0.65),
+        0.98,
+    )
+    mode = str(smart.get("mode") or "auto").strip().lower()
+    if mode not in {"auto", "coding", "general"}:
+        mode = "auto"
     return {
         "schema_version": "1.0",
         "source": "deepsea-nexus/config.json",
         "preserveRecent": preserve_recent,
         "compressionThreshold": compression_threshold,
+        "compressAfterRounds": compress_after_rounds,
         "tokenTriggerEstimate": token_trigger_estimate,
+        "triggerSoftRatio": trigger_soft_ratio,
+        "triggerHardRatio": trigger_hard_ratio,
+        "mode": mode,
         "enabled": True,
         "verbose": False,
         "mapping": {
             "preserveRecent": "smart_context.full_rounds",
             "compressionThreshold": "smart_context.summary_rounds",
+            "compressAfterRounds": "smart_context.compress_after_rounds",
             "tokenTriggerEstimate": "smart_context.full_tokens_max",
+            "triggerSoftRatio": "smart_context.trigger_soft_ratio",
+            "triggerHardRatio": "smart_context.trigger_hard_ratio",
+            "mode": "smart_context.mode",
         },
     }
 
@@ -88,7 +120,11 @@ def comparable_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "source": payload.get("source"),
         "preserveRecent": payload.get("preserveRecent"),
         "compressionThreshold": payload.get("compressionThreshold"),
+        "compressAfterRounds": payload.get("compressAfterRounds"),
         "tokenTriggerEstimate": payload.get("tokenTriggerEstimate"),
+        "triggerSoftRatio": payload.get("triggerSoftRatio"),
+        "triggerHardRatio": payload.get("triggerHardRatio"),
+        "mode": payload.get("mode"),
         "enabled": payload.get("enabled"),
         "verbose": payload.get("verbose"),
         "mapping": payload.get("mapping"),
@@ -220,7 +256,11 @@ def main() -> int:
         "derived": {
             "preserveRecent": override["preserveRecent"],
             "compressionThreshold": override["compressionThreshold"],
+            "compressAfterRounds": override["compressAfterRounds"],
             "tokenTriggerEstimate": override["tokenTriggerEstimate"],
+            "triggerSoftRatio": override["triggerSoftRatio"],
+            "triggerHardRatio": override["triggerHardRatio"],
+            "mode": override["mode"],
         },
         "handler": handler_result,
         "ts": now_iso(),

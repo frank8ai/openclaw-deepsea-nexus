@@ -1,7 +1,7 @@
 #!/bin/bash
 # 后台预热服务 - 一次性预热后保持进程存活
 
-VENV="/Users/yizhi/.openclaw/workspace/.venv-nexus/bin/python3"
+VENV="${NEXUS_PYTHON_PATH:-/Users/yizhi/miniconda3/envs/openclaw-nexus/bin/python}"
 SCRIPT="/Users/yizhi/.openclaw/workspace/deepsea-nexus/scripts/warmup.py"
 LOG="/tmp/nexus_warmup.log"
 
