@@ -30,6 +30,7 @@
 | 🧠 **v5.0 记忆操作层** | memU 风格三层记忆 + 记忆对象化 + 作用域隔离 + RRF 融合召回 | 🆕 v5.0 |
 
 > v5.0 迭代详见：`docs/SECOND_BRAIN_V5_PLAN.md`（本次新增）。
+> v5.0 与上下文治理联动（Execution Governor v1.3）详见：`docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`。
 > v4.4.1 迭代详见：`docs/SOP_MEMORY_GAP_ITERATION_2026-02-23.md`、`docs/reports/2026-02-23-contract-audit.md`。
 > v4.4.0 使用与验收详见：`docs/SMART_CONTEXT_V4_4_0.md`、`docs/SECOND_BRAIN_PARA.md`、`docs/USAGE_GUIDE.md` 与 `docs/LOCAL_DEPLOY.md`。
 
@@ -475,6 +476,7 @@ python3 scripts/sync_openclaw_context_optimizer.py --apply
 推荐先读：
 - `docs/sop/Context_Policy_v2_EventDriven.md`
 - `docs/sop/SmartContext_Coding_Compression_SOP_v2.md`
+- `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
 
 ### OpenClaw Hook 快速接入（推荐）
 ```bash

@@ -80,3 +80,6 @@ memory/95_MemoryV5/
 ## Notes
 - v5 只追加，不替换；可通过 config 关闭。
 - 任何失败自动降级到 v4 路径。
+- 生产运维建议叠加 execution-governor v1.3 上下文控制面：
+  - 参考 `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
+  - 使用 `context_pressure` + `cache_efficiency` + `context_compaction_signal` 做日常巡检与调参闭环。

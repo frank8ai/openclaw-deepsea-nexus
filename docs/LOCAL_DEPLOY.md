@@ -179,6 +179,34 @@ python3 scripts/sync_openclaw_context_optimizer.py --apply
 
 建议配合 `~/.openclaw/scripts/config-guardian.sh` 的定时巡检（当前默认每 2 分钟）一起使用，实现升级后自动自愈。
 
+### Execution Governor v1.3 上下文治理联动（推荐）
+在保留 Deep-Sea SmartContext 的基础上，建议启用 execution-governor v1.3 的上下文控制面：
+
+```bash
+# 应用 v1.3（默认优先）
+bash ~/.openclaw/workspace/scripts/apply_execution_governor.sh
+
+# 验证策略版本与开关
+jq -r '.version,.context_management.enabled' ~/.openclaw/state/execution-governor-policy.json
+
+# 离线烟测（事件 + 命令注册）
+node ~/.openclaw/workspace/scripts/execution_governor_context_smoke.js
+
+# 运行态报表（新增 cache/context/native-capability 维度）
+python3 ~/.openclaw/workspace/scripts/execution_governor_report.py --tail 2000
+```
+
+联动价值：
+- `SmartContext` 负责“怎么压缩、怎么注入”。
+- `execution-governor` 负责“何时压力过高、缓存是否有效、provider 原生能力是否匹配”。
+- 两者叠加后，可同时提升质量稳定性与 token 成本可控性。
+
+运行态命令（网关命令）：
+- `/execution_context_status`：查看当前会话的压力等级、缓存状态、压缩信号。
+
+更多细节见：
+- `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
+
 ## 可选：安装 Smart Context 安全 cron
 ```bash
 bash scripts/install_safe_cron.sh --install
