@@ -1,10 +1,10 @@
-# 🧠 Deep-Sea Nexus v4.4.1
+# 🧠 Deep-Sea Nexus v5.0.0
 
 ## AI Agent 长期记忆系统 - 热插拔架构
 
-**版本**: 4.4.1  
+**版本**: 5.0.0  
 **状态**: ✅ 生产就绪  
-**更新**: 2026-02-23
+**更新**: 2026-03-01
 
 ---
 
@@ -27,7 +27,9 @@
 | 🛡️ **v4.3 稳态升级** | 缺依赖降级可用 + 混合召回 + 门禁稳定绿灯 | 🆕 v4.3 |
 | 🧠 **v4.4.0 智能上下文升级** | Pack/Card 模板 + 字段检查 + 安全 digest cron + 指标 schema 统一 | 🆕 v4.4.0 |
 | 🧪 **v4.4.1 记忆契约运营化** | 契约审计分组覆盖率 + PARA 三维评分 + Warm 信号晋升 | 🆕 v4.4.1 |
+| 🧠 **v5.0 记忆操作层** | memU 风格三层记忆 + 记忆对象化 + 作用域隔离 + RRF 融合召回 | 🆕 v5.0 |
 
+> v5.0 迭代详见：`docs/SECOND_BRAIN_V5_PLAN.md`（本次新增）。
 > v4.4.1 迭代详见：`docs/SOP_MEMORY_GAP_ITERATION_2026-02-23.md`、`docs/reports/2026-02-23-contract-audit.md`。
 > v4.4.0 使用与验收详见：`docs/SMART_CONTEXT_V4_4_0.md`、`docs/SECOND_BRAIN_PARA.md`、`docs/USAGE_GUIDE.md` 与 `docs/LOCAL_DEPLOY.md`。
 
@@ -78,6 +80,14 @@ bash scripts/nexus_doctor_local.sh --check --skip-deploy
 
 - `~/.openclaw/workspace/logs/nexus_core_metrics.log`
 - `~/.openclaw/workspace/logs/smart_context_metrics.log`
+
+---
+
+## 🧠 v5 运维脚本（新增）
+
+- Smoke: `python3 scripts/memory_v5_smoke.py`
+- Maintenance: `python3 scripts/memory_v5_maintenance.py --all-agents`
+- Benchmark: `python3 scripts/memory_v5_benchmark.py --cases docs/memory_v5_benchmark_sample.json --all-agents`
 
 建议观察是否持续出现 `recall` / `add_document` 事件，确认召回与写入链路都在运行。
 
@@ -663,6 +673,7 @@ python3 v3_2_enhancement/run.py --demo
 - 新增工件严格校验脚本（`scripts/validate_research_artifacts.py`）
 - 新增 Smart Context digest 报告脚本（`scripts/smart_context_digest.py`）
 - 新增安全 cron 安装脚本（`scripts/install_safe_cron.sh`，仅报告与本地沉淀）
+- 新增向量库维护脚本（快照/健康检查）：`scripts/vector_db_snapshot.py`、`scripts/vector_db_healthcheck.py`、`scripts/install_vector_db_maintenance_cron.sh`
 - 指标 schema 统一到 4.4.0（`smart_context` / `context_engine` / `nexus_core`）
 
 ### v4.3.0 (2026-02-18)

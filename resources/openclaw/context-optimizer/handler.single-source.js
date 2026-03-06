@@ -5,7 +5,7 @@
  * 将触发判断与压缩执行统一到单一路径。
  */
 
-const { appendFileSync, existsSync, readFileSync } = require("fs");
+const { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } = require("fs");
 const { join } = require("path");
 
 const RUNTIME_DEFAULTS = {
@@ -30,6 +30,15 @@ const DEFAULT_DEEPSEA_CONFIG_PATH = join(
   "skills",
   "deepsea-nexus",
   "config.json"
+);
+const AGENTS_ROOT = join(process.env.HOME || "", ".openclaw", "agents");
+const SESSION_FALLBACK_MAX_MESSAGES = toPositiveInt(
+  process.env.OPENCLAW_CONTEXT_OPTIMIZER_SESSION_FALLBACK_MAX_MESSAGES,
+  320
+);
+const SESSION_FALLBACK_MAX_SCAN_LINES = toPositiveInt(
+  process.env.OPENCLAW_CONTEXT_OPTIMIZER_SESSION_FALLBACK_MAX_SCAN_LINES,
+  2000
 );
 
 function toPositiveInt(value, fallback) {
@@ -93,6 +102,14 @@ function loadRuntimeConfig() {
 
 const CONFIG = loadRuntimeConfig();
 
+function roundsToMessageCount(rounds) {
+  return toPositiveInt(rounds, RUNTIME_DEFAULTS.preserveRecent) * 2;
+}
+
+function getPreserveRecentMessageCount() {
+  return roundsToMessageCount(CONFIG.preserveRecent);
+}
+
 function readUsageRatio(event) {
   const data = event?.data || {};
   const ratioCandidates = [
@@ -117,6 +134,9 @@ function readUsageRatio(event) {
 const METRICS_LOG =
   process.env.OPENCLAW_SMART_CONTEXT_METRICS_LOG ||
   join(process.env.HOME || "", ".openclaw", "workspace", "logs", "smart_context_metrics.log");
+const STATUS_STORE_PATH =
+  process.env.OPENCLAW_SMART_CONTEXT_STATUS_PATH ||
+  join(process.env.HOME || "", ".openclaw", "state", "smart-context-status.json");
 
 const PHASE = {
   NONE: "none",
@@ -139,6 +159,20 @@ const SMART_RULES = {
 
 function getEventType(event) {
   return String(event?.type || event?.event?.type || "unknown").toLowerCase();
+}
+
+function resolveEffectiveEventType(event) {
+  const explicitType = getEventType(event);
+  if (explicitType !== "unknown") {
+    return explicitType;
+  }
+
+  // before_prompt_build payload may omit `type` and only provide prompt/messages.
+  if (Array.isArray(event?.messages) && event.messages.length > 0) {
+    return "before_prompt_build";
+  }
+
+  return explicitType;
 }
 
 function trimText(text, maxChars = 1600) {
@@ -167,6 +201,175 @@ function writeMetric(event, payload = {}) {
   } catch (_error) {
     // ignore metrics write failures
   }
+}
+
+function extractSessionKey(event) {
+  const data = event?.data || {};
+  const candidates = [
+    event?.sessionKey,
+    event?.event?.sessionKey,
+    data?.sessionKey,
+    data?.session_key,
+    data?.session?.key,
+    data?.requesterSessionKey,
+    data?.callerSessionKey,
+    event?.context?.sessionKey,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  return null;
+}
+
+function writeSmartContextStatus(event, result, hookPhase) {
+  try {
+    const sessionKey = extractSessionKey(event);
+    if (!sessionKey || !result?.ok) {
+      return;
+    }
+
+    const compressed = result.compressed || {};
+    const trigger = result.trigger || {};
+    const recentMessages = Array.isArray(compressed.recent) ? compressed.recent.length : 0;
+    const keepRounds = Math.floor(recentMessages / 2);
+
+    const dir = STATUS_STORE_PATH.replace(/\/[^/]+$/, "");
+    if (dir && !existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+
+    const store = readJson(STATUS_STORE_PATH) || {};
+    store[sessionKey] = {
+      sessionKey,
+      hookPhase,
+      phase: trigger.phase || PHASE.NONE,
+      reason: trigger.reason || "unknown",
+      historyMessages: Number(trigger.historyLength || 0),
+      historyRounds: Math.max(1, Math.ceil(Number(trigger.historyLength || 0) / 2)),
+      tokenEstimate: Number(trigger.tokenEstimate || 0),
+      tokensSaved: Number(compressed.tokens_saved || 0),
+      keepMessages: recentMessages,
+      keepRounds,
+      updatedAt: new Date().toISOString(),
+      updatedAtMs: Date.now(),
+    };
+
+    writeFileSync(STATUS_STORE_PATH, JSON.stringify(store, null, 2), "utf-8");
+  } catch (_error) {
+    // best-effort only
+  }
+}
+
+function listAgentNames() {
+  try {
+    if (!existsSync(AGENTS_ROOT)) {
+      return [];
+    }
+    return readdirSync(AGENTS_ROOT, { withFileTypes: true })
+      .filter((entry) => entry?.isDirectory?.())
+      .map((entry) => entry.name)
+      .filter(Boolean);
+  } catch (_error) {
+    return [];
+  }
+}
+
+function resolveSessionFileFromSessionKey(sessionKey) {
+  if (typeof sessionKey !== "string" || !sessionKey.trim()) {
+    return null;
+  }
+
+  const key = sessionKey.trim();
+  const agentMatch = key.match(/^agent:([^:]+):/i);
+  const agentCandidates = [];
+
+  if (agentMatch?.[1]) {
+    agentCandidates.push(agentMatch[1]);
+  }
+
+  for (const name of listAgentNames()) {
+    if (!agentCandidates.includes(name)) {
+      agentCandidates.push(name);
+    }
+  }
+
+  for (const agentName of agentCandidates) {
+    const indexPath = join(AGENTS_ROOT, agentName, "sessions", "sessions.json");
+    const index = readJson(indexPath);
+    if (!index || typeof index !== "object") {
+      continue;
+    }
+    const entry = index[key];
+    const sessionFile = typeof entry?.sessionFile === "string" ? entry.sessionFile.trim() : "";
+    if (!sessionFile || !existsSync(sessionFile)) {
+      continue;
+    }
+    return sessionFile;
+  }
+
+  return null;
+}
+
+function parseSessionMessageRecord(record) {
+  if (!record || typeof record !== "object" || record.type !== "message") {
+    return null;
+  }
+  const message = record.message;
+  const role = typeof message?.role === "string" ? message.role.trim().toLowerCase() : "";
+  if (!role || message?.content == null) {
+    return null;
+  }
+  return {
+    role,
+    content: message.content,
+  };
+}
+
+function loadSessionHistoryFromFile(sessionFile) {
+  if (!sessionFile || !existsSync(sessionFile)) {
+    return [];
+  }
+
+  let raw = "";
+  try {
+    raw = readFileSync(sessionFile, "utf-8");
+  } catch (_error) {
+    return [];
+  }
+  if (!raw) {
+    return [];
+  }
+
+  const lines = raw.split("\n");
+  const start = Math.max(0, lines.length - SESSION_FALLBACK_MAX_SCAN_LINES);
+  const recent = [];
+
+  for (let i = lines.length - 1; i >= start; i -= 1) {
+    const line = lines[i]?.trim();
+    if (!line || line[0] !== "{") {
+      continue;
+    }
+
+    let record = null;
+    try {
+      record = JSON.parse(line);
+    } catch (_error) {
+      continue;
+    }
+
+    const parsed = parseSessionMessageRecord(record);
+    if (!parsed) {
+      continue;
+    }
+    recent.push(parsed);
+    if (recent.length >= SESSION_FALLBACK_MAX_MESSAGES) {
+      break;
+    }
+  }
+
+  return recent.reverse();
 }
 
 function normalizeMessages(messages) {
@@ -215,6 +418,22 @@ function normalizeMessages(messages) {
       return { role, content };
     })
     .filter(Boolean);
+}
+
+function toModelSafeMessages(messages) {
+  return normalizeMessages(messages)
+    .map((m) => {
+      const role = String(m.role || "assistant").toLowerCase();
+      let safeRole = "assistant";
+      if (role === "system" || role === "user" || role === "assistant") {
+        safeRole = role;
+      }
+      return {
+        role: safeRole,
+        content: String(m.content || "").trim(),
+      };
+    })
+    .filter((m) => m.content.length > 0);
 }
 
 function estimateTokens(messages) {
@@ -308,8 +527,9 @@ function buildSummary(totalCompressedRounds, keyPoints) {
 function compressHistory(messages, preserveRecent = CONFIG.preserveRecent) {
   const normalized = normalizeMessages(messages);
   const totalMessages = normalized.length;
+  const preserveRecentMessages = roundsToMessageCount(preserveRecent);
 
-  if (totalMessages <= preserveRecent) {
+  if (totalMessages <= preserveRecentMessages) {
     return {
       success: true,
       compressed: {
@@ -324,10 +544,10 @@ function compressHistory(messages, preserveRecent = CONFIG.preserveRecent) {
     };
   }
 
-  const recent = normalized.slice(-preserveRecent);
-  const toCompress = normalized.slice(0, -preserveRecent);
+  const recent = normalized.slice(-preserveRecentMessages);
+  const toCompress = normalized.slice(0, -preserveRecentMessages);
   const keyPoints = extractKeyPoints(toCompress);
-  const summary = buildSummary(toCompress.length, keyPoints);
+  const summary = buildSummary(Math.max(1, Math.ceil(toCompress.length / 2)), keyPoints);
 
   const originalTokens = estimateTokens(toCompress);
   const summaryTokens = estimateTokens(summary);
@@ -376,12 +596,78 @@ function getHistoryFromEvent(event) {
   return getHistoryFromData(event?.data || {});
 }
 
+function getHistoryForCompression(event, hookPhase) {
+  const directHistory = getHistoryFromEvent(event);
+  const directCount = normalizeMessages(directHistory).length;
+  const minMessagesForCompression = getPreserveRecentMessageCount() + 1;
+  const phase = String(hookPhase || "").toLowerCase();
+  const allowSessionFallback = phase === "before_prompt_build" || phase === "agent:input" || phase === "input";
+
+  if (!allowSessionFallback || directCount >= minMessagesForCompression) {
+    return {
+      history: directHistory,
+      source: "event",
+      fallbackUsed: false,
+      directCount,
+      resolvedCount: directCount,
+    };
+  }
+
+  const sessionKey = extractSessionKey(event);
+  if (!sessionKey) {
+    return {
+      history: directHistory,
+      source: "event",
+      fallbackUsed: false,
+      directCount,
+      resolvedCount: directCount,
+    };
+  }
+
+  const sessionFile = resolveSessionFileFromSessionKey(sessionKey);
+  if (!sessionFile) {
+    return {
+      history: directHistory,
+      source: "event",
+      fallbackUsed: false,
+      directCount,
+      resolvedCount: directCount,
+      sessionKey,
+    };
+  }
+
+  const fallbackHistory = loadSessionHistoryFromFile(sessionFile);
+  const fallbackCount = normalizeMessages(fallbackHistory).length;
+  if (fallbackCount <= directCount) {
+    return {
+      history: directHistory,
+      source: "event",
+      fallbackUsed: false,
+      directCount,
+      resolvedCount: directCount,
+      sessionKey,
+      sessionFile,
+    };
+  }
+
+  return {
+    history: fallbackHistory,
+    source: "session-file",
+    fallbackUsed: true,
+    directCount,
+    resolvedCount: fallbackCount,
+    sessionKey,
+    sessionFile,
+  };
+}
+
 function evaluateTrigger(event, messages) {
   const normalized = normalizeMessages(messages);
   const historyLength = normalized.length;
   const tokenEstimate = estimateTokens(normalized);
+  const preserveRecentMessages = getPreserveRecentMessageCount();
 
-  if (historyLength <= CONFIG.preserveRecent) {
+  if (historyLength <= preserveRecentMessages) {
     return {
       shouldCompress: false,
       phase: PHASE.NONE,
@@ -421,6 +707,10 @@ function evaluateTrigger(event, messages) {
 
   // 1) Smart Context tier rules first (8-20-35 by default).
   // NOTE: historyLength counts messages, not turns. We approximate turns as message pairs.
+  //   - <= 8 rounds: keep raw recent context
+  //   - 9~20 rounds: summary mode
+  //   - 21~35 rounds: intelligent compression mode
+  //   - >35 rounds: hard compression mode
   const estimatedRounds = Math.max(1, Math.ceil(historyLength / 2));
   if (SMART_RULES.compressAfterRounds > 0 && estimatedRounds > SMART_RULES.compressAfterRounds) {
     return {
@@ -436,7 +726,17 @@ function evaluateTrigger(event, messages) {
     return {
       shouldCompress: true,
       phase: PHASE.COMPRESSED,
-      reason: "smart:summary-rounds",
+      reason: "smart:intelligent-compress-rounds",
+      historyLength,
+      tokenEstimate,
+      messages: normalized,
+    };
+  }
+  if (SMART_RULES.fullRounds > 0 && estimatedRounds > SMART_RULES.fullRounds) {
+    return {
+      shouldCompress: true,
+      phase: PHASE.SUMMARY,
+      reason: "smart:summary-window-rounds",
       historyLength,
       tokenEstimate,
       messages: normalized,
@@ -444,7 +744,7 @@ function evaluateTrigger(event, messages) {
   }
 
   // 2) Fallback triggers (token estimate thresholds).
-  const byHistory = historyLength > CONFIG.compressionThreshold;
+  const byHistory = estimatedRounds > CONFIG.compressionThreshold;
   const byToken = tokenEstimate >= Number(CONFIG.tokenTriggerEstimate || 0);
 
   if (!byHistory && !byToken) {
@@ -519,12 +819,33 @@ function logCompression(result, source) {
   console.log(
     `📦 Context Optimizer (${source}): phase=${trigger.phase} reason=${trigger.reason} history=${trigger.historyLength} estTokens=${trigger.tokenEstimate}`
   );
-  console.log(
-    `✅ 保留最近 ${Array.isArray(compressed.recent) ? compressed.recent.length : 0} 条 (${estimateTokens(compressed.recent || [])} tokens)`
-  );
+  const keptMessages = Array.isArray(compressed.recent) ? compressed.recent.length : 0;
+  const keptRounds = Math.floor(keptMessages / 2);
+  console.log(`✅ 保留最近 ${keptRounds} 轮 (${keptMessages} 条, ${estimateTokens(compressed.recent || [])} tokens)`);
   if (compressed.type === PHASE.COMPRESSED) {
     console.log(`📝 压缩 ${compressed.original_count} 条 → 摘要 (${saved} tokens, ${(ratio * 100).toFixed(0)}%节省)`);
   }
+}
+
+function writeCompactionMetric(event, hookPhase, result, historyInfo = null) {
+  const payload = {
+    hook_phase: hookPhase,
+    reason: result?.trigger?.reason,
+    history_length: result?.trigger?.historyLength,
+    token_estimate: result?.trigger?.tokenEstimate,
+    tokens_saved: result?.compressed?.tokens_saved || 0,
+  };
+  const sessionKey = extractSessionKey(event);
+  if (sessionKey) {
+    payload.session_key = sessionKey;
+  }
+  if (historyInfo && typeof historyInfo === "object") {
+    payload.history_source = historyInfo.source || "event";
+    payload.fallback_used = Boolean(historyInfo.fallbackUsed);
+    payload.history_direct = Number(historyInfo.directCount || 0);
+    payload.history_resolved = Number(historyInfo.resolvedCount || 0);
+  }
+  writeMetric("hook_compaction", payload);
 }
 
 function handleBootstrap(event) {
@@ -541,6 +862,7 @@ function handleBootstrap(event) {
         status: "ready",
         config: {
           preserveRecent: CONFIG.preserveRecent,
+          preserveRecentMessages: getPreserveRecentMessageCount(),
           compressionThreshold: CONFIG.compressionThreshold,
           tokenTriggerEstimate: CONFIG.tokenTriggerEstimate,
         },
@@ -550,8 +872,8 @@ function handleBootstrap(event) {
 }
 
 async function handleBeforeAgentStart(event) {
-  const history = getHistoryFromEvent(event);
-  const result = runCompression(event, history);
+  const historyInfo = getHistoryForCompression(event, "before_agent_start");
+  const result = runCompression(event, historyInfo.history);
   if (!result.ok) {
     return event;
   }
@@ -562,43 +884,38 @@ async function handleBeforeAgentStart(event) {
   }
 
   logCompression(result, "before_agent_start");
-  writeMetric("hook_compaction", {
-    hook_phase: "before_agent_start",
-    reason: result.trigger.reason,
-    history_length: result.trigger.historyLength,
-    token_estimate: result.trigger.tokenEstimate,
-    tokens_saved: result.compressed.tokens_saved || 0,
-  });
+  writeCompactionMetric(event, "before_agent_start", result, historyInfo);
   return { prependContext: snapshot };
 }
 
 async function handleBeforePromptBuild(event) {
-  const history = getHistoryFromEvent(event);
-  const result = runCompression(event, history);
+  const historyInfo = getHistoryForCompression(event, "before_prompt_build");
+  const result = runCompression(event, historyInfo.history);
   if (!result.ok) {
     return event;
   }
 
-  const snapshot = buildSnapshot(result.compressed);
-  if (!snapshot) {
+  const compressed = result.compressed || {};
+  const recentMessages = toModelSafeMessages(compressed.recent || []);
+  if (recentMessages.length === 0) {
     return event;
   }
 
+  const summaryText = compressed.summary ? trimText(String(compressed.summary), 2000) : "";
+  const messages = summaryText
+    ? [{ role: "system", content: `历史摘要（压缩保留）:\n${summaryText}` }, ...recentMessages]
+    : recentMessages;
+
   logCompression(result, "before_prompt_build");
-  writeMetric("hook_compaction", {
-    hook_phase: "before_prompt_build",
-    reason: result.trigger.reason,
-    history_length: result.trigger.historyLength,
-    token_estimate: result.trigger.tokenEstimate,
-    tokens_saved: result.compressed.tokens_saved || 0,
-  });
-  return { prependContext: snapshot };
+  writeCompactionMetric(event, "before_prompt_build", result, historyInfo);
+  writeSmartContextStatus(event, result, "before_prompt_build");
+  return { messages };
 }
 
 async function handleInput(event) {
   const data = event?.data || {};
-  const history = getHistoryFromEvent(event);
-  const result = runCompression(event, history);
+  const historyInfo = getHistoryForCompression(event, "agent:input");
+  const result = runCompression(event, historyInfo.history);
   if (!result.ok) {
     return event;
   }
@@ -607,13 +924,8 @@ async function handleInput(event) {
   const compressed = result.compressed;
 
   logCompression(result, "agent:input");
-  writeMetric("hook_compaction", {
-    hook_phase: "agent:input",
-    reason: result.trigger.reason,
-    history_length: result.trigger.historyLength,
-    token_estimate: result.trigger.tokenEstimate,
-    tokens_saved: compressed.tokens_saved || 0,
-  });
+  writeCompactionMetric(event, "agent:input", result, historyInfo);
+  writeSmartContextStatus(event, result, "agent:input");
 
   return {
     ...event,
@@ -645,7 +957,7 @@ async function main(event) {
     return event;
   }
 
-  const eventType = getEventType(event);
+  const eventType = resolveEffectiveEventType(event);
 
   if (eventType === "before_agent_start") {
     return handleBeforeAgentStart(event);
@@ -677,6 +989,9 @@ module.exports.CONFIG = CONFIG;
 module.exports.normalizeMessages = normalizeMessages;
 module.exports.evaluateTrigger = evaluateTrigger;
 module.exports.getHistoryFromEvent = getHistoryFromEvent;
+module.exports.getHistoryForCompression = getHistoryForCompression;
+module.exports.resolveSessionFileFromSessionKey = resolveSessionFileFromSessionKey;
+module.exports.loadSessionHistoryFromFile = loadSessionHistoryFromFile;
 
 if (require.main === module) {
   const testMessages = [

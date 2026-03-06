@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-批量导入摘要 JSON 文件到向量库
-用于 cron 定期任务：nexus-summary-flush
+批量导入摘要 JSON 文件到向量库（已弃用）
+
+⚠️ Deprecated: 请使用 `skills/deepsea-nexus/scripts/flush_summaries.py`。
+这个脚本保留仅为兼容旧 cron 配置，内部已转发到新脚本。
 
 步骤：
 1. 检查 ~/.openclaw/logs/summaries/ 目录
@@ -55,27 +57,68 @@ def import_summary_file(filepath: str) -> bool:
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        # 调用 nexus_add_structured_summary
-        from deepsea_nexus import nexus_add_structured_summary
-        
-        result = nexus_add_structured_summary(
-            core_output=data.get("core_output", ""),
-            tech_points=data.get("tech_points", []),
-            code_pattern=data.get("code_pattern", ""),
-            decision_context=data.get("decision_context", ""),
-            pitfall_record=data.get("pitfall_record", ""),
-            applicable_scene=data.get("applicable_scene", ""),
-            search_keywords=data.get("search_keywords", []),
-            project关联=data.get("project关联", ""),
-            confidence=data.get("confidence", "medium"),
-            source=data.get("source", os.path.basename(filepath))
-        )
-        
-        if result and result.get("stored_count", 0) > 0:
-            log(f"✅ 导入成功: {filepath} (存储 {result['stored_count']} 个文档)", "INFO")
+        # 兼容：当前 deepsea_nexus 对外稳定 API 为 nexus_add(content,title,tags)
+        # 将结构化摘要拼成可检索的纯文本，并把关键词/置信度等写入 tags。
+        from deepsea_nexus import nexus_add
+
+        core_output = data.get("core_output", "")
+        tech_points = data.get("tech_points", []) or []
+        code_pattern = data.get("code_pattern", "")
+        decision_context = data.get("decision_context", "")
+        pitfall_record = data.get("pitfall_record", "")
+        applicable_scene = data.get("applicable_scene", "")
+        search_keywords = data.get("search_keywords", []) or []
+        project_assoc = data.get("project关联", "")
+        confidence = data.get("confidence", "medium")
+        source = data.get("source", os.path.basename(filepath))
+
+        title = (project_assoc or source or os.path.basename(filepath)).strip() or "summary"
+
+        parts = []
+        if core_output:
+            parts.append(f"CORE_OUTPUT:\n{core_output}")
+        if tech_points:
+            parts.append("TECH_POINTS:\n" + "\n".join(f"- {p}" for p in tech_points if p))
+        if code_pattern:
+            parts.append(f"CODE_PATTERN:\n{code_pattern}")
+        if decision_context:
+            parts.append(f"DECISION_CONTEXT:\n{decision_context}")
+        if pitfall_record:
+            parts.append(f"PITFALL_RECORD:\n{pitfall_record}")
+        if applicable_scene:
+            parts.append(f"APPLICABLE_SCENE:\n{applicable_scene}")
+        if search_keywords:
+            parts.append("SEARCH_KEYWORDS:\n" + ", ".join(str(k) for k in search_keywords if k))
+        if project_assoc:
+            parts.append(f"PROJECT:\n{project_assoc}")
+        if source:
+            parts.append(f"SOURCE:\n{source}")
+        if confidence:
+            parts.append(f"CONFIDENCE:\n{confidence}")
+
+        content = "\n\n".join(parts).strip()
+        if not content:
+            log(f"❌ 导入失败: {filepath} - 空内容", "ERROR")
+            return False
+
+        tags_items = []
+        if isinstance(search_keywords, list):
+            tags_items.extend([str(k).strip() for k in search_keywords if str(k).strip()])
+        if project_assoc:
+            tags_items.append(f"project:{project_assoc}")
+        if confidence:
+            tags_items.append(f"confidence:{confidence}")
+        if source:
+            tags_items.append(f"source:{source}")
+        tags = ",".join(tags_items)
+
+        doc_id = nexus_add(content=content, title=title, tags=tags)
+
+        if doc_id:
+            log(f"✅ 导入成功: {filepath} (doc_id={doc_id})", "INFO")
             return True
         else:
-            log(f"❌ 导入失败: {filepath} - 未存储任何文档", "ERROR")
+            log(f"❌ 导入失败: {filepath} - 未返回 doc_id", "ERROR")
             return False
             
     except Exception as e:

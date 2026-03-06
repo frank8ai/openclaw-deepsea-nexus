@@ -37,6 +37,21 @@ class SessionInfo:
         return cls(**data)
 
 
+def get_session_manager(*args, **kwargs) -> "SessionManager":
+    """Backward-compatible accessor used by tests and scripts."""
+    return SessionManager(*args, **kwargs)
+
+
+def start_session(topic: str, *args, **kwargs) -> str:
+    """Module-level convenience wrapper for backward compatibility."""
+    return SessionManager(*args, **kwargs).start_session(topic)
+
+
+def close_session(session_id: str, *args, **kwargs) -> None:
+    """Module-level convenience wrapper for backward compatibility."""
+    return SessionManager(*args, **kwargs).close_session(session_id)
+
+
 class SessionManager:
     """会话管理器"""
     

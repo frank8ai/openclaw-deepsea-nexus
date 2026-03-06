@@ -70,15 +70,21 @@ def main():
                 data = json.load(f)
             
             conversation_id = data.get('conversation_id', 'unknown')
-            response = data.get('full_response', '') or data.get('response', '') # fallback
+            response = data.get('full_response', '') or data.get('response', '')  # fallback
             user_query = data.get('user_query', '')
             
+            # Support "summary-only" JSON payloads (StructuredSummary v2.0) where
+            # the file itself is the summary object.
             if not response:
-                print(f"⚠️ Skipping {json_file}: No 'full_response' found.")
-                # We might want to keep it to investigate, or delete it if it's junk.
-                # For now, let's keep it but mark as failed.
-                fail_count += 1
-                continue
+                if any(k in data for k in ("本次核心产出", "技术要点", "决策上下文", "避坑记录")):
+                    response = (
+                        "## 📋 总结\n"
+                        "```json\n" + json.dumps(data, ensure_ascii=False) + "\n```\n"
+                    )
+                else:
+                    print(f"⚠️ Skipping {json_file}: No 'full_response' found.")
+                    fail_count += 1
+                    continue
 
             print(f"📥 Importing summary for conversation: {conversation_id}...")
             

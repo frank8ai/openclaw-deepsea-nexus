@@ -15,6 +15,7 @@
 
 import json
 import re
+import os
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, asdict
 
@@ -49,6 +50,13 @@ class StructuredSummary:
     
     # 项目关联 - 项目连续性
     project关联: str = ""            # 项目关联：所属项目（可选）
+
+    # 下一步与问题 - 计划与待澄清
+    next_actions: str = ""           # 下一步：后续行动
+    questions: str = ""              # 问题：待澄清问题
+
+    # 实体 - 关键人/物/系统
+    entities: List[str] = None       # 实体列表
     
     # 置信度 - 质量自检
     confidence: str = "medium"       # 置信度：high/medium/low
@@ -58,6 +66,8 @@ class StructuredSummary:
             self.tech_points = []
         if self.search_keywords is None:
             self.search_keywords = []
+        if self.entities is None:
+            self.entities = []
     
     def to_dict(self) -> Dict:
         """转换为字典"""
@@ -75,6 +85,9 @@ class StructuredSummary:
             applicable_scene=data.get("适用场景", ""),
             search_keywords=data.get("搜索关键词", []),
             project关联=data.get("项目关联", ""),
+            next_actions=data.get("下一步", data.get("next_actions", "")),
+            questions=data.get("问题", data.get("questions", "")),
+            entities=data.get("实体", data.get("entities", [])),
             confidence=data.get("置信度", "medium")
         )
     
@@ -89,6 +102,9 @@ class StructuredSummary:
             self.applicable_scene,
             " ".join(self.search_keywords),
             self.project关联,
+            self.next_actions,
+            self.questions,
+            " ".join(self.entities),
         ]
         return " ".join(p for p in parts if p)
     
@@ -185,6 +201,9 @@ class SummaryParser:
   "决策上下文": "为什么选择这个方案",
   "避坑记录": "应避免的错误/弯路",
   "适用场景": "这个方案适用的场景",
+  "下一步": "后续行动/下一步",
+  "问题": "仍待澄清的问题",
+  "实体": ["关键人/系统/组件"],
   "搜索关键词": ["标签1", "标签2"],
   "项目关联": "所属项目（可选）",
   "置信度": "high/medium/low"
@@ -211,6 +230,17 @@ class HybridStorage:
         """
         self.vector_store = vector_store
         self.parser = SummaryParser()
+        self._mem_v5 = None
+        try:
+            from memory_v5 import MemoryV5Service
+            config_path = os.path.join(os.path.dirname(__file__), "config.json")
+            config = {}
+            if os.path.exists(config_path):
+                with open(config_path, "r", encoding="utf-8") as fh:
+                    config = json.load(fh)
+            self._mem_v5 = MemoryV5Service(config)
+        except Exception:
+            self._mem_v5 = None
     
     def process_and_store(self, conversation_id: str, response: str, 
                           user_query: str = "") -> Dict[str, Any]:
@@ -292,6 +322,23 @@ class HybridStorage:
                 )
                 results["stored_count"] += 1
                 results["summary_data"] = {"core_output": summary.core_output}
+
+        # 4. Sync to memory_v5 (best-effort)
+        if self._mem_v5 is not None:
+            try:
+                summary_payload = None
+                if isinstance(summary, StructuredSummary):
+                    summary_payload = summary.to_dict()
+                elif summary is not None:
+                    summary_payload = {"本次核心产出": getattr(summary, "core_output", str(summary))}
+                self._mem_v5.ingest_summary(
+                    conversation_id=conversation_id,
+                    reply=reply or "",
+                    summary=summary_payload,
+                    user_query=user_query or "",
+                )
+            except Exception:
+                pass
         
         return results
     
@@ -345,6 +392,9 @@ def create_summary_system_prompt() -> str:
   "决策上下文": "为什么选择这个方案",
   "避坑记录": "应避免的错误/弯路",
   "适用场景": "这个方案适用的场景",
+  "下一步": "后续行动/下一步",
+  "问题": "仍待澄清的问题",
+  "实体": ["关键人/系统/组件"],
   "搜索关键词": ["标签1", "标签2"],
   "项目关联": "所属项目（可选）",
   "置信度": "high/medium/low"

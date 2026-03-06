@@ -182,6 +182,15 @@ bash scripts/install_safe_cron.sh --install
 ```
 说明：该 cron 仅生成 digest 报告并执行 summary flush，不做对外动作。
 
+## 可选：安装向量库快照/健康检查 cron
+```bash
+bash scripts/install_vector_db_maintenance_cron.sh
+```
+说明：
+- 每日生成向量库快照（可恢复）
+- 每日健康检查（collection.count）
+- 如需自动恢复，运行 `vector_db_healthcheck.py --auto-restore`（默认不启用）
+
 ## 常见问题
 - `chromadb` 未安装：
   - 现版本会自动进入 degraded mode（lexical fallback），可继续运行。

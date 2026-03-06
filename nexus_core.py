@@ -10,6 +10,7 @@ import gzip
 import threading
 import time
 import re
+import json
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from functools import lru_cache
@@ -123,7 +124,24 @@ class NexusCore:
             self._warming = False
             self._ready = False
             self._warmup_thread = None
+            self._mem_v5 = None
             NexusCore._initialized = True
+
+    def _get_mem_v5(self):
+        if self._mem_v5 is not None:
+            return self._mem_v5
+        try:
+            from memory_v5 import MemoryV5Service
+            config_path = os.path.join(os.path.dirname(__file__), "config.json")
+            config = {}
+            if os.path.exists(config_path):
+                with open(config_path, "r", encoding="utf-8") as fh:
+                    config = json.load(fh)
+            self._mem_v5 = MemoryV5Service(config)
+            return self._mem_v5
+        except Exception:
+            self._mem_v5 = None
+            return None
     
     def _background_warmup(self):
         """后台预热线程"""
@@ -244,8 +262,7 @@ class NexusCore:
                 ]
             
             results = self.recall.search(query, n_results=n)
-            
-            return [
+            out = [
                 RecallResult(
                     content=r.content,
                     source=r.metadata.get('title', r.doc_id),
@@ -254,6 +271,30 @@ class NexusCore:
                 )
                 for r in results
             ]
+
+            mem_v5 = self._get_mem_v5()
+            if mem_v5 is not None:
+                try:
+                    for hit in mem_v5.recall(query, limit=n):
+                        out.append(
+                            RecallResult(
+                                content=hit.content,
+                                source=f"🧠v5 {hit.title}",
+                                relevance=hit.relevance,
+                                metadata={"origin": hit.origin, **(hit.metadata or {})},
+                            )
+                        )
+                except Exception:
+                    pass
+
+            # Deduplicate by content+source
+            dedup = {}
+            for item in out:
+                key = f"{item.source}\n{item.content}".strip()
+                if key not in dedup or item.relevance > dedup[key].relevance:
+                    dedup[key] = item
+            final = sorted(dedup.values(), key=lambda r: r.relevance, reverse=True)
+            return final[:n]
         except Exception as e:
             print(f"检索错误: {e}")
             return []
@@ -292,6 +333,19 @@ class NexusCore:
                 metadata=metadata,
                 note_id=note_id  # 修复参数名
             )
+
+            # Best-effort memory_v5 sync
+            try:
+                mem_v5 = self._get_mem_v5()
+                if mem_v5 is not None:
+                    mem_v5.ingest_document(
+                        title=title or doc_id or "Untitled",
+                        content=content,
+                        tags=metadata.get("tags", []),
+                        source_id=doc_id or "",
+                    )
+            except Exception:
+                pass
             
             # 清除缓存以确保新文档可检索
             self._cached_search.cache_clear()

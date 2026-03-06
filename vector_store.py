@@ -8,6 +8,8 @@ import sys
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
+from utils.vector_db_lock import vector_db_write_lock
+
 # 导入 ChromaDB
 # Prefer the workspace venv (.venv-nexus) if running under a different Python.
 try:
@@ -104,12 +106,14 @@ class VectorStore:
             import uuid
             ids = [str(uuid.uuid4())[:8] for _ in documents]
         
-        self.collection.add(
-            documents=documents,
-            embeddings=embeddings,
-            ids=ids,
-            metadatas=metadatas
-        )
+        lock_timeout = float(os.environ.get("NEXUS_VECTOR_LOCK_TIMEOUT", "30") or 30)
+        with vector_db_write_lock(self.persist_path, timeout_sec=lock_timeout):
+            self.collection.add(
+                documents=documents,
+                embeddings=embeddings,
+                ids=ids,
+                metadatas=metadatas
+            )
         
         return ids
     
@@ -161,7 +165,9 @@ class VectorStore:
     
     def delete(self, ids: List[str]):
         """删除文档"""
-        self.collection.delete(ids=ids)
+        lock_timeout = float(os.environ.get("NEXUS_VECTOR_LOCK_TIMEOUT", "30") or 30)
+        with vector_db_write_lock(self.persist_path, timeout_sec=lock_timeout):
+            self.collection.delete(ids=ids)
     
     @property
     def count(self) -> int:

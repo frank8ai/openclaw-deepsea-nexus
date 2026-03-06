@@ -8,6 +8,10 @@ Run all tests for the hot-pluggable architecture.
 import subprocess
 import sys
 import os
+
+# Mark test mode for write-guard so degraded-mode tests can exercise
+# lexical fallback without requiring vector DB env variables.
+os.environ.setdefault("NEXUS_TEST_MODE", "1")
 import importlib
 import importlib.util
 from pathlib import Path

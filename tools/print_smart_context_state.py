@@ -9,10 +9,10 @@ import json
 import os
 import sys
 
-# Ensure repo root is importable when running as a script
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+# Ensure workspace root is importable so `skills.deepsea-nexus...` package imports work.
+WORKSPACE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.insert(0, WORKSPACE_ROOT)
 
 
 def _to_jsonable(obj):
@@ -25,8 +25,13 @@ def _to_jsonable(obj):
 
 async def main() -> int:
     # Import via the repo root package name (this repo is a package via __init__.py)
-    from core.plugin_system import get_plugin_registry  # type: ignore
-    from plugins.smart_context import SmartContextPlugin  # type: ignore
+    import importlib
+    get_plugin_registry = importlib.import_module(
+        "skills.deepsea-nexus.core.plugin_system"
+    ).get_plugin_registry
+    SmartContextPlugin = importlib.import_module(
+        "skills.deepsea-nexus.plugins.smart_context"
+    ).SmartContextPlugin
 
     # Initialize plugin registry + SmartContext
     registry = get_plugin_registry()
