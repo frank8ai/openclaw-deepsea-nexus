@@ -2,7 +2,12 @@
 Memory v5 focused tests.
 """
 
+import contextlib
+import asyncio
+import importlib
 import importlib.util
+import io
+import json
 import os
 import sys
 import tempfile
@@ -10,6 +15,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+os.environ.setdefault("NEXUS_TEST_MODE", "1")
 PARENT_DIR = REPO_ROOT.parent
 if str(PARENT_DIR) not in sys.path:
     sys.path.insert(0, str(PARENT_DIR))
@@ -32,6 +38,9 @@ def _load_local_package():
 deepsea_nexus = _load_local_package()
 MemoryScope = deepsea_nexus.MemoryScope
 MemoryV5Service = deepsea_nexus.MemoryV5Service
+NexusCorePlugin = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.nexus_core_plugin"
+).NexusCorePlugin
 
 
 class TestMemoryV5Scopes(unittest.TestCase):
@@ -143,6 +152,72 @@ class TestPackageRootExports(unittest.TestCase):
         ]
         for name in required:
             self.assertTrue(hasattr(deepsea_nexus, name), f"missing root export: {name}")
+
+
+class TestVersionAndEntrypoints(unittest.TestCase):
+    def test_get_version_matches_package_version(self):
+        self.assertEqual(deepsea_nexus.get_version(), deepsea_nexus.__version__)
+
+    def test_legacy_plugin_module_forwards_to_current_plugin(self):
+        legacy = importlib.import_module(f"{deepsea_nexus.__name__}.plugins.nexus_core")
+        current = importlib.import_module(f"{deepsea_nexus.__name__}.plugins.nexus_core_plugin")
+
+        self.assertIs(legacy.NexusCorePlugin, current.NexusCorePlugin)
+        self.assertIs(legacy.RecallResult, current.RecallResult)
+
+    def test_cli_version_json(self):
+        cli = importlib.import_module(f"{deepsea_nexus.__name__}.__main__")
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = cli.main(["version", "--json"])
+
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["package_version"], deepsea_nexus.__version__)
+        self.assertEqual(payload["api_version"], deepsea_nexus.get_version())
+
+
+class TestCurrentRuntimeFixes(unittest.TestCase):
+    def test_add_document_feeds_memory_v5_without_brain(self):
+        temp_dir = tempfile.mkdtemp()
+        plugin = NexusCorePlugin()
+        config = {
+            "paths": {"base": temp_dir},
+            "memory_v5": {
+                "enabled": True,
+                "root": "memory/95_MemoryV5",
+                "async_ingest": False,
+                "graph_enabled": False,
+                "fts_enabled": True,
+            },
+            "brain": {"enabled": False},
+        }
+
+        try:
+            original_test_mode = os.environ.get("NEXUS_TEST_MODE")
+            os.environ["NEXUS_TEST_MODE"] = "1"
+            self.assertTrue(asyncio.run(plugin.initialize(config)))
+            doc_id = asyncio.run(
+                plugin.add_document(
+                    content="Memory v5 should receive this document without brain hooks.",
+                    title="MemoryV5Write",
+                    tags="alpha,beta",
+                )
+            )
+            self.assertTrue(doc_id)
+            service = plugin._get_mem_v5_service()
+            self.assertIsNotNone(service)
+            hits = service.recall("receive this document", limit=5)
+            self.assertTrue(any(hit.title == "MemoryV5Write" for hit in hits))
+        finally:
+            if original_test_mode is None:
+                os.environ.pop("NEXUS_TEST_MODE", None)
+            else:
+                os.environ["NEXUS_TEST_MODE"] = original_test_mode
+            import shutil
+
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -1,14 +1,8 @@
 """
-Backward Compatibility Layer v3.0
+Backward compatibility layer for Deep-Sea Nexus.
 
-Maintains 100% API compatibility with Deep-Sea Nexus v2.x
-All existing code will continue to work without modification.
-
-Migration Path:
-    v2.x (current): from nexus_core import nexus_init, nexus_recall
-    v3.0 (new):     from deepsea_nexus import create_app
-    
-Both APIs work simultaneously - no breaking changes!
+Maintains the legacy sync API while the package evolves independently from the
+plugin runtime protocol version.
 """
 
 import asyncio
@@ -19,6 +13,11 @@ try:
     from .compat_async import run_coro_sync
 except ImportError:
     from compat_async import run_coro_sync
+
+try:
+    from ._version import __version__ as PACKAGE_VERSION
+except ImportError:
+    from _version import __version__ as PACKAGE_VERSION
 from typing import List, Dict, Any, Optional
 import logging
 
@@ -660,8 +659,8 @@ def brain_backfill_embeddings(limit: int = 0) -> Dict[str, int]:
 
 
 def get_version() -> str:
-    """Get Deep-Sea Nexus version"""
-    return "3.0.0"
+    """Get the current package version."""
+    return PACKAGE_VERSION
 
 
 # Export all backward compatible functions

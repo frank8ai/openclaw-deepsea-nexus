@@ -1,15 +1,36 @@
 import tempfile
 import unittest
+import importlib
+import importlib.util
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILLS = ROOT.parent
-if str(SKILLS) not in sys.path:
-    sys.path.insert(0, str(SKILLS))
 
-from deepsea_nexus.brain.api import configure_brain, brain_write, brain_retrieve, checkpoint, rollback, backfill_embeddings
-from deepsea_nexus.brain.vector_scorer import VectorScorer
+
+def _load_local_package():
+    spec = importlib.util.spec_from_file_location(
+        "deepsea_nexus_local_brain_integration",
+        ROOT / "__init__.py",
+        submodule_search_locations=[str(ROOT)],
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+deepsea_nexus = _load_local_package()
+brain_api_module = importlib.import_module(f"{deepsea_nexus.__name__}.brain.api")
+brain_vector_module = importlib.import_module(f"{deepsea_nexus.__name__}.brain.vector_scorer")
+configure_brain = brain_api_module.configure_brain
+brain_write = brain_api_module.brain_write
+brain_retrieve = brain_api_module.brain_retrieve
+checkpoint = brain_api_module.checkpoint
+rollback = brain_api_module.rollback
+backfill_embeddings = brain_api_module.backfill_embeddings
+VectorScorer = brain_vector_module.VectorScorer
 
 
 class TestBrainIntegration(unittest.TestCase):

@@ -17,9 +17,14 @@ Deep-Sea Nexus provides a practical memory layer for agent systems:
 ## Key Runtime Paths
 
 - Main skill root: `skills/deepsea-nexus/`
+- Current architecture: `docs/ARCHITECTURE_CURRENT.md`
+- Current API surface: `docs/API_CURRENT.md`
 - Memory v5 plan: `docs/SECOND_BRAIN_V5_PLAN.md`
 - Local deployment guide: `docs/LOCAL_DEPLOY.md`
 - Context-governance SOP: `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
+- Historical docs kept for reference only:
+  - `DOCUMENTATION.md`
+  - `docs/architecture_v3.md`
 
 ## Python API
 
@@ -98,4 +103,4 @@ For broader runtime verification, use:
 
 - `python3 run_tests.py`
 - `docs/LOCAL_DEPLOY.md`
-- `scripts/deploy_local_v4.sh`
+- `scripts/deploy_local_v5.sh`

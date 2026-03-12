@@ -1,6 +1,13 @@
 # Deep-Sea Nexus v2.3 详细技术文档
 
-> 说明：本文为 v2.3 历史文档。当前推荐使用 v4.0（插件化 + 兼容层）。
+> Archived: this is a historical v2.3 document and is not the current source of truth.
+> Current docs:
+> - `README.md`
+> - `README_EN.md`
+> - `docs/ARCHITECTURE_CURRENT.md`
+> - `docs/API_CURRENT.md`
+
+> 说明：本文为 v2.3 历史文档。当前请以 v5.0 当前文档为准。
 
 > AI Agent 长期记忆系统 | 向量存储 | 智能上下文 | RAG 召回
 

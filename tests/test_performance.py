@@ -1,37 +1,46 @@
 """
-Performance Benchmarks for Deep-Sea Nexus v3.0
+Performance benchmarks for Deep-Sea Nexus.
 
 Benchmark the new architecture performance vs. expected metrics.
 """
 
-import sys
-import os
-# Ensure the workspace `skills/` directory is importable so `import deepsea_nexus`
-# works via the compatibility shim at `skills/deepsea_nexus/`.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-# Keep skill root on path for local imports.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import time
 import asyncio
-import tempfile
+import importlib
+import importlib.util
 import json
-from typing import List, Tuple
+import os
+import sys
+import tempfile
+import time
 import unittest
 from dataclasses import dataclass
+from typing import List, Tuple
 
-try:
-    from deepsea_nexus import (
-        create_app,
-        nexus_init,
-        nexus_recall,
-        nexus_add,
-        CompressionManager,
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.environ.setdefault("NEXUS_TEST_MODE", "1")
+
+
+def _load_local_package():
+    spec = importlib.util.spec_from_file_location(
+        "deepsea_nexus_local_performance",
+        os.path.join(REPO_ROOT, "__init__.py"),
+        submodule_search_locations=[REPO_ROOT],
     )
-except ImportError:
-    from nexus_core import nexus_init, nexus_recall, nexus_add
-    from storage.compression import CompressionManager
-    create_app = None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+deepsea_nexus = _load_local_package()
+create_app = deepsea_nexus.create_app
+nexus_init = deepsea_nexus.nexus_init
+nexus_recall = deepsea_nexus.nexus_recall
+nexus_add = deepsea_nexus.nexus_add
+CompressionManager = deepsea_nexus.CompressionManager
+storage_base_module = importlib.import_module(f"{deepsea_nexus.__name__}.storage.base")
+event_bus_module = importlib.import_module(f"{deepsea_nexus.__name__}.core.event_bus")
 
 
 @dataclass
@@ -225,9 +234,8 @@ class PerformanceBenchmark(unittest.TestCase):
             # Simulate search that takes some time
             time.sleep(0.01)  # Simulate processing
             # Return mock results
-            from deepsea_nexus.storage.base import RecallResult
             results = [
-                RecallResult(
+                storage_base_module.RecallResult(
                     content=f"Mock result {i}",
                     source=f"source_{i}",
                     relevance=0.9 - (i * 0.1),
@@ -248,10 +256,8 @@ class PerformanceBenchmark(unittest.TestCase):
     
     def test_plugin_communication_overhead(self):
         """Benchmark plugin communication overhead"""
-        from deepsea_nexus.core.event_bus import get_event_bus
-        
         async def publish_many_events():
-            event_bus = get_event_bus()
+            event_bus = event_bus_module.get_event_bus()
             received_events = []
             
             def handler(event):
@@ -282,22 +288,20 @@ class PerformanceBenchmark(unittest.TestCase):
     
     def test_session_operations(self):
         """Benchmark session operations"""
-        from deepsea_nexus import get_session_manager, start_session, close_session
-        
         # Initialize session manager
         nexus_init()
-        
+
         def session_ops():
             session_ids = []
             
             # Create 10 sessions
             for i in range(10):
-                sid = start_session(f"Benchmark Session {i}")
+                sid = deepsea_nexus.start_session(f"Benchmark Session {i}")
                 session_ids.append(sid)
             
             # Close all sessions
             for sid in session_ids:
-                close_session(sid)
+                deepsea_nexus.close_session(sid)
             
             return len(session_ids)
         
@@ -398,7 +402,7 @@ class CompressionBenchmark(unittest.TestCase):
 
 def run_performance_benchmarks():
     """Run all performance benchmarks"""
-    print("⚡ Running Deep-Sea Nexus v3.0 Performance Benchmarks...")
+    print("⚡ Running Deep-Sea Nexus performance benchmarks...")
     
     # Run performance tests
     loader = unittest.TestLoader()

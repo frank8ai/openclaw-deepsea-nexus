@@ -236,6 +236,8 @@ class PluginRegistry:
     def set_event_bus(self, event_bus: EventBus) -> None:
         """Set the global event bus"""
         self._event_bus = event_bus
+        for plugin in self._plugins.values():
+            plugin.set_event_bus(event_bus)
     
     def register(self, plugin: NexusPlugin, metadata: PluginMetadata) -> bool:
         """

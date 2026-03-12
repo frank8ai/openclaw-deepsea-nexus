@@ -637,9 +637,19 @@ class NexusCorePlugin(NexusPlugin):
             return None
 
         resolved_id = (doc_id or str(uuid.uuid4())[:8]).strip()
+        if isinstance(tags, str):
+            tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        elif isinstance(tags, (list, tuple, set)):
+            tag_list = [str(t).strip() for t in tags if str(t).strip()]
+        elif tags is None:
+            tag_list = []
+        else:
+            raw_tag = str(tags).strip()
+            tag_list = [raw_tag] if raw_tag else []
+
         metadata = {"title": title or "Untitled"}
-        if tags:
-            metadata["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+        if tag_list:
+            metadata["tags"] = list(tag_list)
 
         # Always keep an in-memory lexical copy for hybrid fallback.
         self._remember_lexical(resolved_id, content, metadata)
@@ -650,7 +660,6 @@ class NexusCorePlugin(NexusPlugin):
                 from ..brain.api import brain_write
 
                 # Infer kind from tags/content hints
-                tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
                 content_lower = (content or "").lower()
                 # Simple heuristic for kind inference
                 if any(k in content_lower for k in ["strategy", "plan", "roadmap", "goal"]):
@@ -688,7 +697,7 @@ class NexusCorePlugin(NexusPlugin):
                     service.ingest_document(
                         title=title or resolved_id or "Untitled",
                         content=content or "",
-                        tags=tag_list if tags else [],
+                        tags=list(tag_list),
                         source_id=resolved_id,
                     )
             except Exception as e:

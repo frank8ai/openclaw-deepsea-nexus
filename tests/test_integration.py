@@ -1,49 +1,93 @@
 """
-Integration Tests for Deep-Sea Nexus v3.0
+Integration tests for Deep-Sea Nexus.
 
 Test the full system integration and end-to-end functionality.
 """
 
-import sys
-import os
-# Ensure workspace `skills/` is importable so `import deepsea_nexus` works via shim.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-# Keep skill root on path for local module fallbacks.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import asyncio
-import tempfile
+import importlib
+import importlib.util
+import io
 import json
+import logging
+import os
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
-try:
-    from deepsea_nexus import (
-        create_app,
-        nexus_init,
-        nexus_recall,
-        nexus_add,
-        get_session_manager,
-        start_session,
-        close_session,
+REPO_ROOT = Path(__file__).resolve().parent.parent
+os.environ.setdefault("NEXUS_TEST_MODE", "1")
+
+
+def _load_local_package():
+    spec = importlib.util.spec_from_file_location(
+        "deepsea_nexus_local_integration",
+        REPO_ROOT / "__init__.py",
+        submodule_search_locations=[str(REPO_ROOT)],
     )
-except ImportError:
-    # Fallback: import from local modules directly
-    from nexus_core import nexus_init, nexus_recall, nexus_add
-    from session_manager import SessionManager as get_session_manager, start_session, close_session
-    create_app = None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+deepsea_nexus = _load_local_package()
+create_app = deepsea_nexus.create_app
+nexus_init = deepsea_nexus.nexus_init
+nexus_recall = deepsea_nexus.nexus_recall
+nexus_add = deepsea_nexus.nexus_add
+get_session_manager = deepsea_nexus.get_session_manager
+start_session = deepsea_nexus.start_session
+close_session = deepsea_nexus.close_session
+config_manager_module = importlib.import_module(f"{deepsea_nexus.__name__}.core.config_manager")
+event_bus_module = importlib.import_module(f"{deepsea_nexus.__name__}.core.event_bus")
+plugin_system_module = importlib.import_module(f"{deepsea_nexus.__name__}.core.plugin_system")
+storage_compression_module = importlib.import_module(f"{deepsea_nexus.__name__}.storage.compression")
+reset_config_manager = config_manager_module.reset_config_manager
+reset_event_bus = event_bus_module.reset_event_bus
+reset_plugin_registry = plugin_system_module.reset_plugin_registry
+
+
+def _reset_runtime_state():
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    if loop.is_closed():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    reset_plugin_registry()
+    reset_config_manager()
+    reset_event_bus()
+
+
+def _close_runtime_loop():
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        return
+    if loop.is_running() or loop.is_closed():
+        return
+    loop.close()
+    asyncio.set_event_loop(None)
 
 
 class TestEndToEnd(unittest.TestCase):
     """End-to-end integration tests"""
     
     def setUp(self):
+        _reset_runtime_state()
         self.temp_dir = tempfile.mkdtemp()
         self.app = None
     
     def tearDown(self):
         if self.app:
             asyncio.run(self.app.stop())
+        _reset_runtime_state()
+        _close_runtime_loop()
         
         # Cleanup temp dir
         import shutil
@@ -134,22 +178,23 @@ class TestPluginCommunication(unittest.TestCase):
     """Test plugin communication via event bus"""
     
     def setUp(self):
+        _reset_runtime_state()
         self.temp_dir = tempfile.mkdtemp()
         self.events_received = []
     
     def tearDown(self):
+        _reset_runtime_state()
+        _close_runtime_loop()
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
     def test_event_driven_communication(self):
         """Test that plugins communicate via events"""
         # Set up event listener
-        from deepsea_nexus.core.event_bus import get_event_bus
-        
         def event_handler(event):
             self.events_received.append(event)
         
-        event_bus = get_event_bus()
+        event_bus = event_bus_module.get_event_bus()
         event_bus.subscribe("nexus.*", event_handler)  # Listen to nexus events
         event_bus.subscribe("session.*", event_handler)  # Listen to session events
         event_bus.subscribe("flush.*", event_handler)  # Listen to flush events
@@ -187,14 +232,59 @@ class TestBackwardCompatibilityIntegration(unittest.TestCase):
     """Test backward compatibility in integrated scenarios"""
     
     def setUp(self):
+        _reset_runtime_state()
         self.temp_dir = tempfile.mkdtemp()
     
     def tearDown(self):
+        _reset_runtime_state()
+        _close_runtime_loop()
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
     def test_mixed_api_usage(self):
         """Test mixing old and new APIs"""
+        config_path = os.path.join(self.temp_dir, "test_config.json")
+        config = {
+            "base_path": self.temp_dir,
+            "nexus": {"vector_db_path": os.path.join(self.temp_dir, "vector_db")},
+            "session": {"auto_archive_days": 30},
+            "flush": {"enabled": False},
+        }
+
+        with open(config_path, "w") as f:
+            json.dump(config, f)
+
+        first_app = create_app(config_path)
+        self.assertTrue(asyncio.run(first_app.initialize()))
+        self.assertTrue(asyncio.run(first_app.start()))
+        self.assertTrue(nexus_init())
+        self.assertIsInstance(nexus_recall("test", n=1), list)
+        self.assertTrue(asyncio.run(first_app.stop()))
+
+        log_stream = io.StringIO()
+        handler = logging.StreamHandler(log_stream)
+        root_logger = logging.getLogger()
+        previous_level = root_logger.level
+        root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(handler)
+
+        try:
+            second_app = create_app(config_path)
+            self.assertTrue(asyncio.run(second_app.initialize()))
+            self.assertTrue(asyncio.run(second_app.start()))
+            if second_app.plugins.get("nexus_core"):
+                new_results = asyncio.run(
+                    second_app.plugins["nexus_core"].search_recall("test", 1)
+                )
+                self.assertIsInstance(new_results, list)
+            self.assertTrue(asyncio.run(second_app.stop()))
+        finally:
+            root_logger.removeHandler(handler)
+            root_logger.setLevel(previous_level)
+
+        log_output = log_stream.getvalue()
+        self.assertNotIn("already registered", log_output)
+        self.assertNotIn("Failed to register plugin", log_output)
 
     def test_brain_enabled_augments_recall(self):
         """When brain is enabled, nexus_recall should include brain hits even if vector backend is unavailable."""
@@ -301,9 +391,7 @@ class TestBackwardCompatibilityIntegration(unittest.TestCase):
     
     def test_config_integration(self):
         """Test config manager integration"""
-        from deepsea_nexus.core.config_manager import get_config_manager
-        
-        config_mgr = get_config_manager()
+        config_mgr = config_manager_module.get_config_manager()
         
         # Test setting/getting values
         config_mgr.set("test.key", "test_value")
@@ -321,19 +409,20 @@ class TestStorageIntegration(unittest.TestCase):
     """Test storage backend integration"""
     
     def setUp(self):
+        _reset_runtime_state()
         self.temp_dir = tempfile.mkdtemp()
     
     def tearDown(self):
+        _reset_runtime_state()
+        _close_runtime_loop()
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
     def test_compression_integration(self):
         """Test compression manager integration"""
-        from deepsea_nexus.storage.compression import CompressionManager
-        
         # Test all available backends
-        for algo in CompressionManager.available_algorithms():
-            cm = CompressionManager(algo)
+        for algo in storage_compression_module.CompressionManager.available_algorithms():
+            cm = storage_compression_module.CompressionManager(algo)
             
             # Test basic compression
             original = b"Integration test data for compression algorithm: " + algo.encode()
@@ -345,7 +434,7 @@ class TestStorageIntegration(unittest.TestCase):
             self.assertEqual(cm.decompress(compressed), original)
         
         # Test benchmark (should not crash)
-        cm = CompressionManager("gzip")
+        cm = storage_compression_module.CompressionManager("gzip")
         data = b"Test data for benchmarking"
         try:
             benchmark_results = cm.benchmark(data)
@@ -360,9 +449,12 @@ class TestHotReload(unittest.TestCase):
     """Test hot-reload functionality"""
     
     def setUp(self):
+        _reset_runtime_state()
         self.temp_dir = tempfile.mkdtemp()
     
     def tearDown(self):
+        _reset_runtime_state()
+        _close_runtime_loop()
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
@@ -401,7 +493,7 @@ class TestHotReload(unittest.TestCase):
 
 def run_integration_tests():
     """Run all integration tests"""
-    print("🧪 Running Deep-Sea Nexus v3.0 Integration Tests...")
+    print("🧪 Running Deep-Sea Nexus integration tests...")
     
     # Discover and run tests
     loader = unittest.TestLoader()

@@ -1,8 +1,7 @@
 """
-Deep-Sea Nexus v3.0 Application
+Deep-Sea Nexus application runtime.
 
-Main entry point for the hot-pluggable architecture.
-Provides unified lifecycle management and backward compatibility.
+Main entry point for the hot-pluggable architecture and async plugin lifecycle.
 """
 
 import asyncio
@@ -32,7 +31,7 @@ class NexusApplication:
     Provides hot-reload and graceful shutdown capabilities.
     
     Usage:
-        # New API (v3.0)
+        # Async app API
         app = create_app()
         await app.initialize()
         await app.start()
@@ -84,7 +83,7 @@ class NexusApplication:
             return True
         
         try:
-            logger.info("🚀 Initializing Deep-Sea Nexus v3.0...")
+            logger.info("🚀 Initializing Deep-Sea Nexus runtime...")
             
             # 1. Load configuration
             if self.config_path:
@@ -136,14 +135,38 @@ class NexusApplication:
             (smart_context, smart_context.metadata),  # 智能上下文
             (flush_manager, flush_manager.metadata),
         ]
-        
+
+        registered_count = 0
+        reused_count = 0
         for plugin, metadata in plugins:
+            existing = self.registry.get(metadata.name)
+            if existing is not None:
+                existing_meta = self.registry.get_metadata(metadata.name)
+                if (
+                    existing.__class__ is plugin.__class__
+                    and existing_meta is not None
+                    and existing_meta.version == metadata.version
+                ):
+                    existing.set_event_bus(self.event_bus)
+                    reused_count += 1
+                    logger.info(f"Reusing already-registered plugin: {metadata.name}")
+                    continue
+                logger.error(f"Conflicting plugin already registered: {metadata.name}")
+                continue
+
             success = self.registry.register(plugin, metadata)
             if not success:
                 logger.error(f"Failed to register plugin: {metadata.name}")
+            else:
+                registered_count += 1
         
         self._plugins_registered = True
-        logger.info(f"✓ Registered {len(plugins)} plugins")
+        logger.info(
+            "✓ Plugin registry ready (%s total, %s new, %s reused)",
+            len(plugins),
+            registered_count,
+            reused_count,
+        )
     
     async def _initialize_plugins(self, config: Dict[str, Any]) -> bool:
         """Initialize all plugins in dependency order"""

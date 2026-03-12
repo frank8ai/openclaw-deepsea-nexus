@@ -32,9 +32,11 @@
 | 🧠 **v5.0 记忆操作层** | memU 风格三层记忆 + 记忆对象化 + 作用域隔离 + RRF 融合召回 | 🆕 v5.0 |
 
 > v5.0 迭代详见：`docs/SECOND_BRAIN_V5_PLAN.md`（本次新增）。
+> 当前架构与 API 真源：`docs/ARCHITECTURE_CURRENT.md`、`docs/API_CURRENT.md`。
 > v5.0 与上下文治理联动（Execution Governor v1.3）详见：`docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`。
 > v4.4.1 迭代详见：`docs/SOP_MEMORY_GAP_ITERATION_2026-02-23.md`、`docs/reports/2026-02-23-contract-audit.md`。
 > v4.4.0 使用与验收详见：`docs/SMART_CONTEXT_V4_4_0.md`、`docs/SECOND_BRAIN_PARA.md`、`docs/USAGE_GUIDE.md` 与 `docs/LOCAL_DEPLOY.md`。
+> 历史归档文档：`DOCUMENTATION.md`、`docs/architecture_v3.md`。
 
 ---
 
@@ -433,17 +435,17 @@ health = nexus_health()
 ## 🚀 快速开始
 
 ### 安装（本地）
-> 当前版本为 v4.4.0，未发布到 PyPI。请使用源码安装。
+> 当前版本为 v5.0.0，未发布到 PyPI。请使用源码安装。
 ```bash
 git clone https://github.com/frank8ai/deepsea-nexus.git
 cd deepsea-nexus
 python -m pip install -r requirements.txt
 ```
 
-### 本地部署（v4.4.0）
+### 本地部署（v5.0.0）
 ```bash
 cd ~/.openclaw/workspace/skills/deepsea-nexus
-bash scripts/deploy_local_v4.sh --full
+bash scripts/deploy_local_v5.sh --full
 ```
 
 默认智能上下文规则（当前基线）：
@@ -701,6 +703,12 @@ python3 v3_2_enhancement/run.py --demo
 - `PluginRegistry` 兼容 Python 3.8 事件循环锁初始化路径
 - `run_tests.py` 增加运行时能力探测与导入稳健化
 - 新增本地部署脚本与部署文档（`scripts/deploy_local_v4.sh`、`docs/LOCAL_DEPLOY.md`）
+
+### v5.0.0 (2026-03-05)
+- 新增 Memory v5 三层作用域记忆与对象化存储
+- 新增 v5 smoke / maintenance / benchmark / deploy 脚本链路
+- 根包 API 扩展导出 `MemoryV5Service`、`MemoryScope`
+- 当前架构/API 真源整理为 `docs/ARCHITECTURE_CURRENT.md` 与 `docs/API_CURRENT.md`
 
 ### v4.1.0 (2026-02-16)
 - Light knowledge graph for decision blocks (SQLite)

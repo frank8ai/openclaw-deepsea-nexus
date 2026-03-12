@@ -1,33 +1,51 @@
 """
-Unit Tests for Deep-Sea Nexus v3.0
+Unit tests for Deep-Sea Nexus.
 
 Test the hot-pluggable architecture and ensure all components work correctly.
 """
 
 import asyncio
-import tempfile
+import importlib
+import importlib.util
 import os
 import sys
+import tempfile
 import unittest
 
-# Ensure workspace `skills/` is importable so `import deepsea_nexus` works via shim.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from unittest.mock import Mock, patch, MagicMock
 
-from deepsea_nexus import (
-    create_app,
-    NexusApplication,
-    get_plugin_registry,
-    get_event_bus,
-    get_config_manager,
-    nexus_init,
-    nexus_recall,
-    nexus_add,
-    CompressionManager,
-    GzipBackend,
-    ZstdBackend,
-    Lz4Backend,
-)
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.environ.setdefault("NEXUS_TEST_MODE", "1")
+
+
+def _load_local_package():
+    spec = importlib.util.spec_from_file_location(
+        "deepsea_nexus_local_units",
+        os.path.join(REPO_ROOT, "__init__.py"),
+        submodule_search_locations=[REPO_ROOT],
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+deepsea_nexus = _load_local_package()
+create_app = deepsea_nexus.create_app
+NexusApplication = deepsea_nexus.NexusApplication
+get_plugin_registry = deepsea_nexus.get_plugin_registry
+get_event_bus = deepsea_nexus.get_event_bus
+get_config_manager = deepsea_nexus.get_config_manager
+nexus_init = deepsea_nexus.nexus_init
+nexus_recall = deepsea_nexus.nexus_recall
+nexus_add = deepsea_nexus.nexus_add
+CompressionManager = deepsea_nexus.CompressionManager
+GzipBackend = deepsea_nexus.GzipBackend
+ZstdBackend = deepsea_nexus.ZstdBackend
+Lz4Backend = deepsea_nexus.Lz4Backend
+plugin_system_module = importlib.import_module(f"{deepsea_nexus.__name__}.core.plugin_system")
+storage_base_module = importlib.import_module(f"{deepsea_nexus.__name__}.storage.base")
 
 
 class TestEventBus(unittest.TestCase):
@@ -227,12 +245,12 @@ class TestPluginSystem(unittest.TestCase):
     """Test Plugin System"""
     
     def setUp(self):
-        from deepsea_nexus.core.plugin_system import reset_plugin_registry
-        self.registry = reset_plugin_registry()  # Clean registry
+        self.registry = plugin_system_module.reset_plugin_registry()  # Clean registry
     
     def test_plugin_registration(self):
         """Test plugin registration"""
-        from deepsea_nexus.core.plugin_system import NexusPlugin, PluginMetadata
+        NexusPlugin = plugin_system_module.NexusPlugin
+        PluginMetadata = plugin_system_module.PluginMetadata
         
         # Create mock plugin
         class TestPlugin(NexusPlugin):
@@ -267,7 +285,8 @@ class TestPluginSystem(unittest.TestCase):
     
     def test_dependency_resolution(self):
         """Test dependency resolution"""
-        from deepsea_nexus.core.plugin_system import NexusPlugin, PluginMetadata
+        NexusPlugin = plugin_system_module.NexusPlugin
+        PluginMetadata = plugin_system_module.PluginMetadata
         
         class DependentPlugin(NexusPlugin):
             def __init__(self):
@@ -301,7 +320,7 @@ class TestStorageAbstraction(unittest.TestCase):
     
     def test_storage_result(self):
         """Test StorageResult functionality"""
-        from deepsea_nexus.storage.base import StorageResult
+        StorageResult = storage_base_module.StorageResult
         
         # Success result
         success = StorageResult.ok("data")

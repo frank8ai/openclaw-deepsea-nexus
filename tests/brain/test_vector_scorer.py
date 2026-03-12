@@ -1,7 +1,30 @@
 import unittest
+import importlib
+import importlib.util
+from pathlib import Path
+import sys
 
-from deepsea_nexus.brain.models import BrainRecord
-from deepsea_nexus.brain.vector_scorer import VectorScorer
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_local_package():
+    spec = importlib.util.spec_from_file_location(
+        "deepsea_nexus_local_vector_scorer",
+        ROOT / "__init__.py",
+        submodule_search_locations=[str(ROOT)],
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+deepsea_nexus = _load_local_package()
+brain_models_module = importlib.import_module(f"{deepsea_nexus.__name__}.brain.models")
+brain_vector_module = importlib.import_module(f"{deepsea_nexus.__name__}.brain.vector_scorer")
+BrainRecord = brain_models_module.BrainRecord
+VectorScorer = brain_vector_module.VectorScorer
 
 
 class TestVectorScorer(unittest.TestCase):

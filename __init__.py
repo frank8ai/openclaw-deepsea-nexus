@@ -7,6 +7,7 @@ Public API expected by the test suite lives here.
 
 from __future__ import annotations
 
+from ._version import __version__
 from .auto_summary import StructuredSummary, SummaryParser
 from .app import NexusApplication, create_app, get_app, set_app
 from .compat import (
@@ -81,11 +82,8 @@ except Exception:  # pragma: no cover - keep package import resilient
     detect_trigger = _context_engine_unavailable
     store_summary = _context_engine_unavailable
 
-# Package version (used by local doctor / deploy scripts)
-__version__ = "5.0.0"
-
-
 __all__ = [
+    "__version__",
     "NexusApplication",
     "create_app",
     "get_app",

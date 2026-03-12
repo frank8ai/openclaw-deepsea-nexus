@@ -84,17 +84,18 @@ def get_runtime_capabilities() -> dict:
 
 
 def _import_deepsea_nexus():
-    """Import helper that tolerates path ordering differences."""
-    try:
-        import deepsea_nexus
-        return deepsea_nexus
-    except ImportError:
-        skills_parent = str(Path(__file__).resolve().parent.parent)
-        if skills_parent not in sys.path:
-            sys.path.insert(0, skills_parent)
-        importlib.invalidate_caches()
-        import deepsea_nexus
-        return deepsea_nexus
+    """Load the package from this repo, not from sibling workspace shims."""
+    repo_root = Path(__file__).resolve().parent
+    spec = importlib.util.spec_from_file_location(
+        "deepsea_nexus_local_runner",
+        repo_root / "__init__.py",
+        submodule_search_locations=[str(repo_root)],
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def run_python_tests():

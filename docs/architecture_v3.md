@@ -1,6 +1,13 @@
 # Deep-Sea Nexus v4.1 (built on v3 architecture)
 ## Hot-Pluggable Architecture Documentation
 
+> Archived: this document describes the earlier v4.1-on-v3 architecture view.
+> Current docs:
+> - `README.md`
+> - `README_EN.md`
+> - `docs/ARCHITECTURE_CURRENT.md`
+> - `docs/API_CURRENT.md`
+
 **Version:** 4.1.0  
 **Status:** Production Ready  
 **Release Date:** February 2026
