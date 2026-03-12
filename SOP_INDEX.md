@@ -1,6 +1,7 @@
 # SOP Index
 
 ## OpenClaw Closed-Loop Router (Local)
+- Router SOP (risk routing + evidence contract): `docs/sop/closed-loop-router.md`
 - Minimal SOP (local copy): `docs/sop/closed-loop-minimal.md`
 - Production SOP (local copy): `docs/sop/closed-loop-production.md`
 - Comparison note (local copy): `docs/sop/closed-loop-comparison.md`

@@ -2,16 +2,36 @@
 Memory v5 focused tests.
 """
 
+import importlib.util
 import os
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
-# Ensure workspace `skills/` is importable so `import deepsea_nexus` works via shim.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PARENT_DIR = REPO_ROOT.parent
+if str(PARENT_DIR) not in sys.path:
+    sys.path.insert(0, str(PARENT_DIR))
 
-from deepsea_nexus.memory_v5 import MemoryScope, MemoryV5Service
+
+def _load_local_package():
+    init_path = REPO_ROOT / "__init__.py"
+    spec = importlib.util.spec_from_file_location(
+        "deepsea_nexus_local",
+        init_path,
+        submodule_search_locations=[str(REPO_ROOT)],
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+deepsea_nexus = _load_local_package()
+MemoryScope = deepsea_nexus.MemoryScope
+MemoryV5Service = deepsea_nexus.MemoryV5Service
 
 
 class TestMemoryV5Scopes(unittest.TestCase):
@@ -96,6 +116,33 @@ class TestMemoryV5Scopes(unittest.TestCase):
         self.assertTrue(self.service.archive_item(item_id, scope=scope))
         after_items = self.service.list_items(scope=scope, include_archived=False)
         self.assertFalse(any(row.get("id") == item_id for row in after_items))
+
+
+class TestPackageRootExports(unittest.TestCase):
+    def test_documented_exports_exist(self):
+        required = [
+            "nexus_search",
+            "nexus_add_document",
+            "nexus_add_documents",
+            "nexus_write",
+            "manual_flush",
+            "get_flush_manager",
+            "get_session",
+            "get_version",
+            "SummaryParser",
+            "StructuredSummary",
+            "create_summary_prompt",
+            "parse_summary",
+            "ContextEngine",
+            "ContextEnginePlugin",
+            "get_engine",
+            "smart_retrieve",
+            "inject_context",
+            "detect_trigger",
+            "store_summary",
+        ]
+        for name in required:
+            self.assertTrue(hasattr(deepsea_nexus, name), f"missing root export: {name}")
 
 
 if __name__ == "__main__":
