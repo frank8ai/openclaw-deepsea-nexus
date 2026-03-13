@@ -36,6 +36,7 @@ from . import smart_context_prompt
 from . import smart_context_recall
 from . import smart_context_round
 from . import smart_context_storage
+from . import smart_context_summary
 from . import smart_context_text
 from .session_manager import SessionManagerPlugin
 from .smart_context_runtime import SmartContextRuntimeState
@@ -593,22 +594,6 @@ class SmartContextPlugin(NexusPlugin):
             return
         self._append_metrics({"event": event, "len": len(result.summary)})
 
-    def _sanitize_summary(self, summary: str, fallback: str) -> str:
-        result = smart_context_text.sanitize_summary(
-            summary,
-            fallback,
-            min_summary_length=self.config.summary_min_length,
-            fallback_max_chars=200,
-        )
-        self._record_summary_metrics(result)
-        return result.summary
-
-    def _extract_key_entities(self, text: str) -> List[str]:
-        return smart_context_text.extract_key_entities(text, limit=5)
-
-    def _append_entities(self, summary: str, entities: List[str]) -> str:
-        return smart_context_text.append_entities(summary, entities, limit=5)
-    
     def _store_context(self, conversation_id: str, round_num: int, context: Dict):
         """
         存储上下文到向量库
@@ -653,45 +638,28 @@ class SmartContextPlugin(NexusPlugin):
             max_items=max(1, int(self.config.decision_block_max)),
         )
 
-    def _extract_actions(self, text: str) -> List[str]:
-        return smart_context_text.extract_actions(text, max_items=5)
-
-    def _extract_questions(self, text: str) -> List[str]:
-        return smart_context_text.extract_questions(text, max_items=5)
-
     def _build_turn_summary(
         self,
         user_message: str,
         ai_response: str,
         decisions: List[str],
     ) -> str:
-        summary = self._sanitize_summary(ai_response, ai_response)
-        if not self.config.summary_template_enabled:
-            return summary
-        actions = self._extract_actions(ai_response)
-        questions = self._extract_questions(user_message + "\n" + ai_response)
-        entities = self._extract_key_entities(user_message + "\n" + ai_response)
-        keywords = self.extract_keywords(user_message + " " + ai_response)
-        topics = self._extract_topics(user_message + "\n" + ai_response)
-
-        fields = set(self.config.summary_template_fields or ())
-        lines: List[str] = []
-        if "summary" in fields:
-            lines.append(f"Summary: {summary}")
-        if "decisions" in fields and decisions:
-            lines.append(f"Decisions: {'; '.join(decisions[:3])}")
-        if "topics" in fields and topics:
-            lines.append(f"Topics: {', '.join(topics[:4])}")
-        if "next_actions" in fields and actions:
-            lines.append(f"Next: {'; '.join(actions[:3])}")
-        if "questions" in fields and questions:
-            lines.append(f"Questions: {'; '.join(questions[:3])}")
-        if "entities" in fields and entities:
-            lines.append(f"Entities: {', '.join(entities[:5])}")
-        if "keywords" in fields and keywords:
-            lines.append(f"Keywords: {', '.join(keywords[:6])}")
-
-        return "\n".join(lines).strip()
+        result = smart_context_summary.build_turn_summary(
+            user_message,
+            ai_response,
+            decisions,
+            summary_template_enabled=bool(self.config.summary_template_enabled),
+            summary_template_fields=self.config.summary_template_fields or (),
+            summary_min_length=int(self.config.summary_min_length),
+            topic_max=int(self.config.topic_block_max),
+            topic_min_keywords=int(self.config.topic_block_min_keywords),
+            keyword_limit=5,
+            entity_limit=5,
+            action_limit=5,
+            question_limit=5,
+        )
+        self._record_summary_metrics(result.summary_result)
+        return result.text
 
     def _extract_topics(self, text: str) -> List[str]:
         return smart_context_text.extract_topics(

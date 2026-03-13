@@ -93,6 +93,9 @@ smart_context_now = importlib.import_module(
 smart_context_prompt = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_prompt"
 )
+smart_context_summary = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_summary"
+)
 
 
 def _load_script_module(module_name: str):
@@ -721,6 +724,51 @@ class TestSmartContextConversationHelpers(unittest.TestCase):
         self.assertIn("relay", " ".join(data.keywords).lower())
         self.assertTrue(any("决定保留 FastAPI" in item for item in data.decisions))
         self.assertTrue(any("relay" in topic.lower() for topic in data.topics))
+
+
+class TestSmartContextSummaryHelpers(unittest.TestCase):
+    def test_build_turn_summary_returns_plain_summary_when_template_disabled(self):
+        result = smart_context_summary.build_turn_summary(
+            "继续",
+            "保留 FastAPI 并更新 server.py",
+            ["决定保留 FastAPI"],
+            summary_template_enabled=False,
+            summary_template_fields=("summary", "decisions"),
+            summary_min_length=20,
+            topic_max=3,
+            topic_min_keywords=2,
+        )
+
+        self.assertEqual(result.text, result.summary_result.summary)
+        self.assertIn("FastAPI", result.text)
+
+    def test_build_turn_summary_formats_requested_sections(self):
+        result = smart_context_summary.build_turn_summary(
+            "继续推进 relay audit\n还缺什么？",
+            "## Relay Runtime\n保留 FastAPI 并更新 server.py\nNext: add tests",
+            ["决定保留 FastAPI"],
+            summary_template_enabled=True,
+            summary_template_fields=(
+                "summary",
+                "decisions",
+                "topics",
+                "next_actions",
+                "questions",
+                "entities",
+                "keywords",
+            ),
+            summary_min_length=20,
+            topic_max=3,
+            topic_min_keywords=2,
+        )
+
+        self.assertIn("Summary:", result.text)
+        self.assertIn("Decisions: 决定保留 FastAPI", result.text)
+        self.assertIn("Topics: Relay Runtime", result.text)
+        self.assertIn("Next: Next: add tests", result.text)
+        self.assertIn("Questions: 还缺什么？", result.text)
+        self.assertIn("Entities: server.py", result.text)
+        self.assertIn("Keywords:", result.text)
 
 
 class TestSmartContextPromptHelpers(unittest.TestCase):
