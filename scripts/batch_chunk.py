@@ -24,6 +24,33 @@ from vector_store.init_chroma import create_vector_store
 from vector_store.manager import create_manager
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_WORKSPACE_ROOT = Path(
+    os.environ.get(
+        "OPENCLAW_WORKSPACE",
+        os.path.join(os.path.expanduser("~"), ".openclaw", "workspace"),
+    )
+).expanduser()
+
+
+def resolve_nexus_root() -> Path:
+    override = os.environ.get("DEEPSEA_NEXUS_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return PROJECT_ROOT
+
+
+def resolve_default_input_path() -> Path:
+    nexus_root = resolve_nexus_root()
+    candidates = [
+        nexus_root / "Obsidian",
+        DEFAULT_WORKSPACE_ROOT / "Obsidian",
+        nexus_root / "memory",
+        DEFAULT_WORKSPACE_ROOT / "memory",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return candidates[1].resolve()
 
 
 def resolve_config_path(config_path: str = None) -> Path | None:
@@ -334,6 +361,7 @@ class BatchChunkProcessor:
 
 def main():
     """CLI entry point."""
+    default_input = resolve_default_input_path()
     parser = argparse.ArgumentParser(
         description="Deep-Sea Nexus v2.0 - Batch Chunk Processor"
     )
@@ -341,8 +369,8 @@ def main():
     parser.add_argument(
         'input',
         nargs='?',
-        default='../Obsidian',
-        help='Input directory or file (default: ../Obsidian)'
+        default=str(default_input),
+        help=f'Input directory or file (default: {default_input})'
     )
     
     parser.add_argument(

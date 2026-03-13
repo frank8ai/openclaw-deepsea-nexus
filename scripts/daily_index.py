@@ -22,6 +22,35 @@ from vector_store.init_chroma import create_vector_store
 from vector_store.manager import create_manager
 from chunking.text_splitter import create_splitter
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_WORKSPACE_ROOT = Path(
+    os.environ.get(
+        "OPENCLAW_WORKSPACE",
+        os.path.join(os.path.expanduser("~"), ".openclaw", "workspace"),
+    )
+).expanduser()
+
+
+def resolve_nexus_root() -> Path:
+    override = os.environ.get("DEEPSEA_NEXUS_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return PROJECT_ROOT
+
+
+def resolve_default_index_directory() -> Path:
+    nexus_root = resolve_nexus_root()
+    candidates = [
+        nexus_root / "memory",
+        DEFAULT_WORKSPACE_ROOT / "memory",
+        nexus_root / "Obsidian",
+        DEFAULT_WORKSPACE_ROOT / "Obsidian",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return candidates[1].resolve()
+
 
 @dataclass
 class IndexEntry:
@@ -375,6 +404,7 @@ class DailyIndexUpdater:
 def main():
     """Main entry point for daily index update."""
     import argparse
+    default_directory = resolve_default_index_directory()
     
     parser = argparse.ArgumentParser(
         description="Daily index update for Deep-Sea Nexus v2.0"
@@ -382,8 +412,8 @@ def main():
     parser.add_argument(
         "directory",
         nargs="?",
-        default="../memory",
-        help="Directory to index (default: ../memory)"
+        default=str(default_directory),
+        help=f"Directory to index (default: {default_directory})"
     )
     parser.add_argument(
         "--pattern",

@@ -97,7 +97,7 @@ class RAGIntegrator:
         
         Args:
             semantic_recall: SemanticRecall instance
-            config_path: Optional path to config.yaml
+            config_path: Optional path to config.json/config.yaml
             prompt_template: Custom prompt template
         """
         self.recall = semantic_recall

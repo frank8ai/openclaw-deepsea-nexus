@@ -79,7 +79,7 @@ class SemanticRecall:
         
         Args:
             manager: VectorStoreManager instance
-            config_path: Optional path to config.yaml
+            config_path: Optional path to config.json/config.yaml
         """
         self.manager = manager
         self.config = self._load_config(config_path)

@@ -37,7 +37,8 @@ class TestConfig:
         assert config.max_session_tokens == 1000
         
         # Test paths
-        assert "DEEP_SEA_NEXUS_V2" in str(config.base_path)
+        assert Path(config.base_path).is_absolute()
+        assert "DEEP_SEA_NEXUS_V2" not in str(config.base_path)
     
     def test_config_properties(self):
         """Test config properties"""

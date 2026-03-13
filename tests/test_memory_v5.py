@@ -941,6 +941,26 @@ class TestFiveMoreCuts(unittest.TestCase):
                 self.assertEqual(module.resolve_config_path(), config_json.resolve())
                 self.assertEqual(processor.config["chunking"]["chunk_size"], 222)
 
+    def test_batch_chunk_default_input_prefers_workspace_obsidian(self):
+        workspace_root = self.repo_root / "workspace"
+        obsidian_dir = workspace_root / "Obsidian"
+        obsidian_dir.mkdir(parents=True, exist_ok=True)
+
+        with mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": str(workspace_root)},
+            clear=False,
+        ):
+            with mock.patch.dict(sys.modules, self._batch_script_stubs(), clear=False):
+                module = _load_repo_file_module(
+                    "batch_chunk_default_input",
+                    "scripts/batch_chunk.py",
+                )
+                self.assertEqual(
+                    module.resolve_default_input_path(),
+                    obsidian_dir.resolve(),
+                )
+
     def test_daily_index_help_mentions_config_json_and_yaml(self):
         with mock.patch.dict(sys.modules, self._batch_script_stubs(), clear=False):
             module = _load_repo_file_module(
@@ -955,6 +975,26 @@ class TestFiveMoreCuts(unittest.TestCase):
 
         self.assertEqual(exc.exception.code, 0)
         self.assertIn("config.json/config.yaml", stdout.getvalue())
+
+    def test_daily_index_default_directory_prefers_workspace_memory(self):
+        workspace_root = self.repo_root / "workspace"
+        memory_dir = workspace_root / "memory"
+        memory_dir.mkdir(parents=True, exist_ok=True)
+
+        with mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": str(workspace_root)},
+            clear=False,
+        ):
+            with mock.patch.dict(sys.modules, self._batch_script_stubs(), clear=False):
+                module = _load_repo_file_module(
+                    "daily_index_default_dir",
+                    "scripts/daily_index.py",
+                )
+                self.assertEqual(
+                    module.resolve_default_index_directory(),
+                    memory_dir.resolve(),
+                )
 
 
 class TestRepoRuntimeCleanupScript(unittest.TestCase):
