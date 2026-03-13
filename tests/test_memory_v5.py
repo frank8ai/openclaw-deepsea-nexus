@@ -63,6 +63,9 @@ compat_module = importlib.import_module(f"{deepsea_nexus.__name__}.compat")
 smart_context_decision = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_decision"
 )
+smart_context_graph = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_graph"
+)
 
 
 def _load_script_module(module_name: str):
@@ -710,6 +713,48 @@ class TestSmartContextDecisionHelpers(unittest.TestCase):
 
         self.assertTrue(switched)
         self.assertEqual(keywords[:3], ["ledger", "settlement", "audit"])
+
+
+class TestSmartContextGraphHelpers(unittest.TestCase):
+    def test_extract_graph_edges_uses_workspace_subject_without_conversation(self):
+        edges = smart_context_graph.extract_graph_edges(
+            "采用 FastAPI 并依赖 Redis",
+            "",
+            4,
+        )
+
+        self.assertEqual(edges[0]["subj"], "workspace")
+        self.assertEqual(edges[0]["rel"], "uses")
+        self.assertEqual(edges[0]["obj"], "FastAPI")
+        self.assertEqual(edges[1]["rel"], "depends_on")
+        self.assertEqual(edges[1]["obj"], "Redis")
+
+    def test_build_decision_block_operations_includes_document_and_graph_edges(self):
+        operations = smart_context_graph.build_decision_block_operations(
+            "conv-1",
+            3,
+            ["采用 FastAPI"],
+            max_graph_edges=3,
+        )
+
+        self.assertEqual(operations[0]["document"]["title"], "决策块 conv-1 - 轮3 (1)")
+        self.assertEqual(
+            operations[0]["document"]["tags"],
+            "type:decision_block,round:3,conversation:conv-1",
+        )
+        self.assertEqual(operations[0]["graph_edges"][0]["source"], "decision_block:conv-1")
+        self.assertEqual(operations[0]["graph_edges"][0]["conversation_id"], "conv-1")
+
+    def test_build_topic_block_operations_caps_graph_obj_to_80_chars(self):
+        topic = "t" * 100
+        operations = smart_context_graph.build_topic_block_operations(
+            "conv-1",
+            2,
+            [topic],
+        )
+
+        self.assertEqual(operations[0]["document"]["title"], "主题块 conv-1 - 轮2 (1)")
+        self.assertEqual(len(operations[0]["graph_edges"][0]["obj"]), 80)
 
 
 if __name__ == "__main__":

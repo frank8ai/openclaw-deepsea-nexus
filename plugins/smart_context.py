@@ -26,6 +26,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 
 from . import smart_context_decision
+from . import smart_context_graph
 from . import smart_context_inject
 from . import smart_context_text
 from .session_manager import SessionManagerPlugin
@@ -787,78 +788,34 @@ class SmartContextPlugin(NexusPlugin):
         )
 
     def _extract_graph_edges(self, block: str, conversation_id: str) -> List[Dict[str, Any]]:
-        if not block:
-            return []
-        subj = f"conversation:{conversation_id}" if conversation_id else "workspace"
-        edges: List[Dict[str, Any]] = []
-        patterns = [
-            (r"(使用|采用|选择|改为|切换到)\s*([\\w\\-./]+)", "uses"),
-            (r"(依赖|基于)\s*([\\w\\-./]+)", "depends_on"),
-            (r"(目标|目的)[:：]\\s*([^，。]+)", "goal"),
-            (r"(影响|导致)\\s*([^，。]+)", "impacts"),
-        ]
-        for pattern, rel in patterns:
-            match = re.search(pattern, block)
-            if match:
-                obj = match.group(2).strip()
-                if 2 <= len(obj) <= 80:
-                    edges.append(
-                        {
-                            "subj": subj,
-                            "rel": rel,
-                            "obj": obj,
-                            "weight": 1.0,
-                            "entity_types": {"subj": "conversation", "obj": "concept"},
-                        }
-                    )
-        return edges[: self.config.decision_block_max]
+        return smart_context_graph.extract_graph_edges(
+            block,
+            conversation_id,
+            int(self.config.decision_block_max),
+        )
 
     def _store_decision_blocks(self, conversation_id: str, round_num: int, blocks: List[str]) -> None:
-        if not blocks:
-            return
-        for idx, block in enumerate(blocks, 1):
-            self._call_nexus(
-                "add_document",
-                content=block,
-                title=f"决策块 {conversation_id} - 轮{round_num} ({idx})",
-                tags=f"type:decision_block,round:{round_num},conversation:{conversation_id}"
-            )
+        for operation in smart_context_graph.build_decision_block_operations(
+            conversation_id,
+            round_num,
+            blocks,
+            max_graph_edges=int(self.config.decision_block_max),
+        ):
+            self._call_nexus("add_document", **operation["document"])
             if self._graph_enabled:
-                for edge in self._extract_graph_edges(block, conversation_id):
-                    graph_add_edge(
-                        subj=edge["subj"],
-                        rel=edge["rel"],
-                        obj=edge["obj"],
-                        weight=edge.get("weight", 1.0),
-                        source=f"decision_block:{conversation_id}",
-                        evidence_text=block,
-                        conversation_id=conversation_id,
-                        round_num=round_num,
-                        entity_types=edge.get("entity_types"),
-                    )
+                for edge in operation["graph_edges"]:
+                    graph_add_edge(**edge)
 
     def _store_topic_blocks(self, conversation_id: str, round_num: int, topics: List[str]) -> None:
-        if not topics:
-            return
-        for idx, topic in enumerate(topics, 1):
-            self._call_nexus(
-                "add_document",
-                content=topic,
-                title=f"主题块 {conversation_id} - 轮{round_num} ({idx})",
-                tags=f"type:topic_block,round:{round_num},conversation:{conversation_id}"
-            )
+        for operation in smart_context_graph.build_topic_block_operations(
+            conversation_id,
+            round_num,
+            topics,
+        ):
+            self._call_nexus("add_document", **operation["document"])
             if self._graph_enabled:
-                graph_add_edge(
-                    subj=f"conversation:{conversation_id}",
-                    rel="topic",
-                    obj=topic[:80],
-                    weight=0.8,
-                    source=f"topic_block:{conversation_id}",
-                    evidence_text=topic,
-                    conversation_id=conversation_id,
-                    round_num=round_num,
-                    entity_types={"subj": "conversation", "obj": "topic"},
-                )
+                for edge in operation["graph_edges"]:
+                    graph_add_edge(**edge)
     
     def store_conversation(self, 
                           conversation_id: str,
