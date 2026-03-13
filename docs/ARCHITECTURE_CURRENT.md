@@ -122,8 +122,8 @@ Current cleanup status:
 - `plugins/smart_context_storage.py` now owns shared SmartContext document
   payload assembly for round-context writes and conversation-summary writes
 - `plugins/smart_context_round.py` now owns round-result assembly plus rescue
-  and summary-card observability/document payloads reused by
-  `SmartContextPlugin`
+  status-branch processing, context-history payloads, plus rescue and
+  summary-card observability/document payloads reused by `SmartContextPlugin`
 - `plugins/smart_context_adaptive.py` now owns inject-stats aggregation and
   adaptive threshold calculation reused by `SmartContextPlugin`
 - `plugins/smart_context_conversation.py` now owns shared conversation-store

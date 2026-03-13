@@ -4,7 +4,15 @@ Shared round-state helpers for SmartContext.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Optional
+
+
+@dataclass(frozen=True)
+class RoundProcessArtifacts:
+    result: Dict[str, Any]
+    metric_events: List[Dict[str, Any]]
+    rescue_debug_line: str = ""
 
 
 def build_round_result(
@@ -31,6 +39,55 @@ def build_round_result(
     if rescue_result is not None:
         result["rescue"] = rescue_result
     return result
+
+
+def build_round_process_artifacts(
+    conversation_id: str,
+    round_num: int,
+    status: str,
+    *,
+    combined_text: str,
+    ai_response: str,
+    extract_summary_fn: Callable[[str], str],
+    rescue_before_compress_fn: Callable[[str], Dict[str, Any]],
+) -> RoundProcessArtifacts:
+    if status == "full":
+        return RoundProcessArtifacts(
+            result=build_round_result(
+                conversation_id,
+                round_num,
+                "full",
+                combined_text=combined_text,
+            ),
+            metric_events=[],
+        )
+
+    summary = extract_summary_fn(ai_response)
+    if status == "summary":
+        return RoundProcessArtifacts(
+            result=build_round_result(
+                conversation_id,
+                round_num,
+                "summary",
+                combined_text=combined_text,
+                summary=summary,
+            ),
+            metric_events=[],
+        )
+
+    rescue_result = rescue_before_compress_fn(combined_text)
+    return RoundProcessArtifacts(
+        result=build_round_result(
+            conversation_id,
+            round_num,
+            "compressed",
+            combined_text=combined_text,
+            summary=summary,
+            rescue_result=rescue_result,
+        ),
+        metric_events=build_rescue_metric_events(rescue_result),
+        rescue_debug_line=format_rescue_debug_line(rescue_result) if rescue_result.get("saved") else "",
+    )
 
 
 def build_rescue_metric_events(rescue_result: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -100,4 +157,20 @@ def build_round_summary_document(
         "content": content,
         "title": f"对话 {conversation_id} - 轮{round_num} (摘要卡)",
         "tags": f"type:turn_summary,round:{round_num},conversation:{conversation_id}",
+    }
+
+
+def build_context_history_entry(
+    round_num: int,
+    result: Dict[str, Any],
+    *,
+    created_at: str,
+) -> Dict[str, Any]:
+    return {
+        "round_num": round_num,
+        "status": result["status"],
+        "content": result.get("content", ""),
+        "created_at": created_at,
+        "summary": result.get("summary", ""),
+        "compressed": bool(result.get("compressed")),
     }

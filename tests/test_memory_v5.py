@@ -1141,6 +1141,53 @@ class TestSmartContextRoundHelpers(unittest.TestCase):
         self.assertEqual(doc["title"], "对话 conv-2 - 话题切换 (轮7)")
         self.assertEqual(doc["tags"], "type:topic_boundary,round:7,conversation:conv-2")
 
+    def test_build_round_process_artifacts_for_compressed_round_includes_rescue_events(self):
+        calls = {"summary": 0, "rescue": 0}
+
+        def fake_summary(text):
+            calls["summary"] += 1
+            self.assertEqual(text, "ai")
+            return "摘要"
+
+        def fake_rescue(text):
+            calls["rescue"] += 1
+            self.assertEqual(text, "user\nai")
+            return {"saved": True, "decisions_rescued": 1, "goals_rescued": 0, "questions_rescued": 2}
+
+        artifacts = smart_context_round.build_round_process_artifacts(
+            "conv-1",
+            4,
+            "compressed",
+            combined_text="user\nai",
+            ai_response="ai",
+            extract_summary_fn=fake_summary,
+            rescue_before_compress_fn=fake_rescue,
+        )
+
+        self.assertEqual(calls, {"summary": 1, "rescue": 1})
+        self.assertEqual(artifacts.result["summary"], "摘要")
+        self.assertEqual([event["event"] for event in artifacts.metric_events], ["rescue_result", "rescue_saved"])
+        self.assertIn("decisions=1", artifacts.rescue_debug_line)
+
+    def test_build_context_history_entry_uses_result_fields(self):
+        payload = smart_context_round.build_context_history_entry(
+            9,
+            {"status": "summary", "summary": "s", "compressed": False},
+            created_at="2026-03-13T20:00:00",
+        )
+
+        self.assertEqual(
+            payload,
+            {
+                "round_num": 9,
+                "status": "summary",
+                "content": "",
+                "created_at": "2026-03-13T20:00:00",
+                "summary": "s",
+                "compressed": False,
+            },
+        )
+
 
 class TestSmartContextAdaptiveHelpers(unittest.TestCase):
     def test_summarize_inject_stats_aggregates_recent_window(self):

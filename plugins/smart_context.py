@@ -440,38 +440,20 @@ class SmartContextPlugin(NexusPlugin):
         token_estimate = self._estimate_tokens(combined_text)
         status, reason = self._decide_status_with_tokens(round_num, token_estimate)
         usage_snapshot = self._context_token_usage()
-
-        if status == "full":
-            result = smart_context_round.build_round_result(
-                conversation_id,
-                round_num,
-                "full",
-                combined_text=combined_text,
-            )
-        elif status == "summary":
-            summary = self._extract_summary(ai_response)
-            result = smart_context_round.build_round_result(
-                conversation_id,
-                round_num,
-                "summary",
-                combined_text=combined_text,
-                summary=summary,
-            )
-        else:  # compress
-            summary = self._extract_summary(ai_response)
-            rescue_result = self.rescue_before_compress(combined_text)
-            result = smart_context_round.build_round_result(
-                conversation_id,
-                round_num,
-                "compressed",
-                combined_text=combined_text,
-                summary=summary,
-                rescue_result=rescue_result,
-            )
-            for event in smart_context_round.build_rescue_metric_events(rescue_result):
-                self._append_metrics(event)
-            if rescue_result.get("saved"):
-                print(smart_context_round.format_rescue_debug_line(rescue_result))
+        artifacts = smart_context_round.build_round_process_artifacts(
+            conversation_id,
+            round_num,
+            status,
+            combined_text=combined_text,
+            ai_response=ai_response,
+            extract_summary_fn=self._extract_summary,
+            rescue_before_compress_fn=self.rescue_before_compress,
+        )
+        result = artifacts.result
+        for event in artifacts.metric_events:
+            self._append_metrics(event)
+        if artifacts.rescue_debug_line:
+            print(artifacts.rescue_debug_line)
         self._append_metrics(
             smart_context_round.build_context_status_metric(
                 status,
@@ -533,12 +515,11 @@ class SmartContextPlugin(NexusPlugin):
         self._current_round = round_num
         self._context_history.append(
             ConversationContext(
-                round_num=round_num,
-                status=result["status"],
-                content=result.get("content", ""),
-                created_at=datetime.now().isoformat(),
-                summary=result.get("summary", ""),
-                compressed=bool(result.get("compressed")),
+                **smart_context_round.build_context_history_entry(
+                    round_num,
+                    result,
+                    created_at=datetime.now().isoformat(),
+                )
             )
         )
         
