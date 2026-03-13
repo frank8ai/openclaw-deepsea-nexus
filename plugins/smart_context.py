@@ -1310,6 +1310,7 @@ def store_conversation(conversation_id: str, user_message: str, ai_response: str
 
     if not nexus_init():
         return {"error": "nexus init failed", "stored": False}
+    combined_text = f"{user_message}\n{ai_response}"
 
     summary = smart_context_text.extract_summary(
         ai_response,
@@ -1324,12 +1325,12 @@ def store_conversation(conversation_id: str, user_message: str, ai_response: str
     if keywords:
         nexus_write(" ".join(keywords), f"对话 {conversation_id} - 关键词", priority="P2", kind="fact", source=str(conversation_id), tags="type:keywords")
 
-    decisions = smart_context_text.extract_decision_blocks(user_message + "\\n" + ai_response, max_items=3)
+    decisions = smart_context_text.extract_decision_blocks(combined_text, max_items=3)
     for idx, block in enumerate(decisions, 1):
         nexus_write(block, f"决策块 {conversation_id} - ({idx})", priority="P0", kind="decision", source=str(conversation_id), tags="type:decision_block")
 
     topics = smart_context_text.extract_topics(
-        user_message + "\\n" + ai_response,
+        combined_text,
         topic_max=3,
         topic_min_keywords=2,
         keyword_limit=5,

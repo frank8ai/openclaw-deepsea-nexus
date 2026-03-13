@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 os.environ.setdefault("NEXUS_TEST_MODE", "1")
@@ -55,6 +56,10 @@ smart_context_text = importlib.import_module(
 smart_context_inject = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_inject"
 )
+smart_context_module = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context"
+)
+compat_module = importlib.import_module(f"{deepsea_nexus.__name__}.compat")
 
 
 def _load_script_module(module_name: str):
@@ -636,6 +641,34 @@ class TestSmartContextInjectHelpers(unittest.TestCase):
 
         self.assertEqual(max_items, 4)
         self.assertAlmostEqual(threshold, 0.55, places=6)
+
+
+class TestSmartContextConvenienceFunctions(unittest.TestCase):
+    def test_store_conversation_uses_real_newlines_for_decision_blocks(self):
+        writes = []
+
+        def fake_write(content, title, **kwargs):
+            writes.append({"content": content, "title": title, "kwargs": kwargs})
+
+        with mock.patch.object(compat_module, "nexus_init", return_value=True), mock.patch.object(
+            compat_module,
+            "nexus_write",
+            side_effect=fake_write,
+        ):
+            result = smart_context_module.store_conversation(
+                "conv-1",
+                "继续",
+                "决定保留 FastAPI",
+            )
+
+        self.assertTrue(result["stored"])
+        decision_contents = [
+            entry["content"]
+            for entry in writes
+            if entry["title"].startswith("决策块")
+        ]
+        self.assertEqual(decision_contents, ["决定保留 FastAPI"])
+        self.assertTrue(all("\\n" not in content for content in decision_contents))
 
 
 if __name__ == "__main__":

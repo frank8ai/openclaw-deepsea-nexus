@@ -96,6 +96,9 @@ Current cleanup status:
 - `plugins/smart_context_inject.py` now owns shared inject-item trimming,
   signal scoring, and dynamic threshold/max-items rules reused by
   `SmartContextPlugin`
+- legacy `store_conversation(...)` now joins user and assistant text with real
+  newlines before decision/topic extraction so its compatibility path matches
+  the current plugin behavior
 - runtime path resolution for metrics and Memory v5 roots is now centralized in
   `runtime_paths.py` instead of being reimplemented in multiple active modules
 
