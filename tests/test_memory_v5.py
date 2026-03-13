@@ -66,6 +66,9 @@ smart_context_decision = importlib.import_module(
 smart_context_graph = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_graph"
 )
+smart_context_rescue = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_rescue"
+)
 
 
 def _load_script_module(module_name: str):
@@ -755,6 +758,47 @@ class TestSmartContextGraphHelpers(unittest.TestCase):
 
         self.assertEqual(operations[0]["document"]["title"], "主题块 conv-1 - 轮2 (1)")
         self.assertEqual(len(operations[0]["graph_edges"][0]["obj"]), 80)
+
+
+class TestSmartContextRescueHelpers(unittest.TestCase):
+    def test_collect_rescue_updates_extracts_gold_context_and_questions(self):
+        updates = smart_context_rescue.collect_rescue_updates(
+            "#GOLD: 保留 FastAPI\n我们决定继续推进支付重构。\n这个问题？后续补测试计划",
+            rescue_gold=True,
+            rescue_decisions=True,
+            rescue_next_actions=True,
+        )
+
+        self.assertEqual(updates["decisions"], ["保留 FastAPI"])
+        self.assertTrue(any("决定继续推进支付重构" in item for item in updates["next_actions"]))
+        self.assertEqual(updates["open_questions"], ["后续补测试计划"])
+
+    def test_apply_rescue_updates_only_counts_new_items(self):
+        state = {
+            "decisions": ["保留 FastAPI"],
+            "next_actions": [],
+            "open_questions": ["后续补测试"],
+        }
+        result = smart_context_rescue.apply_rescue_updates(
+            state,
+            {
+                "decisions": ["保留 FastAPI", "增加回归测试"],
+                "next_actions": ["推进重构"],
+                "open_questions": ["后续补测试", "确认边界"],
+            },
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "decisions_rescued": 1,
+                "goals_rescued": 1,
+                "questions_rescued": 1,
+            },
+        )
+        self.assertIn("增加回归测试", state["decisions"])
+        self.assertIn("推进重构", state["next_actions"])
+        self.assertIn("确认边界", state["open_questions"])
 
 
 if __name__ == "__main__":

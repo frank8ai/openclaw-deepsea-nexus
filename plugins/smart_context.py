@@ -28,6 +28,7 @@ from datetime import datetime
 from . import smart_context_decision
 from . import smart_context_graph
 from . import smart_context_inject
+from . import smart_context_rescue
 from . import smart_context_text
 from .session_manager import SessionManagerPlugin
 from .smart_context_runtime import SmartContextRuntimeState
@@ -1178,33 +1179,15 @@ class SmartContextPlugin(NexusPlugin):
         try:
             from .now_manager import NOWManager
             now = NOWManager()
-            
-            # 提取 #GOLD 标记
-            if self.config.rescue_gold:
-                gold_matches = re.findall(r'#GOLD[:\s]*(.+?)(?:\n|$)', conversation)
-                for match in gold_matches:
-                    if match.strip() and match.strip() not in now.state.get("decisions", []):
-                        now.state.setdefault("decisions", []).append(match.strip())
-                        result["decisions_rescued"] += 1
-            
-            # 提取关键决策
-            if self.config.rescue_decisions:
-                for keyword in ["决定", "选择", "采用", "使用"]:
-                    if keyword in conversation:
-                        idx = conversation.find(keyword)
-                        if idx != -1:
-                            context = conversation[max(0, idx-30):idx+70].strip()
-                            if context not in now.state.get("next_actions", []):
-                                now.state.setdefault("next_actions", []).append(context)
-                                result["goals_rescued"] += 1
-            
-            # 提取待解决问题
-            if self.config.rescue_next_actions:
-                for match in re.findall(r'[?？](.+?)(?:\n|$)', conversation):
-                    if match.strip() and len(match.strip()) > 5 and match.strip() not in now.state.get("open_questions", []):
-                        now.state.setdefault("open_questions", []).append(match.strip())
-                        result["questions_rescued"] += 1
-            
+
+            updates = smart_context_rescue.collect_rescue_updates(
+                conversation,
+                rescue_gold=bool(self.config.rescue_gold),
+                rescue_decisions=bool(self.config.rescue_decisions),
+                rescue_next_actions=bool(self.config.rescue_next_actions),
+            )
+            result.update(smart_context_rescue.apply_rescue_updates(now.state, updates))
+
             total = result["decisions_rescued"] + result["goals_rescued"] + result["questions_rescued"]
             if total > 0:
                 now.save()
