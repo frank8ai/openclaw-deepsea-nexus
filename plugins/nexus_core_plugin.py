@@ -28,6 +28,11 @@ except Exception:
     emit_write_guard_alert = None
     get_guard_policy = None
 
+try:
+    from ..runtime_paths import resolve_log_path, resolve_workspace_base
+except ImportError:
+    from runtime_paths import resolve_log_path, resolve_workspace_base
+
 
 class NexusCorePlugin(NexusPlugin):
     """
@@ -99,25 +104,12 @@ class NexusCorePlugin(NexusPlugin):
         }
 
     def _resolve_metrics_path(self, config: Dict[str, Any]) -> Optional[str]:
-        base_path = ""
-        if isinstance(config, dict):
-            paths = config.get("paths", {}) if isinstance(config.get("paths", {}), dict) else {}
-            nexus_cfg = config.get("nexus", {}) if isinstance(config.get("nexus", {}), dict) else {}
-            base_path = (
-                paths.get("base")
-                or config.get("base_path")
-                or config.get("workspace_root")
-                or nexus_cfg.get("base_path", "")
-            )
-        if not base_path:
-            base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        try:
-            base_path = os.path.expanduser(str(base_path))
-            log_dir = os.path.join(base_path, "logs")
-            os.makedirs(log_dir, exist_ok=True)
-            return os.path.join(log_dir, "nexus_core_metrics.log")
-        except Exception:
-            return None
+        return resolve_log_path(
+            config,
+            "nexus_core_metrics.log",
+            allow_nexus_base=True,
+            default_base=os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),
+        )
 
     def _append_metrics(self, payload: Dict[str, Any]) -> None:
         if not self._metrics_path:
@@ -331,7 +323,7 @@ class NexusCorePlugin(NexusPlugin):
             self._brain_min_score = float(brain_cfg.get("min_score", 0.2))
             self._brain_merge = str(brain_cfg.get("merge", "append"))
             brain_scorer_type = str(brain_cfg.get("scorer_type", "keyword"))
-            brain_base_path = brain_cfg.get("base_path") or config.get("workspace_root") or "."
+            brain_base_path = brain_cfg.get("base_path") or resolve_workspace_base(config, default=".")
             brain_max_snapshots = int(brain_cfg.get("max_snapshots", 20))
             brain_backfill_on_start = bool(brain_cfg.get("backfill_on_start", False))
             brain_backfill_limit = int(brain_cfg.get("backfill_limit", 0))

@@ -30,6 +30,7 @@ Supported entrypoints:
   `nexus_health`, `manual_flush`
 - Async app API: `create_app`
 - Memory v5 API: `MemoryV5Service`, `MemoryScope`
+- Shared runtime path helpers: `runtime_paths.py`
 
 ### 2. Async application container
 
@@ -67,6 +68,7 @@ Current context-related runtime modules:
 - `plugins/smart_context.py`
 - `plugins/context_engine.py`
 - `auto_summary.py`
+- `runtime_paths.py`
 
 These modules still contain significant historical logic and are valid refactor
 targets, but they are part of the current runtime.
@@ -77,6 +79,8 @@ Current cleanup status:
   API as an adapter instead of constructing legacy `NexusCore()` directly
 - `plugins/smart_context.py` relies on the loaded runtime plugin and no longer
   imports the legacy core module directly
+- runtime path resolution for metrics and Memory v5 roots is now centralized in
+  `runtime_paths.py` instead of being reimplemented in multiple active modules
 
 ### 5. Memory v5 scoped store
 

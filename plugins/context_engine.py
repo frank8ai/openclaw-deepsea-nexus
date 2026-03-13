@@ -34,6 +34,11 @@ from ..core.event_bus import EventTypes
 from ..compat_async import run_coro_sync
 from ..compat import nexus_add, nexus_init, nexus_recall
 
+try:
+    from ..runtime_paths import resolve_log_path
+except ImportError:
+    from runtime_paths import resolve_log_path
+
 
 # ===================== 数据类 =====================
 
@@ -768,20 +773,7 @@ class ContextEngine:
         )
 
     def _resolve_metrics_path(self, config: Optional[Dict[str, Any]]) -> Optional[str]:
-        if not isinstance(config, dict):
-            return None
-        paths = config.get("paths", {}) if isinstance(config.get("paths", {}), dict) else {}
-        base_path = (
-            paths.get("base")
-            or config.get("base_path")
-            or config.get("workspace_root")
-        )
-        if not base_path:
-            return None
-        base_path = os.path.expanduser(base_path)
-        log_dir = os.path.join(base_path, "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        return os.path.join(log_dir, "context_engine_metrics.log")
+        return resolve_log_path(config, "context_engine_metrics.log")
 
     def _append_metrics(self, payload: Dict[str, Any]) -> None:
         if not self._metrics_path:

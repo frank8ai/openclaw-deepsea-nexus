@@ -41,6 +41,7 @@ MemoryV5Service = deepsea_nexus.MemoryV5Service
 NexusCorePlugin = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.nexus_core_plugin"
 ).NexusCorePlugin
+runtime_paths = importlib.import_module(f"{deepsea_nexus.__name__}.runtime_paths")
 
 
 def _load_script_module(module_name: str):
@@ -391,6 +392,45 @@ class TestRepoRuntimeCleanupScript(unittest.TestCase):
         self.assertTrue((archive_root / "payload" / "pkg" / "__pycache__" / "mod.cpython-311.pyc").exists())
         self.assertTrue((archive_root / "payload" / ".venv" / "pyvenv.cfg").exists())
         self.assertTrue((archive_root / "manifest.json").exists())
+
+
+class TestRuntimePathHelpers(unittest.TestCase):
+    def test_resolve_workspace_base_prefers_paths_base(self):
+        config = {
+            "paths": {"base": "~/workspace-main"},
+            "base_path": "~/workspace-fallback",
+            "workspace_root": "~/workspace-root",
+        }
+
+        resolved = runtime_paths.resolve_workspace_base(config)
+
+        self.assertTrue(resolved.endswith("workspace-main"))
+
+    def test_resolve_log_path_accepts_nexus_base_fallback(self):
+        config = {
+            "nexus": {"base_path": "/tmp/deepsea-nexus-test-base"},
+        }
+
+        resolved = runtime_paths.resolve_log_path(
+            config,
+            "nexus_core_metrics.log",
+            allow_nexus_base=True,
+        )
+
+        self.assertEqual(
+            resolved,
+            "/tmp/deepsea-nexus-test-base/logs/nexus_core_metrics.log",
+        )
+
+    def test_resolve_memory_root_keeps_absolute_root(self):
+        config = {
+            "paths": {"base": "/tmp/workspace"},
+            "memory_v5": {"root": "/tmp/custom-memory-root"},
+        }
+
+        resolved = runtime_paths.resolve_memory_root(config)
+
+        self.assertEqual(resolved, "/tmp/custom-memory-root")
 
 
 if __name__ == "__main__":

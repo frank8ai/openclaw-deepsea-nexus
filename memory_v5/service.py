@@ -13,6 +13,11 @@ from .models import MemoryScope, MemoryResource, MemoryItem, MemoryCategory, Mem
 from .layout import MemoryLayout
 from .index import MemoryIndex
 
+try:
+    from runtime_paths import resolve_memory_root
+except ImportError:
+    from ..runtime_paths import resolve_memory_root
+
 
 def _uuid(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
@@ -64,14 +69,7 @@ def _default_scope(config: Dict[str, Any]) -> MemoryScope:
 
 
 def _resolve_root(config: Dict[str, Any]) -> str:
-    mem_cfg = config.get("memory_v5", {}) if isinstance(config, dict) else {}
-    root = mem_cfg.get("root") or "memory/95_MemoryV5"
-    paths = config.get("paths", {}) if isinstance(config.get("paths", {}), dict) else {}
-    base = paths.get("base") or config.get("base_path") or config.get("workspace_root") or os.getcwd()
-    root = os.path.expanduser(str(root))
-    if os.path.isabs(root):
-        return root
-    return os.path.join(os.path.expanduser(str(base)), root)
+    return resolve_memory_root(config, default_base=os.getcwd())
 
 
 class MemoryV5Service:
