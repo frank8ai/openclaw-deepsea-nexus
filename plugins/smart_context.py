@@ -850,12 +850,6 @@ class SmartContextPlugin(NexusPlugin):
 
             max_items, threshold = self._dynamic_inject_params(reason, items)
 
-            def _score(item: Dict[str, Any]) -> float:
-                try:
-                    return float(item.get("score", item.get("relevance", 0.0)))
-                except Exception:
-                    return 0.0
-
             filtered, fallback_used, fallback_reason = smart_context_recall.select_injected_items(
                 items,
                 threshold=threshold,
@@ -871,27 +865,28 @@ class SmartContextPlugin(NexusPlugin):
 
             retrieved = len(results)
             injected = len(filtered)
-            ratio = (injected / retrieved) if retrieved else 0.0
             self._append_metrics(
-                {
-                    "event": "inject",
-                    "reason": reason,
-                    "retrieved": retrieved,
-                    "injected": injected,
-                    "ratio": round(ratio, 3),
-                    "threshold": round(float(threshold), 3),
-                    "max_items": int(max_items),
-                    "fallback": fallback_used,
-                    "fallback_reason": fallback_reason,
-                    "top_score": round(_score(filtered[0]), 3) if filtered else 0.0,
-                }
+                smart_context_recall.build_inject_metric_payload(
+                    reason=reason,
+                    retrieved=retrieved,
+                    filtered=filtered,
+                    threshold=threshold,
+                    max_items=max_items,
+                    fallback_used=fallback_used,
+                    fallback_reason=fallback_reason,
+                )
             )
 
             graph_items = self._inject_graph_associations(user_message, reason)
-            final = filtered + graph_items
-            if self.config.inject_topk_only:
-                final = sorted(final, key=_score, reverse=True)[: max(1, int(max_items))]
-            final = self._trim_injected_items(final)
+            final = smart_context_inject.finalize_injected_items(
+                filtered,
+                graph_items,
+                topk_only=bool(self.config.inject_topk_only),
+                max_items=max_items,
+                max_chars_per_item=int(self.config.inject_max_chars_per_item),
+                max_lines_per_item=int(self.config.inject_max_lines_per_item),
+                max_lines_total=int(self.config.inject_max_lines_total),
+            )
             graph_ratio = (len(graph_items) / injected) if injected else 0.0
             self._append_metrics(
                 {

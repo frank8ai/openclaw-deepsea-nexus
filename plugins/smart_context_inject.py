@@ -7,6 +7,31 @@ from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 
 
+def finalize_injected_items(
+    filtered: List[Dict[str, Any]],
+    graph_items: List[Dict[str, Any]],
+    *,
+    topk_only: bool,
+    max_items: int,
+    max_chars_per_item: int,
+    max_lines_per_item: int,
+    max_lines_total: int,
+) -> List[Dict[str, Any]]:
+    final = list(filtered or []) + list(graph_items or [])
+    if topk_only:
+        final = sorted(
+            final,
+            key=lambda item: _item_score(item),
+            reverse=True,
+        )[: max(1, int(max_items))]
+    return trim_injected_items(
+        final,
+        max_chars_per_item=max_chars_per_item,
+        max_lines_per_item=max_lines_per_item,
+        max_lines_total=max_lines_total,
+    )
+
+
 def trim_injected_items(
     items: List[Dict[str, Any]],
     *,
@@ -40,6 +65,13 @@ def trim_injected_items(
         normalized["content"] = text
         trimmed.append(normalized)
     return trimmed
+
+
+def _item_score(item: Dict[str, Any]) -> float:
+    try:
+        return float(item.get("score", item.get("relevance", 0.0)))
+    except Exception:
+        return 0.0
 
 
 def normalize_tags(metadata: Any) -> List[str]:

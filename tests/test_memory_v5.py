@@ -645,6 +645,19 @@ class TestSmartContextInjectHelpers(unittest.TestCase):
         self.assertTrue(trimmed[4]["content"].endswith("..."))
         self.assertEqual(trimmed[-1]["content"], "extra-1")
 
+    def test_finalize_injected_items_sorts_topk_then_trims(self):
+        final = smart_context_inject.finalize_injected_items(
+            [{"content": "alpha", "score": 0.4}, {"content": "beta", "score": 0.9}],
+            [{"content": "gamma\ndelta\nepsilon", "score": 0.7}],
+            topk_only=True,
+            max_items=2,
+            max_chars_per_item=40,
+            max_lines_per_item=2,
+            max_lines_total=10,
+        )
+
+        self.assertEqual([item["content"] for item in final], ["beta", "gamma\ndelta"])
+
     def test_dynamic_inject_params_penalizes_low_signal_items(self):
         max_items, threshold = smart_context_inject.dynamic_inject_params(
             "question",
@@ -1003,6 +1016,24 @@ class TestSmartContextRecallHelpers(unittest.TestCase):
         self.assertEqual(items[0]["source"], "doc-a")
         self.assertEqual(items[0]["tags"], ["type:summary"])
         self.assertAlmostEqual(items[0]["score"], 0.7, places=6)
+
+    def test_build_inject_metric_payload_reports_ratio_and_top_score(self):
+        payload = smart_context_recall.build_inject_metric_payload(
+            reason="question",
+            retrieved=4,
+            filtered=[{"score": 0.88}, {"score": 0.55}],
+            threshold=0.6,
+            max_items=3,
+            fallback_used=False,
+            fallback_reason="",
+        )
+
+        self.assertEqual(payload["event"], "inject")
+        self.assertEqual(payload["reason"], "question")
+        self.assertEqual(payload["retrieved"], 4)
+        self.assertEqual(payload["injected"], 2)
+        self.assertAlmostEqual(payload["ratio"], 0.5, places=6)
+        self.assertAlmostEqual(payload["top_score"], 0.88, places=6)
 
     def test_select_injected_items_falls_back_to_top1_when_threshold_filters_all(self):
         selected, fallback_used, fallback_reason = smart_context_recall.select_injected_items(

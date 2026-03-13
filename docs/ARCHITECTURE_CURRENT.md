@@ -106,7 +106,8 @@ Current cleanup status:
   and topic extraction helpers reused by both `SmartContextPlugin` and the
   legacy `store_conversation(...)` convenience path
 - `plugins/smart_context_inject.py` now owns shared inject-item trimming,
-  signal scoring, and dynamic threshold/max-items rules reused by
+  final top-k/trim assembly, signal scoring, and dynamic threshold/max-items
+  rules reused by
   `SmartContextPlugin`
 - `plugins/smart_context_decision.py` now owns shared context-starved,
   inject-trigger, and topic-switch rules reused by `SmartContextPlugin`
@@ -115,7 +116,8 @@ Current cleanup status:
 - `plugins/smart_context_rescue.py` now owns rescue-text extraction and
   NOW-state merge helpers reused by `SmartContextPlugin`
 - `plugins/smart_context_recall.py` now owns recall-result normalization,
-  de-duplication, and threshold/fallback selection reused by
+  de-duplication, score access, inject metrics payload assembly, and
+  threshold/fallback selection reused by
   `SmartContextPlugin`
 - `plugins/smart_context_graph_inject.py` now owns graph-inject gating and
   formatted graph-evidence item assembly reused by `SmartContextPlugin`

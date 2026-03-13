@@ -7,6 +7,13 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Tuple
 
 
+def item_score(item: Dict[str, Any]) -> float:
+    try:
+        return float(item.get("score", item.get("relevance", 0.0)))
+    except Exception:
+        return 0.0
+
+
 def calculate_fetch_n(
     max_items: int,
     *,
@@ -56,13 +63,33 @@ def select_injected_items(
     *,
     threshold: float,
 ) -> Tuple[List[Dict[str, Any]], bool, str]:
-    def score(item: Dict[str, Any]) -> float:
-        try:
-            return float(item.get("score", item.get("relevance", 0.0)))
-        except Exception:
-            return 0.0
-
-    filtered = [item for item in items if score(item) >= float(threshold)]
+    filtered = [item for item in items if item_score(item) >= float(threshold)]
     if items and not filtered:
-        return [max(items, key=score)], True, "fallback_top1"
+        return [max(items, key=item_score)], True, "fallback_top1"
     return filtered, False, ""
+
+
+def build_inject_metric_payload(
+    *,
+    reason: str,
+    retrieved: int,
+    filtered: List[Dict[str, Any]],
+    threshold: float,
+    max_items: int,
+    fallback_used: bool,
+    fallback_reason: str,
+) -> Dict[str, Any]:
+    injected = len(filtered)
+    ratio = (injected / int(retrieved)) if retrieved else 0.0
+    return {
+        "event": "inject",
+        "reason": reason,
+        "retrieved": int(retrieved),
+        "injected": injected,
+        "ratio": round(ratio, 3),
+        "threshold": round(float(threshold), 3),
+        "max_items": int(max_items),
+        "fallback": bool(fallback_used),
+        "fallback_reason": fallback_reason,
+        "top_score": round(item_score(filtered[0]), 3) if filtered else 0.0,
+    }
