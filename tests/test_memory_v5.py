@@ -600,6 +600,95 @@ Session body
         self.assertEqual(recall.config_path, str(json_path.resolve()))
 
 
+class TestNextThreeCuts(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.workspace_root = Path(self.temp_dir) / "workspace"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+        self.workspace_root.mkdir(parents=True, exist_ok=True)
+        self.import_all = _load_script_module("import_all")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_import_all_discovers_session_rescue_and_daily_sources(self):
+        repo_session_dir = self.repo_root / "memory" / "90_Memory" / "2026-02"
+        repo_session_dir.mkdir(parents=True, exist_ok=True)
+        (repo_session_dir / "session_0900_Repo.md").write_text("# repo\n", encoding="utf-8")
+
+        workspace_rescue_dir = (
+            self.workspace_root / "Obsidian" / "90_Memory" / "2026-02-11-Rescue"
+        )
+        workspace_rescue_dir.mkdir(parents=True, exist_ok=True)
+        (workspace_rescue_dir / "SESSION_0900_Rescue.md").write_text(
+            "# rescue\n",
+            encoding="utf-8",
+        )
+
+        repo_daily = self.repo_root / "memory" / "2026-03-13.md"
+        repo_daily.parent.mkdir(parents=True, exist_ok=True)
+        repo_daily.write_text("# daily\n", encoding="utf-8")
+
+        session_dirs = self.import_all.build_default_session_dirs(
+            workspace_root=self.workspace_root,
+            nexus_root=self.repo_root,
+        )
+        rescue_dirs = self.import_all.build_default_rescue_dirs(
+            workspace_root=self.workspace_root,
+            nexus_root=self.repo_root,
+        )
+        daily_files = self.import_all.build_default_daily_files(
+            workspace_root=self.workspace_root,
+            nexus_root=self.repo_root,
+        )
+
+        self.assertEqual(session_dirs, [str(repo_session_dir.resolve())])
+        self.assertEqual(rescue_dirs, [str(workspace_rescue_dir.resolve())])
+        self.assertEqual(daily_files, [str(repo_daily.resolve())])
+
+    def test_src_config_supports_yaml_and_current_base_override(self):
+        config_dir = Path(self.temp_dir) / "config-cwd"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_yaml = config_dir / "config.yaml"
+        config_yaml.write_text(
+            "paths:\n  base: ~/yaml-nexus\nindex:\n  max_index_tokens: 123\n",
+            encoding="utf-8",
+        )
+
+        with mock.patch.dict(
+            os.environ,
+            {"DEEPSEA_NEXUS_ROOT": str(self.repo_root)},
+            clear=False,
+        ):
+            with mock.patch("os.getcwd", return_value=str(config_dir)):
+                config_module = _load_repo_file_module("src_config_yaml", "src/config.py")
+                self.assertEqual(config_module.config.get("index.max_index_tokens"), 123)
+                self.assertEqual(
+                    config_module.resolve_default_base_path(),
+                    str(self.repo_root.resolve()),
+                )
+                self.assertEqual(
+                    config_module.config.get("paths.base"),
+                    str(Path("~/yaml-nexus").expanduser().resolve()),
+                )
+
+    def test_src_data_structures_base_path_prefers_current_repo_override(self):
+        with mock.patch.dict(
+            os.environ,
+            {"DEEPSEA_NEXUS_ROOT": str(self.repo_root)},
+            clear=False,
+        ):
+            data_structures_module = _load_repo_file_module(
+                "src_data_structures_current_base",
+                "src/data_structures.py",
+            )
+            config = data_structures_module.NexusConfig()
+            self.assertEqual(config.base_path, str(self.repo_root.resolve()))
+
+
 class TestRepoRuntimeCleanupScript(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()

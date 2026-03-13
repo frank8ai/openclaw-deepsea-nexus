@@ -3,9 +3,17 @@ Data structures and type definitions for Deep-Sea Nexus v2.0
 """
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from enum import Enum
+
+
+def _resolve_default_base_path() -> str:
+    override = os.environ.get("DEEPSEA_NEXUS_ROOT", "").strip()
+    if override:
+        return str(Path(override).expanduser().resolve())
+    return str(Path(__file__).resolve().parent.parent)
 
 
 class SessionStatus(Enum):
@@ -68,10 +76,7 @@ class IndexEntry:
 @dataclass
 class NexusConfig:
     """Nexus configuration"""
-    base_path: str = field(default_factory=lambda: os.path.join(
-        os.environ.get("OPENCLAW_WORKSPACE", os.path.join(os.path.expanduser("~"), ".openclaw", "workspace")),
-        "DEEP_SEA_NEXUS_V2",
-    ))
+    base_path: str = field(default_factory=_resolve_default_base_path)
     memory_path: str = "memory/90_Memory"
     max_index_tokens: int = 300
     max_session_tokens: int = 1000
