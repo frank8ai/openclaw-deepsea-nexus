@@ -19,6 +19,7 @@ Last updated: 2026-03-13
 ## Documentation Entry
 
 - Docs index: `docs/README.md`
+- Product docs (current narrative): `docs/product/README_EN.md`
 - Current architecture: `docs/ARCHITECTURE_CURRENT.md`
 - Current API surface: `docs/API_CURRENT.md`
 
@@ -41,6 +42,10 @@ PYTHONDONTWRITEBYTECODE=1 python3 scripts/archive_repo_runtime_data.py --json
 - Context-governance SOP: `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
 - Historical docs kept for reference only:
   - `DOCUMENTATION.md`
+  - `AUTO_SUMMARY_INTEGRATION.md`
+  - `SOP_INDEX.md`
+  - `CHANGELOG.md`
+  - `benchmark.txt`
   - `docs/architecture_v3.md`
 
 ## Python API

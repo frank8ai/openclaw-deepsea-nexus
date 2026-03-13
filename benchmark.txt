@@ -1,5 +1,12 @@
 # Deep-Sea Nexus v2.0 Performance Benchmark
 
+Archived benchmark snapshot. This file describes a v2.0 test run and is kept
+for historical reference only; it does not represent the current v5 runtime.
+Current validation entrypoints:
+- `python3 run_tests.py`
+- `python3 scripts/memory_v5_smoke.py`
+- `python3 scripts/memory_v5_benchmark.py --cases docs/memory_v5_benchmark_sample.json`
+
 ## 测试环境
 - **OS**: macOS 22.6.0 (x64)
 - **Python**: 3.x

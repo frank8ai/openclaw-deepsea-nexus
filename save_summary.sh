@@ -1,4 +1,10 @@
 #!/bin/bash
+# Legacy manual summary helper kept for older cron/manual flows.
+# It is not the current v5 integration source of truth.
+# Current docs:
+# - docs/README.md
+# - docs/API_CURRENT.md
+# - docs/LOCAL_DEPLOY.md
 # 快速保存对话摘要
 # 用法: ./save_summary.sh "摘要内容"
 

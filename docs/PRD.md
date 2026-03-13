@@ -1,6 +1,8 @@
 # Deep-Sea Nexus v2.0 产品规格说明书 (PRD)
 
-> 说明：这是 v2.0 的历史 PRD。当前 vNext 已进入插件化阶段，执行与实现细节以 `docs/plans/*` 和 `docs/architecture_v3.md` 为准。
+> 说明：这是 v2.0 的历史 PRD。
+> 当前产品文档请看：`product/README.md`。
+> 当前实现与接口请看：`ARCHITECTURE_CURRENT.md`、`API_CURRENT.md`。
 
 ```
 ================================================================================

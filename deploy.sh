@@ -1,4 +1,11 @@
 #!/bin/bash
+# Legacy deploy wrapper kept for historical compatibility.
+# Do not treat this as the current v5 deployment entrypoint.
+# Current deploy/runtime docs:
+# - README.md
+# - docs/README.md
+# - docs/LOCAL_DEPLOY.md
+# - scripts/deploy_local_v5.sh
 # Deep-Sea Nexus v2.0 Deployment Script
 # Usage: ./deploy.sh [--rollback]
 

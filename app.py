@@ -321,10 +321,10 @@ def create_app(config_path: Optional[str] = None) -> NexusApplication:
     Returns:
         NexusApplication instance
         
-    Example:
-        app = create_app("/path/to/config.yaml")
-        await app.initialize()
-        await app.start()
+        Example:
+            app = create_app("/path/to/config.json")
+            await app.initialize()
+            await app.start()
     """
     return NexusApplication(config_path)
 

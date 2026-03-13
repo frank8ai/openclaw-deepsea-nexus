@@ -1,6 +1,7 @@
 # Deep-Sea Nexus v2.0 完整开发任务清单 (v1.1)
 
-> 说明：这是 v2.0 阶段的历史任务清单，当前 vNext 以插件化 + compat 形态推进，详见 `docs/plans/*` 与 `docs/architecture_v3.md`。
+> 说明：这是 v2.0 阶段的历史任务清单。
+> 当前产品与实现真源请看：`product/README.md`、`ARCHITECTURE_CURRENT.md`、`API_CURRENT.md`。
 
 ```
 ================================================================================

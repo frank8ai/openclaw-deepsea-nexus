@@ -1,3 +1,11 @@
+# Legacy compatibility dependency snapshot.
+# This file is kept for older v2/v4 workflows and is not the current v5
+# deploy/runtime source of truth.
+# Current entrypoints:
+# - README.md
+# - docs/README.md
+# - docs/LOCAL_DEPLOY.md
+# - scripts/deploy_local_v5.sh
 # Deep-Sea Nexus v2.0
 # Vector-based Memory System with RAG
 

@@ -1,5 +1,12 @@
 # 上下文摘要系统优化 - 实施计划
 
+> Historical planning note: this file records an older implementation plan and
+> is not the current source of truth.
+> Current docs:
+> - `SMART_CONTEXT_V4_4_0.md`
+> - `sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
+> - `ARCHITECTURE_CURRENT.md`
+
 ## 概述
 - **目标**: 让第二大脑通过每次对话的知识沉淀越来越聪明
 - **核心**: 通过系统提示词让 LLM 自动生成高质量结构化摘要

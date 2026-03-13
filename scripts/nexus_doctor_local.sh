@@ -28,7 +28,7 @@ Usage: bash scripts/nexus_doctor_local.sh [--check|--repair] [--skip-deploy]
 Options:
   --check        Read-only health checks only.
   --repair       Check + auto-fix (default).
-  --skip-deploy  In repair mode, skip deploy_local_v4.sh --quick.
+  --skip-deploy  In repair mode, skip deploy_local_v5.sh --quick.
   -h, --help     Show this help.
 EOF
 }
@@ -379,11 +379,11 @@ run_quick_deploy_if_needed() {
   if [[ "${MODE}" != "repair" || "${RUN_QUICK_DEPLOY}" -ne 1 ]]; then
     return
   fi
-  info "running deploy_local_v4.sh --quick"
+  info "running deploy_local_v5.sh --quick"
   if NEXUS_PYTHON_PATH="${PYTHON_BIN}" \
     NEXUS_VECTOR_DB="${EXPECTED_VECTOR_DB}" \
     NEXUS_COLLECTION="${EXPECTED_COLLECTION}" \
-    bash "${ROOT_DIR}/scripts/deploy_local_v4.sh" --quick >/tmp/nexus_doctor_deploy.out 2>/tmp/nexus_doctor_deploy.err; then
+    bash "${ROOT_DIR}/scripts/deploy_local_v5.sh" --quick >/tmp/nexus_doctor_deploy.out 2>/tmp/nexus_doctor_deploy.err; then
     changed "quick deploy check passed"
   else
     fail "quick deploy check failed (see /tmp/nexus_doctor_deploy.err)"

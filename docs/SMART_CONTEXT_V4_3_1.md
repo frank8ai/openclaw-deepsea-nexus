@@ -1,4 +1,11 @@
-# Smart Context / vNext Brain 升级方案（v4.4.0）
+# Smart Context / vNext Brain 升级方案（历史副本）
+
+> Archived reference: despite the filename, this file is an older SmartContext
+> draft and is not the current source of truth.
+> Current docs:
+> - `SMART_CONTEXT_V4_4_0.md`
+> - `sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
+> - `sop/Execution_Governor_Context_Management_v1.3_Integration.md`
 
 ## 目标
 - 始终带着正确背景工作：目标/偏好/项目/安全边界不丢。

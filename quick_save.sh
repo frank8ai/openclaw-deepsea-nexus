@@ -1,4 +1,10 @@
 #!/bin/bash
+# Legacy summary capture helper kept for historical local workflows.
+# It is not the current v5 summary/runtime entrypoint.
+# Current docs:
+# - docs/README.md
+# - docs/API_CURRENT.md
+# - docs/LOCAL_DEPLOY.md
 # 智能摘要快速保存脚本 - 简化版
 # 用法: ./quick_save.sh "对话ID" "回复内容"
 

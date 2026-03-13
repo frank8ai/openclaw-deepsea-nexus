@@ -1,5 +1,12 @@
 # Brainstorming: 上下文摘要系统优化
 
+> Historical brainstorming note: this file is preserved for reference only and
+> is not the current source of truth.
+> Current docs:
+> - `SMART_CONTEXT_V4_4_0.md`
+> - `sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
+> - `ARCHITECTURE_CURRENT.md`
+
 ## 问题陈述
 
 OpenClaw 需要一个智能的上下文摘要系统，让第二大脑（Deep-Sea Nexus）通过每次对话的知识沉淀变得越来越聪明。

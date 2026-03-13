@@ -1,5 +1,13 @@
 # 自动摘要集成方案
 
+> Archived reference: this note describes an older integration gap and is not
+> the current source of truth for the v5 runtime.
+> Current docs:
+> - `docs/README.md`
+> - `docs/ARCHITECTURE_CURRENT.md`
+> - `docs/API_CURRENT.md`
+> - `docs/LOCAL_DEPLOY.md`
+
 ## 问题
 OpenClaw 没有自动调用 skill hooks 来保存对话摘要。
 

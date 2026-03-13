@@ -7,11 +7,21 @@ state.
 
 ## Start Here
 
+- Current product docs source of truth: `product/README.md`
 - Current architecture source of truth: `ARCHITECTURE_CURRENT.md`
 - Current public API surface: `API_CURRENT.md`
 - Main repository overview:
   - `../README.md`
   - `../README_EN.md`
+
+## Current Product Docs
+
+- Product docs index: `product/README.md`
+- Product docs index (English): `product/README_EN.md`
+- Positioning: `product/positioning.md`
+- Users and use cases: `product/users-and-use-cases.md`
+- Capabilities and scope: `product/capabilities.md`
+- Product roadmap: `product/roadmap.md`
 
 ## Current Runtime Guides
 
@@ -30,6 +40,13 @@ These remain in the repo for background context, but they are not the current
 runtime source of truth:
 
 - `../DOCUMENTATION.md`
+- `../AUTO_SUMMARY_INTEGRATION.md`
+- `../SOP_INDEX.md`
+- `../CHANGELOG.md`
+- `../benchmark.txt`
+- `AGENTS.md`
+- `PRD.md`
+- `examples_v3.md`
 - `architecture_v3.md`
 - `USAGE_GUIDE.md`
 - `SECOND_BRAIN_PARA.md`

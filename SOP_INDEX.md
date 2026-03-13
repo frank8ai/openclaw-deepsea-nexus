@@ -1,5 +1,12 @@
 # SOP Index
 
+> Reference-only index: this file mainly tracks historical or local SOP assets
+> and is not the current docs entrypoint for the v5 runtime.
+> Current docs:
+> - `docs/README.md`
+> - `docs/ARCHITECTURE_CURRENT.md`
+> - `docs/API_CURRENT.md`
+
 ## OpenClaw Closed-Loop Router (Local)
 - Router SOP (risk routing + evidence contract): `docs/sop/closed-loop-router.md`
 - Minimal SOP (local copy): `docs/sop/closed-loop-minimal.md`

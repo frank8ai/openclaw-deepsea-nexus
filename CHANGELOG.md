@@ -1,5 +1,14 @@
 # Changelog - Deep-Sea Nexus v4.x
 
+> Historical changelog: this file records older release notes and is not the
+> current source of truth for the v5 runtime.
+> Current docs:
+> - `README.md`
+> - `README_EN.md`
+> - `docs/README.md`
+> - `docs/ARCHITECTURE_CURRENT.md`
+> - `docs/API_CURRENT.md`
+
 ## Version 4.4.2 (2026-02-23)
 ### 🛡️ v4.4.2 - Write Guard Hardening + Recent Summary Audit
 - ✅ 新增统一写入护栏模块：`write_guard.py`

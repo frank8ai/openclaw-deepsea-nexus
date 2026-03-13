@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-批量保存摘要到向量库
-用于手动或定期批量处理历史对话
+批量保存摘要到向量库（历史兼容脚本）
+
+Reference-only compatibility helper for older manual workflows.
+Current v5 summary/runtime docs:
+- docs/README.md
+- docs/API_CURRENT.md
+- docs/LOCAL_DEPLOY.md
 """
 
 import os

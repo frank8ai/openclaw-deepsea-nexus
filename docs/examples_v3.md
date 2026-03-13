@@ -1,5 +1,13 @@
 # Deep-Sea Nexus v3.0 Usage Examples
 
+> Archived reference: this file contains v3-era examples and is not the current
+> source of truth for the v5 runtime.
+> Current docs:
+> - `README.md`
+> - `README_EN.md`
+> - `API_CURRENT.md`
+> - `ARCHITECTURE_CURRENT.md`
+
 ## Table of Contents
 1. [Quick Start](#quick-start)
 2. [New API Examples](#new-api-examples)
