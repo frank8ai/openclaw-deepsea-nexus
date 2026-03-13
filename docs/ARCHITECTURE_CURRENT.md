@@ -67,6 +67,7 @@ Current context-related runtime modules:
 
 - `plugins/smart_context.py`
 - `plugins/context_engine.py`
+- `plugins/context_engine_runtime.py`
 - `auto_summary.py`
 - `runtime_paths.py`
 
@@ -79,6 +80,9 @@ Current cleanup status:
   API as an adapter instead of constructing legacy `NexusCore()` directly
 - `plugins/smart_context.py` relies on the loaded runtime plugin and no longer
   imports the legacy core module directly
+- `plugins/context_engine_runtime.py` now owns ContextEngine budget, trim,
+  metrics, and auto-tune state so `plugins/context_engine.py` can focus on
+  retrieval and context assembly
 - runtime path resolution for metrics and Memory v5 roots is now centralized in
   `runtime_paths.py` instead of being reimplemented in multiple active modules
 

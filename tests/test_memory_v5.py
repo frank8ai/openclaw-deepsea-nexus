@@ -42,6 +42,9 @@ NexusCorePlugin = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.nexus_core_plugin"
 ).NexusCorePlugin
 runtime_paths = importlib.import_module(f"{deepsea_nexus.__name__}.runtime_paths")
+context_engine_runtime = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.context_engine_runtime"
+)
 
 
 def _load_script_module(module_name: str):
@@ -431,6 +434,37 @@ class TestRuntimePathHelpers(unittest.TestCase):
         resolved = runtime_paths.resolve_memory_root(config)
 
         self.assertEqual(resolved, "/tmp/custom-memory-root")
+
+
+class TestContextEngineRuntimeState(unittest.TestCase):
+    def test_budget_from_config_reads_context_engine_section(self):
+        runtime = context_engine_runtime.ContextEngineRuntimeState()
+        budget = runtime.budget_from_config(
+            {
+                "context_engine": {
+                    "max_tokens": 512,
+                    "max_items": 3,
+                    "max_chars_per_item": 120,
+                    "max_lines_total": 12,
+                    "include_now": False,
+                }
+            }
+        )
+
+        self.assertEqual(budget.max_tokens, 512)
+        self.assertEqual(budget.max_items, 3)
+        self.assertEqual(budget.max_chars_per_item, 120)
+        self.assertEqual(budget.max_lines_total, 12)
+        self.assertFalse(budget.include_now)
+        self.assertTrue(budget.include_recent_summary)
+
+    def test_trim_to_budget_records_trim_state(self):
+        runtime = context_engine_runtime.ContextEngineRuntimeState()
+        trimmed = runtime.trim_to_budget("x" * 1200, max_tokens=100)
+
+        self.assertLess(len(trimmed), 1200)
+        self.assertEqual(runtime.last_trim_reason, "token_budget")
+        self.assertGreater(runtime.last_trim_before_tokens, 100)
 
 
 if __name__ == "__main__":
