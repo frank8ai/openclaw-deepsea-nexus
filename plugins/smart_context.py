@@ -26,7 +26,6 @@ from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
-from ..nexus_core import NexusCore
 from .session_manager import SessionManagerPlugin
 from ..core.plugin_system import NexusPlugin, PluginMetadata
 from ..core.event_bus import EventTypes

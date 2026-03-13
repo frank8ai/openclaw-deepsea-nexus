@@ -28,14 +28,40 @@ from typing import Dict, Any, List, Optional, Callable, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
 
-from ..nexus_core import NexusCore
 from .session_manager import SessionManagerPlugin
 from ..core.plugin_system import NexusPlugin, PluginMetadata, PluginState, get_plugin_registry
 from ..core.event_bus import EventTypes
 from ..compat_async import run_coro_sync
+from ..compat import nexus_add, nexus_init, nexus_recall
 
 
 # ===================== 数据类 =====================
+
+
+class _CompatNexusCoreAdapter:
+    """Current sync API adapter used when the async plugin is unavailable."""
+
+    def init(self) -> bool:
+        return bool(nexus_init())
+
+    def search_recall(self, query: str, n: int = 5):
+        if not nexus_init():
+            return []
+        return nexus_recall(query, n=n)
+
+    def add_document(
+        self,
+        content: str,
+        title: str = "",
+        tags: str = "",
+        doc_id: Optional[str] = None,
+    ) -> Optional[str]:
+        del doc_id  # Legacy parameter kept for compatibility with old callers.
+        return nexus_add(content=content, title=title, tags=tags)
+
+    search = search_recall
+    recall = search_recall
+    add = add_document
 
 class MemoryTier(Enum):
     """记忆层级"""
@@ -173,7 +199,7 @@ class ContextEngine:
         re.compile(r'.*区别[?？]', re.IGNORECASE),
     ]
     
-    def __init__(self, nexus_core: NexusCore = None):
+    def __init__(self, nexus_core: Any = None):
         """
         初始化上下文引擎
         
@@ -206,8 +232,8 @@ class ContextEngine:
             return None
     
     @property
-    def nexus_core(self) -> NexusCore:
-        """懒加载 NexusCore"""
+    def nexus_core(self) -> Any:
+        """Lazily resolve the runtime plugin or a sync API adapter."""
         if self._nexus_core is None:
             if self._lazy_loaded:
                 try:
@@ -220,7 +246,7 @@ class ContextEngine:
                 except Exception:
                     pass
 
-                self._nexus_core = NexusCore()
+                self._nexus_core = _CompatNexusCoreAdapter()
                 self._nexus_core.init()
                 self._lazy_loaded = False
         return self._nexus_core

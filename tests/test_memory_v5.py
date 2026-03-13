@@ -219,6 +219,18 @@ class TestCurrentRuntimeFixes(unittest.TestCase):
 
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_context_engine_falls_back_to_sync_api_adapter(self):
+        deepsea_nexus.clear_plugin_registry()
+        context_engine_module = importlib.import_module(
+            f"{deepsea_nexus.__name__}.plugins.context_engine"
+        )
+        engine = context_engine_module.ContextEngine()
+        adapter = engine.nexus_core
+
+        self.assertIsInstance(adapter, context_engine_module._CompatNexusCoreAdapter)
+        self.assertTrue(callable(getattr(adapter, "search_recall", None)))
+        self.assertTrue(callable(getattr(adapter, "add_document", None)))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

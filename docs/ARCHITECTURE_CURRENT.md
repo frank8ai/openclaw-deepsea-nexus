@@ -71,6 +71,13 @@ Current context-related runtime modules:
 These modules still contain significant historical logic and are valid refactor
 targets, but they are part of the current runtime.
 
+Current cleanup status:
+
+- `plugins/context_engine.py` fallback now uses the current sync compatibility
+  API as an adapter instead of constructing legacy `NexusCore()` directly
+- `plugins/smart_context.py` relies on the loaded runtime plugin and no longer
+  imports the legacy core module directly
+
 ### 5. Memory v5 scoped store
 
 Current durable scoped memory lives under:

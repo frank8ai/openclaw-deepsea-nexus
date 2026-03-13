@@ -15,17 +15,44 @@
 
 import sys
 import json
-from nexus_core import NexusCore
+import importlib.util
+from pathlib import Path
+
 from auto_summary import HybridStorage, SummaryParser
 
 
+def _load_local_package():
+    repo_root = Path(__file__).resolve().parent
+    spec = importlib.util.spec_from_file_location(
+        "deepsea_nexus_store_summary",
+        repo_root / "__init__.py",
+        submodule_search_locations=[str(repo_root)],
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+deepsea_nexus = _load_local_package()
+nexus_init = deepsea_nexus.nexus_init
+nexus_add = deepsea_nexus.nexus_add
+
+
+class _SummaryStoreAdapter:
+    """Minimal vector-store shape expected by HybridStorage."""
+
+    def add(self, content: str, title: str = "", tags: str = "") -> str:
+        return nexus_add(content=content, title=title, tags=tags) or ""
+
+
 def main():
-    nexus = NexusCore()
-    if not nexus.init():
+    if not nexus_init():
         print("✗ 初始化失败")
         sys.exit(1)
     
-    storage = HybridStorage(nexus)
+    storage = HybridStorage(_SummaryStoreAdapter())
     
     if len(sys.argv) >= 3:
         # 命令行参数
