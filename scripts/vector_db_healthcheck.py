@@ -12,16 +12,33 @@ from datetime import datetime
 from pathlib import Path
 
 
+def _resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def _resolve_workspace_root() -> Path:
+    return Path(
+        os.environ.get("OPENCLAW_WORKSPACE", _resolve_openclaw_home() / "workspace")
+    ).expanduser().resolve()
+
+
 def _resolve_db_path() -> Path:
-    return Path(os.path.expanduser(os.environ.get("NEXUS_VECTOR_DB", "~/.openclaw/workspace/memory/.vector_db_restored")))
+    return Path(
+        os.environ.get(
+            "NEXUS_VECTOR_DB",
+            _resolve_workspace_root() / "memory" / ".vector_db_restored",
+        )
+    ).expanduser().resolve()
 
 
 def _resolve_snapshots_dir() -> Path:
-    return Path(os.path.expanduser("~/.openclaw/workspace/memory/archives/vector_db_snapshots"))
+    return (
+        _resolve_workspace_root() / "memory" / "archives" / "vector_db_snapshots"
+    ).resolve()
 
 
 def _log_path() -> Path:
-    log_dir = Path(os.path.expanduser("~/.openclaw/workspace/logs"))
+    log_dir = (_resolve_workspace_root() / "logs").resolve()
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir / "vector_db_health.jsonl"
 

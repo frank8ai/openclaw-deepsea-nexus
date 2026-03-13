@@ -9,7 +9,22 @@ import argparse
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Any, List
+
+
+def resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def resolve_workspace_root() -> Path:
+    return Path(
+        os.environ.get("OPENCLAW_WORKSPACE", resolve_openclaw_home() / "workspace")
+    ).expanduser().resolve()
+
+
+def resolve_canvas_output_path() -> Path:
+    return (resolve_openclaw_home() / "canvas" / "context-metrics.json").resolve()
 
 
 def _read_jsonl(path: str, limit: int = 2000) -> List[Dict[str, Any]]:
@@ -159,9 +174,9 @@ def _write_html(path: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", default=os.path.expanduser("~/.openclaw/workspace"))
+    parser.add_argument("--base", default=str(resolve_workspace_root()))
     parser.add_argument("--window", type=int, default=200)
-    parser.add_argument("--out", default=os.path.expanduser("~/.openclaw/canvas/context-metrics.json"))
+    parser.add_argument("--out", default=str(resolve_canvas_output_path()))
     parser.add_argument("--write-html", action="store_true")
     args = parser.parse_args()
 

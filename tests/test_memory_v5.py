@@ -1137,6 +1137,127 @@ class TestFiveFurtherCuts(unittest.TestCase):
             sys.modules.pop(spec.name, None)
 
 
+class TestFiveMoreLegacyPathCuts(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_batch_save_summary_prefers_current_repo_and_workspace_memory(self):
+        workspace_root = self.repo_root / "workspace"
+        with mock.patch.dict(
+            os.environ,
+            {
+                "DEEPSEA_NEXUS_ROOT": str(self.repo_root),
+                "OPENCLAW_WORKSPACE": str(workspace_root),
+            },
+            clear=False,
+        ):
+            module = _load_repo_file_module(
+                "batch_save_summary_paths",
+                "batch_save_summary.py",
+            )
+            self.assertEqual(module.resolve_nexus_root(), self.repo_root.resolve())
+            self.assertEqual(
+                module.resolve_memory_dir(),
+                (workspace_root / "memory").resolve(),
+            )
+            self.assertEqual(module.NEXUS_PATH, str(self.repo_root.resolve()))
+
+    def test_context_metrics_export_defaults_follow_workspace_and_home(self):
+        workspace_root = self.repo_root / "workspace"
+        openclaw_home = self.repo_root / "openclaw-home"
+        with mock.patch.dict(
+            os.environ,
+            {
+                "OPENCLAW_WORKSPACE": str(workspace_root),
+                "OPENCLAW_HOME": str(openclaw_home),
+            },
+            clear=False,
+        ):
+            module = _load_repo_file_module(
+                "context_metrics_export_paths",
+                "scripts/context_metrics_export.py",
+            )
+            self.assertEqual(module.resolve_workspace_root(), workspace_root.resolve())
+            self.assertEqual(
+                module.resolve_canvas_output_path(),
+                (openclaw_home / "canvas" / "context-metrics.json").resolve(),
+            )
+
+    def test_context_metrics_dashboard_defaults_follow_workspace_override(self):
+        workspace_root = self.repo_root / "workspace"
+        with mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": str(workspace_root)},
+            clear=False,
+        ):
+            module = _load_repo_file_module(
+                "context_metrics_dashboard_paths",
+                "scripts/context_metrics_dashboard.py",
+            )
+            self.assertEqual(module.resolve_workspace_root(), workspace_root.resolve())
+
+    def test_vector_db_snapshot_defaults_follow_workspace_override(self):
+        workspace_root = self.repo_root / "workspace"
+        with mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": str(workspace_root)},
+            clear=True,
+        ):
+            module = _load_repo_file_module(
+                "vector_db_snapshot_paths",
+                "scripts/vector_db_snapshot.py",
+            )
+            self.assertEqual(
+                module._resolve_db_path(),
+                (workspace_root / "memory" / ".vector_db_restored").resolve(),
+            )
+            self.assertEqual(
+                module._resolve_snapshots_dir(),
+                (
+                    workspace_root
+                    / "memory"
+                    / "archives"
+                    / "vector_db_snapshots"
+                ).resolve(),
+            )
+
+    def test_vector_db_healthcheck_defaults_follow_workspace_override(self):
+        workspace_root = self.repo_root / "workspace"
+        with mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": str(workspace_root)},
+            clear=True,
+        ):
+            module = _load_repo_file_module(
+                "vector_db_healthcheck_paths",
+                "scripts/vector_db_healthcheck.py",
+            )
+            self.assertEqual(
+                module._resolve_db_path(),
+                (workspace_root / "memory" / ".vector_db_restored").resolve(),
+            )
+            self.assertEqual(
+                module._resolve_snapshots_dir(),
+                (
+                    workspace_root
+                    / "memory"
+                    / "archives"
+                    / "vector_db_snapshots"
+                ).resolve(),
+            )
+            self.assertEqual(
+                module._log_path(),
+                (workspace_root / "logs" / "vector_db_health.jsonl").resolve(),
+            )
+
+
 class TestRepoRuntimeCleanupScript(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()

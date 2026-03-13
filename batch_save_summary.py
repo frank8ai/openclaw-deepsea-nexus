@@ -14,8 +14,31 @@ import sys
 import json
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Optional
 
-NEXUS_PATH = "/Users/yizhi/.openclaw/workspace/skills/deepsea-nexus"
+REPO_ROOT = Path(__file__).resolve().parent
+OPENCLAW_HOME = Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser()
+DEFAULT_WORKSPACE_ROOT = Path(
+    os.environ.get("OPENCLAW_WORKSPACE", OPENCLAW_HOME / "workspace")
+).expanduser()
+
+
+def resolve_nexus_root() -> Path:
+    override = os.environ.get("DEEPSEA_NEXUS_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return REPO_ROOT.resolve()
+
+
+def resolve_memory_dir() -> Path:
+    override = os.environ.get("NEXUS_MEMORY_DIR", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (DEFAULT_WORKSPACE_ROOT / "memory").resolve()
+
+
+NEXUS_PATH = str(resolve_nexus_root())
 sys.path.insert(0, NEXUS_PATH)
 
 def extract_summary_from_text(text: str) -> tuple:
@@ -90,22 +113,26 @@ def save_summary_direct(text: str, source: str = "manual", tags: list = None):
         return False
 
 
-def batch_save_from_memory_files():
+def batch_save_from_memory_files(memory_dir: Optional[str] = None):
     """
     从 memory 文件批量导入历史对话
     """
-    memory_dir = "/Users/yizhi/.openclaw/workspace/memory"
+    memory_dir_path = (
+        Path(memory_dir).expanduser().resolve()
+        if memory_dir
+        else resolve_memory_dir()
+    )
     
-    if not os.path.exists(memory_dir):
-        print(f"⚠️ 目录不存在: {memory_dir}")
+    if not memory_dir_path.exists():
+        print(f"⚠️ 目录不存在: {memory_dir_path}")
         return
     
     count = 0
-    for filename in os.listdir(memory_dir):
+    for filename in os.listdir(memory_dir_path):
         if filename.endswith('.md'):
-            filepath = os.path.join(memory_dir, filename)
+            filepath = memory_dir_path / filename
             try:
-                with open(filepath, 'r') as f:
+                with open(filepath, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
                 # 检查是否包含摘要格式
@@ -124,13 +151,14 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='批量保存摘要')
     parser.add_argument('--memory', action='store_true', help='从memory文件批量导入')
+    parser.add_argument('--memory-dir', type=str, default=str(resolve_memory_dir()), help='memory 目录路径')
     parser.add_argument('--text', type=str, help='直接保存指定文本')
     parser.add_argument('--source', type=str, default="manual", help='来源标识')
     
     args = parser.parse_args()
     
     if args.memory:
-        batch_save_from_memory_files()
+        batch_save_from_memory_files(args.memory_dir)
     elif args.text:
         save_summary_direct(args.text, source=args.source)
     else:

@@ -17,12 +17,29 @@ def _ts() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
+def _resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def _resolve_workspace_root() -> Path:
+    return Path(
+        os.environ.get("OPENCLAW_WORKSPACE", _resolve_openclaw_home() / "workspace")
+    ).expanduser().resolve()
+
+
 def _resolve_db_path() -> Path:
-    return Path(os.path.expanduser(os.environ.get("NEXUS_VECTOR_DB", "~/.openclaw/workspace/memory/.vector_db_restored")))
+    return Path(
+        os.environ.get(
+            "NEXUS_VECTOR_DB",
+            _resolve_workspace_root() / "memory" / ".vector_db_restored",
+        )
+    ).expanduser().resolve()
 
 
 def _resolve_snapshots_dir() -> Path:
-    base = Path(os.path.expanduser("~/.openclaw/workspace/memory/archives/vector_db_snapshots"))
+    base = (
+        _resolve_workspace_root() / "memory" / "archives" / "vector_db_snapshots"
+    ).resolve()
     base.mkdir(parents=True, exist_ok=True)
     return base
 
