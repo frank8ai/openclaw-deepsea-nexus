@@ -28,6 +28,7 @@ from datetime import datetime
 from . import smart_context_decision
 from . import smart_context_graph
 from . import smart_context_inject
+from . import smart_context_recall
 from . import smart_context_rescue
 from . import smart_context_text
 from .session_manager import SessionManagerPlugin
@@ -920,9 +921,11 @@ class SmartContextPlugin(NexusPlugin):
             max_items = int(self.config.inject_max_items)
             threshold = float(self.config.inject_threshold)
 
-            fetch_n = max_items
-            if self.config.inject_dynamic_enabled:
-                fetch_n = max(fetch_n, int(self.config.inject_dynamic_max_items))
+            fetch_n = smart_context_recall.calculate_fetch_n(
+                max_items,
+                inject_dynamic_enabled=bool(self.config.inject_dynamic_enabled),
+                inject_dynamic_max_items=int(self.config.inject_dynamic_max_items),
+            )
             results = self._call_nexus("search_recall", user_message, fetch_n) or []
             if not results:
                 self._append_metrics(
@@ -932,28 +935,12 @@ class SmartContextPlugin(NexusPlugin):
                         "query_len": len(user_message or ""),
                     }
                 )
-            items: List[Dict[str, Any]] = []
-            seen_content = set()
-            for r in results:
-                content = getattr(r, "content", "")
-                # De-dup injected items with a stable signature to avoid repeated context bloat.
-                sig = self._content_signature(content)
-                if sig in seen_content:
-                    continue
-                seen_content.add(sig)
-
-                metadata = getattr(r, "metadata", {}) or {}
-                tags = self._normalize_tags(metadata)
-                score = self._score_injected_item(float(getattr(r, "relevance", 0.0) or 0.0), tags, getattr(r, "source", ""))
-                items.append(
-                    {
-                        "content": content,
-                        "source": getattr(r, "source", ""),
-                        "relevance": getattr(r, "relevance", 0.0),
-                        "score": score,
-                        "tags": tags,
-                    }
-                )
+            items = smart_context_recall.build_inject_candidates(
+                results,
+                signature_fn=self._content_signature,
+                normalize_tags_fn=self._normalize_tags,
+                score_fn=self._score_injected_item,
+            )
 
             max_items, threshold = self._dynamic_inject_params(reason, items)
 
@@ -963,21 +950,10 @@ class SmartContextPlugin(NexusPlugin):
                 except Exception:
                     return 0.0
 
-            filtered = [
-                item
-                for item in items
-                if _score(item) >= threshold
-            ]
-
-            # If recall retrieved candidates but thresholding filtered everything out,
-            # inject the top-1 candidate as a safety net.
-            fallback_used = False
-            fallback_reason = ""
-            if results and not filtered and items:
-                top1 = max(items, key=_score)
-                filtered = [top1]
-                fallback_used = True
-                fallback_reason = "fallback_top1"
+            filtered, fallback_used, fallback_reason = smart_context_recall.select_injected_items(
+                items,
+                threshold=threshold,
+            )
 
             if self.config.inject_debug:
                 sources = [r.get("source", "unknown") for r in filtered]

@@ -69,6 +69,9 @@ smart_context_graph = importlib.import_module(
 smart_context_rescue = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_rescue"
 )
+smart_context_recall = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_recall"
+)
 
 
 def _load_script_module(module_name: str):
@@ -799,6 +802,49 @@ class TestSmartContextRescueHelpers(unittest.TestCase):
         self.assertIn("增加回归测试", state["decisions"])
         self.assertIn("推进重构", state["next_actions"])
         self.assertIn("确认边界", state["open_questions"])
+
+
+class TestSmartContextRecallHelpers(unittest.TestCase):
+    def test_build_inject_candidates_dedupes_by_signature(self):
+        results = [
+            SimpleNamespace(
+                content="Alpha 12345",
+                source="doc-a",
+                relevance=0.6,
+                metadata={"tags": ["type:summary"]},
+            ),
+            SimpleNamespace(
+                content="alpha 67890",
+                source="doc-b",
+                relevance=0.9,
+                metadata={"tags": ["type:decision_block"]},
+            ),
+        ]
+
+        items = smart_context_recall.build_inject_candidates(
+            results,
+            signature_fn=lambda text: text[:5].lower(),
+            normalize_tags_fn=smart_context_inject.normalize_tags,
+            score_fn=lambda relevance, tags, source: relevance + (0.1 if "type:summary" in tags else 0.0),
+        )
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["source"], "doc-a")
+        self.assertEqual(items[0]["tags"], ["type:summary"])
+        self.assertAlmostEqual(items[0]["score"], 0.7, places=6)
+
+    def test_select_injected_items_falls_back_to_top1_when_threshold_filters_all(self):
+        selected, fallback_used, fallback_reason = smart_context_recall.select_injected_items(
+            [
+                {"score": 0.3, "content": "a"},
+                {"score": 0.5, "content": "b"},
+            ],
+            threshold=0.8,
+        )
+
+        self.assertTrue(fallback_used)
+        self.assertEqual(fallback_reason, "fallback_top1")
+        self.assertEqual(selected[0]["content"], "b")
 
 
 if __name__ == "__main__":

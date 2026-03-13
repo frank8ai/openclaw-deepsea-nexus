@@ -66,6 +66,7 @@ all live here.
 Current context-related runtime modules:
 
 - `plugins/smart_context.py`
+- `plugins/smart_context_recall.py`
 - `plugins/smart_context_rescue.py`
 - `plugins/smart_context_graph.py`
 - `plugins/smart_context_decision.py`
@@ -105,6 +106,9 @@ Current cleanup status:
   payloads plus graph-edge extraction/assembly reused by `SmartContextPlugin`
 - `plugins/smart_context_rescue.py` now owns rescue-text extraction and
   NOW-state merge helpers reused by `SmartContextPlugin`
+- `plugins/smart_context_recall.py` now owns recall-result normalization,
+  de-duplication, and threshold/fallback selection reused by
+  `SmartContextPlugin`
 - legacy `store_conversation(...)` now joins user and assistant text with real
   newlines before decision/topic extraction so its compatibility path matches
   the current plugin behavior
