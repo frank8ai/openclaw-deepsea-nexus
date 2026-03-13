@@ -66,6 +66,7 @@ all live here.
 Current context-related runtime modules:
 
 - `plugins/smart_context.py`
+- `plugins/smart_context_text.py`
 - `plugins/smart_context_runtime.py`
 - `plugins/context_engine.py`
 - `plugins/context_engine_runtime.py`
@@ -88,6 +89,9 @@ Current cleanup status:
   alert streak, auto-tune, and config persistence state so
   `plugins/smart_context.py` can focus on retrieval, summaries, and inject
   decisions
+- `plugins/smart_context_text.py` now owns shared summary, keyword, decision,
+  and topic extraction helpers reused by both `SmartContextPlugin` and the
+  legacy `store_conversation(...)` convenience path
 - runtime path resolution for metrics and Memory v5 roots is now centralized in
   `runtime_paths.py` instead of being reimplemented in multiple active modules
 

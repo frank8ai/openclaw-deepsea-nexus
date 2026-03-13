@@ -49,6 +49,9 @@ context_engine_runtime = importlib.import_module(
 smart_context_runtime = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_runtime"
 )
+smart_context_text = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_text"
+)
 
 
 def _load_script_module(module_name: str):
@@ -531,6 +534,47 @@ class TestSmartContextRuntimeState(unittest.TestCase):
 
         self.assertAlmostEqual(config.inject_threshold, 0.35, places=6)
         self.assertEqual(config.inject_max_items, 5)
+
+
+class TestSmartContextTextHelpers(unittest.TestCase):
+    def test_extract_summary_reports_fallback_and_keeps_entities(self):
+        result = smart_context_text.extract_summary(
+            "## 📋 总结\n好...\n\n更新了 server.py 并调用 run_task()。",
+            min_summary_length=50,
+            fallback_max_chars=120,
+        )
+
+        self.assertEqual(result.status, "fallback")
+        self.assertIn("server.py", result.summary)
+        self.assertIn("run_task()", result.summary)
+
+    def test_extract_decision_blocks_dedupes_json_and_lines(self):
+        text = (
+            "```json\n"
+            "{\"本次核心产出\": \"决定保留 FastAPI\", \"决策上下文\": \"采用 service layer\"}\n"
+            "```\n"
+            "- 决定保留 FastAPI\n"
+            "- #GOLD: 采用 service layer\n"
+        )
+
+        blocks = smart_context_text.extract_decision_blocks(text, max_items=4)
+
+        self.assertEqual(blocks[0], "决定保留 FastAPI")
+        self.assertIn("采用 service layer", blocks)
+        self.assertEqual(len(blocks), 2)
+
+    def test_extract_topics_uses_heading_and_keyword_backfill(self):
+        text = "## Relay Runtime\nrelay runtime provider metrics\nrouter health checks"
+
+        topics = smart_context_text.extract_topics(
+            text,
+            topic_max=3,
+            topic_min_keywords=2,
+            keyword_limit=5,
+        )
+
+        self.assertIn("Relay Runtime", topics)
+        self.assertTrue(any("relay / runtime / provider" == topic for topic in topics))
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
+from . import smart_context_text
 from .session_manager import SessionManagerPlugin
 from .smart_context_runtime import SmartContextRuntimeState
 from ..core.plugin_system import NexusPlugin, PluginMetadata
@@ -589,80 +590,40 @@ class SmartContextPlugin(NexusPlugin):
         self._runtime.flush_pending_config_updates(self.config)
     
     def _extract_summary(self, response: str) -> str:
-        """
-        提取摘要
-        
-        优先级：
-        1. JSON 格式
-        2. ## 📋 总结 格式
-        3. 默认摘要
-        """
-        # JSON 格式
-        json_match = re.search(r'```json\s*\n([\s\S]*?)\n```', response)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(1))
-                return data.get("本次核心产出", data.get("核心产出", ""))
-            except json.JSONDecodeError:
-                pass
-        
-        # ## 📋 总结 格式
-        summary_match = re.search(r'## 📋 总结[^\n]*\n([\s\S]*?)(?=\n\n|$)', response)
-        if summary_match:
-            return self._sanitize_summary(summary_match.group(1).strip(), response)
-        
-        # 默认摘要
-        return self._sanitize_summary(response[:200].strip(), response)
+        result = smart_context_text.extract_summary(
+            response,
+            min_summary_length=self.config.summary_min_length,
+            fallback_max_chars=200,
+        )
+        self._record_summary_metrics(result)
+        return result.summary
+
+    def _record_summary_metrics(self, result: smart_context_text.SummaryResult) -> None:
+        event_by_status = {
+            "ok": "summary_ok",
+            "short": "summary_short",
+            "fallback": "summary_fallback",
+        }
+        event = event_by_status.get(result.status)
+        if not event:
+            return
+        self._append_metrics({"event": event, "len": len(result.summary)})
 
     def _sanitize_summary(self, summary: str, fallback: str) -> str:
-        summary = (summary or "").strip()
-        summary = re.sub(r'```[\s\S]*?```', '', summary).strip()
-        if summary.endswith("...") and len(summary) < 10:
-            summary = summary[:-3].strip()
-        min_len = max(20, int(self.config.summary_min_length / 2))
-        entities = self._extract_key_entities(fallback)
-        if len(summary) >= min_len:
-            summary = self._append_entities(summary, entities)
-            self._append_metrics({"event": "summary_ok", "len": len(summary)})
-            return summary
-        fallback_text = re.sub(r'```[\s\S]*?```', '', (fallback or "")).strip()
-        if not fallback_text:
-            self._append_metrics({"event": "summary_short", "len": len(summary)})
-            return summary
-        rebuilt = (fallback_text[:200] + ("..." if len(fallback_text) > 200 else "")).strip()
-        rebuilt = self._append_entities(rebuilt, entities)
-        self._append_metrics({"event": "summary_fallback", "len": len(rebuilt)})
-        return rebuilt
+        result = smart_context_text.sanitize_summary(
+            summary,
+            fallback,
+            min_summary_length=self.config.summary_min_length,
+            fallback_max_chars=200,
+        )
+        self._record_summary_metrics(result)
+        return result.summary
 
     def _extract_key_entities(self, text: str) -> List[str]:
-        if not text:
-            return []
-        candidates = []
-        for match in re.findall(r'([A-Za-z0-9_./\\-]+\\.[A-Za-z0-9]+)', text):
-            candidates.append(match)
-        for match in re.findall(r'\\b[A-Za-z_][A-Za-z0-9_]{2,}\\(\\)', text):
-            candidates.append(match)
-        cleaned = []
-        for item in candidates:
-            if len(item) < 4 or len(item) > 120:
-                continue
-            lowered = item.lower()
-            if lowered.startswith(("sk-", "nvapi-", "ghp_")):
-                continue
-            if re.search(r'[A-Za-z0-9]{20,}', item):
-                continue
-            if item not in cleaned:
-                cleaned.append(item)
-        return cleaned[:5]
+        return smart_context_text.extract_key_entities(text, limit=5)
 
     def _append_entities(self, summary: str, entities: List[str]) -> str:
-        if not entities:
-            return summary
-        missing = [e for e in entities if e not in summary]
-        if not missing:
-            return summary
-        suffix = " 关键项: " + ", ".join(missing[:5])
-        return (summary + suffix).strip()
+        return smart_context_text.append_entities(summary, entities, limit=5)
     
     def _store_context(self, conversation_id: str, round_num: int, context: Dict):
         """
@@ -713,16 +674,7 @@ class SmartContextPlugin(NexusPlugin):
     
     def extract_keywords(self, text: str) -> List[str]:
         """提取关键词"""
-        words = re.findall(r'\b\w+\b', text.lower())
-        
-        stop_words = {
-            '的', '了', '是', '在', '我', '你', '他', '这', '那',
-            '和', '就', '都', '也', '会', '可以', '什么', '怎么',
-            '如何', '有没有', '是不是', '能不能'
-        }
-        
-        keywords = [w for w in words if w not in stop_words and len(w) > 2]
-        return list(dict.fromkeys(keywords))[:5]
+        return smart_context_text.extract_keywords(text, limit=5)
 
     def _is_context_starved(self, user_message: str) -> bool:
         msg = (user_message or "").strip()
@@ -734,80 +686,16 @@ class SmartContextPlugin(NexusPlugin):
         return False
 
     def _extract_decision_blocks(self, text: str) -> List[str]:
-        if not text:
-            return []
-        blocks: List[str] = []
-
-        json_match = re.search(r'```json\s*\n([\s\S]*?)\n```', text)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(1))
-                for key in ("本次核心产出", "核心产出", "决策上下文"):
-                    val = data.get(key)
-                    if isinstance(val, str) and val.strip():
-                        blocks.append(val.strip())
-            except json.JSONDecodeError:
-                pass
-
-        decision_keywords = ("决定", "选择", "采用", "使用", "结论", "方案", "策略", "切换", "改为")
-        for raw in text.splitlines():
-            line = raw.strip(" \t-•")
-            if not line:
-                continue
-            if "#GOLD" in line:
-                line = re.sub(r".*#GOLD[:\\s]*", "", line).strip()
-            if any(k in line for k in decision_keywords) and len(line) >= 6:
-                blocks.append(line)
-
-        seen = set()
-        uniq = []
-        for b in blocks:
-            if b in seen:
-                continue
-            seen.add(b)
-            uniq.append(b)
-        return uniq[: max(1, int(self.config.decision_block_max))]
+        return smart_context_text.extract_decision_blocks(
+            text,
+            max_items=max(1, int(self.config.decision_block_max)),
+        )
 
     def _extract_actions(self, text: str) -> List[str]:
-        if not text:
-            return []
-        actions: List[str] = []
-        for raw in text.splitlines():
-            line = raw.strip(" \t-•")
-            if not line:
-                continue
-            if line.lower().startswith(("todo", "next", "步骤")):
-                actions.append(line)
-                continue
-            if "下一步" in line or "继续" in line:
-                actions.append(line)
-        seen = set()
-        uniq = []
-        for item in actions:
-            if item in seen:
-                continue
-            seen.add(item)
-            uniq.append(item)
-        return uniq[:5]
+        return smart_context_text.extract_actions(text, max_items=5)
 
     def _extract_questions(self, text: str) -> List[str]:
-        if not text:
-            return []
-        questions: List[str] = []
-        for raw in text.splitlines():
-            line = raw.strip(" \t-•")
-            if not line:
-                continue
-            if "?" in line or "？" in line:
-                questions.append(line)
-        seen = set()
-        uniq = []
-        for item in questions:
-            if item in seen:
-                continue
-            seen.add(item)
-            uniq.append(item)
-        return uniq[:5]
+        return smart_context_text.extract_questions(text, max_items=5)
 
     def _build_turn_summary(
         self,
@@ -844,29 +732,12 @@ class SmartContextPlugin(NexusPlugin):
         return "\n".join(lines).strip()
 
     def _extract_topics(self, text: str) -> List[str]:
-        if not text:
-            return []
-        topics: List[str] = []
-        for raw in text.splitlines():
-            line = raw.strip(" \t-•")
-            if not line:
-                continue
-            if line.startswith("## "):
-                topics.append(line[3:].strip()[:60])
-            if any(k in line for k in ("主题", "话题", "模块", "子系统", "项目")) and len(line) <= 80:
-                topics.append(line)
-        keywords = self.extract_keywords(text)
-        if len(keywords) >= int(self.config.topic_block_min_keywords):
-            topics.append(" / ".join(keywords[: int(self.config.topic_block_min_keywords) + 1]))
-        seen = set()
-        uniq = []
-        for t in topics:
-            t = t.strip()
-            if not t or t in seen:
-                continue
-            seen.add(t)
-            uniq.append(t)
-        return uniq[: max(1, int(self.config.topic_block_max))]
+        return smart_context_text.extract_topics(
+            text,
+            topic_max=max(1, int(self.config.topic_block_max)),
+            topic_min_keywords=int(self.config.topic_block_min_keywords),
+            keyword_limit=5,
+        )
 
     def _detect_topic_switch(self, user_message: str) -> bool:
         if not self.config.topic_switch_enabled:
@@ -1483,99 +1354,29 @@ def store_conversation(conversation_id: str, user_message: str, ai_response: str
     if not nexus_init():
         return {"error": "nexus init failed", "stored": False}
 
-    def _extract_summary(text: str) -> str:
-        json_match = re.search(r'```json\\s*\\n([\\s\\S]*?)\\n```', text)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(1))
-                return data.get("本次核心产出", data.get("核心产出", ""))
-            except json.JSONDecodeError:
-                pass
-        summary_match = re.search(r'## 📋 总结[^\\n]*\\n([\\s\\S]*?)(?=\\n\\n|$)', text)
-        if summary_match:
-            return summary_match.group(1).strip()
-        return (text or "")[:100].strip()
-
-    def _extract_keywords(text: str) -> List[str]:
-        words = re.findall(r'\\b\\w+\\b', text.lower())
-        stop_words = {
-            '的', '了', '是', '在', '我', '你', '他', '这', '那',
-            '和', '就', '都', '也', '会', '可以', '什么', '怎么',
-            '如何', '有没有', '是不是', '能不能'
-        }
-        keywords = [w for w in words if w not in stop_words and len(w) > 2]
-        return list(dict.fromkeys(keywords))[:5]
-
-    def _extract_decisions(text: str) -> List[str]:
-        if not text:
-            return []
-        blocks: List[str] = []
-        json_match = re.search(r'```json\\s*\\n([\\s\\S]*?)\\n```', text)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(1))
-                for key in ("本次核心产出", "核心产出", "决策上下文"):
-                    val = data.get(key)
-                    if isinstance(val, str) and val.strip():
-                        blocks.append(val.strip())
-            except json.JSONDecodeError:
-                pass
-        decision_keywords = ("决定", "选择", "采用", "使用", "结论", "方案", "策略", "切换", "改为")
-        for raw in text.splitlines():
-            line = raw.strip(" \\t-•")
-            if not line:
-                continue
-            if "#GOLD" in line:
-                line = re.sub(r".*#GOLD[:\\s]*", "", line).strip()
-            if any(k in line for k in decision_keywords) and len(line) >= 6:
-                blocks.append(line)
-        seen = set()
-        uniq = []
-        for b in blocks:
-            if b in seen:
-                continue
-            seen.add(b)
-            uniq.append(b)
-        return uniq[:3]
-
-    def _extract_topics(text: str) -> List[str]:
-        if not text:
-            return []
-        topics: List[str] = []
-        for raw in text.splitlines():
-            line = raw.strip(" \t-•")
-            if not line:
-                continue
-            if line.startswith("## "):
-                topics.append(line[3:].strip()[:60])
-            if any(k in line for k in ("主题", "话题", "模块", "子系统", "项目")) and len(line) <= 80:
-                topics.append(line)
-        kws = _extract_keywords(text)
-        if len(kws) >= 2:
-            topics.append(" / ".join(kws[:3]))
-        seen = set()
-        uniq = []
-        for t in topics:
-            if t in seen:
-                continue
-            seen.add(t)
-            uniq.append(t)
-        return uniq[:3]
-
-    summary = _extract_summary(ai_response)
+    summary = smart_context_text.extract_summary(
+        ai_response,
+        min_summary_length=50,
+        fallback_max_chars=100,
+    ).summary
     nexus_write(ai_response, f"对话 {conversation_id} - 原文", priority="P2", kind="summary", source=str(conversation_id), tags="type:content")
     if summary:
         nexus_write(f"[摘要] {summary}", f"对话 {conversation_id} - 摘要", priority="P1", kind="summary", source=str(conversation_id), tags="type:summary")
 
-    keywords = _extract_keywords(user_message + " " + ai_response)
+    keywords = smart_context_text.extract_keywords(user_message + " " + ai_response, limit=5)
     if keywords:
         nexus_write(" ".join(keywords), f"对话 {conversation_id} - 关键词", priority="P2", kind="fact", source=str(conversation_id), tags="type:keywords")
 
-    decisions = _extract_decisions(user_message + "\\n" + ai_response)
+    decisions = smart_context_text.extract_decision_blocks(user_message + "\\n" + ai_response, max_items=3)
     for idx, block in enumerate(decisions, 1):
         nexus_write(block, f"决策块 {conversation_id} - ({idx})", priority="P0", kind="decision", source=str(conversation_id), tags="type:decision_block")
 
-    topics = _extract_topics(user_message + "\\n" + ai_response)
+    topics = smart_context_text.extract_topics(
+        user_message + "\\n" + ai_response,
+        topic_max=3,
+        topic_min_keywords=2,
+        keyword_limit=5,
+    )
     for idx, topic in enumerate(topics, 1):
         nexus_write(topic, f"主题块 {conversation_id} - ({idx})", priority="P1", kind="strategy", source=str(conversation_id), tags="type:topic_block")
 
