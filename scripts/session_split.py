@@ -5,14 +5,9 @@ Automatically split large session files (>50KB)
 """
 
 import os
-import sys
-from pathlib import Path
+from datetime import datetime
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from src.nexus_core import NexusCore
+from _legacy_layout import resolve_day_dir, resolve_legacy_layout
 
 
 def split_session(session_file, max_size=50000):
@@ -83,29 +78,27 @@ def split_session(session_file, max_size=50000):
     return new_files
 
 
-def scan_and_split(nexus, max_size=50000):
+def scan_and_split(layout, max_size=50000):
     """
     Scan all sessions and split large ones
     
     Args:
-        nexus: NexusCore instance
+        layout: Resolved legacy layout paths
         max_size: Maximum size in bytes
     
     Returns:
         Dict: Statistics
     """
-    base_path = nexus.config.get("paths.base")
-    memory_path = nexus.config.get("paths.memory")
     today = datetime.now().strftime("%Y-%m-%d")
-    today_dir = os.path.join(base_path, memory_path, today)
+    today_dir = resolve_day_dir(today, layout)
     
-    if not os.path.exists(today_dir):
+    if not today_dir.exists():
         return {"scanned": 0, "split": 0}
     
     sessions = []
-    for f in os.listdir(today_dir):
-        if f.startswith("session_") and f.endswith(".md"):
-            sessions.append(os.path.join(today_dir, f))
+    for file_path in sorted(today_dir.iterdir()):
+        if file_path.is_file() and file_path.name.startswith("session_") and file_path.suffix == ".md":
+            sessions.append(str(file_path))
     
     split_count = 0
     for session_file in sessions:
@@ -123,7 +116,6 @@ def scan_and_split(nexus, max_size=50000):
 
 if __name__ == "__main__":
     import argparse
-    from datetime import datetime
     
     parser = argparse.ArgumentParser(description="Session Split Tool")
     parser.add_argument('--scan', action='store_true', help='Scan and split large sessions')
@@ -132,11 +124,11 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    nexus = NexusCore()
+    layout = resolve_legacy_layout()
     
     if args.scan:
         print("🔍 Scanning for large sessions...")
-        stats = scan_and_split(nexus, args.size)
+        stats = scan_and_split(layout, args.size)
         print(f"✅ Scanned {stats['scanned']}, split {stats['split']} files")
     
     elif args.file:

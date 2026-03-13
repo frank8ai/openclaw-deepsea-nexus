@@ -5,15 +5,10 @@ Rebuild daily index from all session files
 """
 
 import os
-import sys
-from pathlib import Path
 from datetime import datetime
 import re
 
-# Add project to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from src.nexus_core import NexusCore
+from _legacy_layout import iter_legacy_dates, resolve_day_dir, resolve_legacy_layout
 
 
 def extract_session_info(session_file):
@@ -84,32 +79,29 @@ def extract_session_info(session_file):
         return None
 
 
-def rebuild_index_for_date(date_str, nexus):
+def rebuild_index_for_date(date_str, layout):
     """
     Rebuild index for a specific date
     
     Args:
         date_str: Date in YYYY-MM-DD format
-        nexus: NexusCore instance
+        layout: Resolved legacy layout paths
     
     Returns:
         Dict: Rebuild statistics
     """
-    base_path = nexus.config.get("paths.base")
-    memory_path = nexus.config.get("paths.memory")
-    date_dir = os.path.join(base_path, memory_path, date_str)
-    index_file = os.path.join(date_dir, "_INDEX.md")
+    date_dir = resolve_day_dir(date_str, layout)
+    index_file = date_dir / "_INDEX.md"
     
-    if not os.path.exists(date_dir):
+    if not date_dir.exists():
         print(f"❌ Directory not found: {date_dir}")
         return None
     
     # Collect all sessions
     sessions = []
-    for f in os.listdir(date_dir):
-        if f.startswith("session_") and f.endswith(".md"):
-            session_file = os.path.join(date_dir, f)
-            info = extract_session_info(session_file)
+    for file_path in sorted(date_dir.iterdir()):
+        if file_path.is_file() and file_path.name.startswith("session_") and file_path.suffix == ".md":
+            info = extract_session_info(str(file_path))
             if info:
                 sessions.append(info)
     
@@ -129,7 +121,7 @@ def rebuild_index_for_date(date_str, nexus):
     
     sessions_section = "\n".join(sessions_lines) if sessions_lines else "_(no active sessions)_"
     gold_section = "\n".join(gold_lines) if gold_lines else "_(no gold keys)_"
-    topics_section = "\n".join([f"- {t}" for t in topics]) if topics else "_(no topics)_"
+    topics_section = "\n".join([f"- {t}" for t in sorted(topics)]) if topics else "_(no topics)_"
     
     index_content = f"""---
 uuid: {datetime.now().strftime("%Y%m%d%H%M%S")}
@@ -154,8 +146,7 @@ updated: {datetime.now().isoformat()}
 """
     
     # Write index file
-    with open(index_file, 'w', encoding='utf-8') as f:
-        f.write(index_content)
+    index_file.write_text(index_content, encoding='utf-8')
     
     print(f"✅ Rebuilt index for {date_str}: {len(sessions)} sessions, {len(gold_lines)} gold keys")
     
@@ -167,44 +158,28 @@ updated: {datetime.now().isoformat()}
     }
 
 
-def rebuild_all(nexus, month=None):
+def rebuild_all(layout, month=None):
     """
     Rebuild all indices
     
     Args:
-        nexus: NexusCore instance
+        layout: Resolved legacy layout paths
         month: Specific month to rebuild (YYYY-MM format)
     
     Returns:
         List: Rebuild results
     """
-    base_path = nexus.config.get("paths.base")
-    memory_path = nexus.config.get("paths.memory")
-    memory_dir = os.path.join(base_path, memory_path)
-    
     results = []
-    
-    if month:
-        # Rebuild specific month
-        month_dir = os.path.join(memory_dir, month)
-        if os.path.exists(month_dir):
-            for d in os.listdir(month_dir):
-                if re.match(r'\d{4}-\d{2}-\d{2}', d):
-                    result = rebuild_index_for_date(d, nexus)
-                    if result:
-                        results.append(result)
-        else:
-            print(f"❌ Month directory not found: {month}")
-    
-    else:
-        # Rebuild all dates
-        for item in os.listdir(memory_dir):
-            item_path = os.path.join(memory_dir, item)
-            if os.path.isdir(item_path) and re.match(r'\d{4}-\d{2}-\d{2}', item):
-                result = rebuild_index_for_date(item, nexus)
-                if result:
-                    results.append(result)
-    
+    dates = iter_legacy_dates(layout, month=month)
+    if month and not dates:
+        print(f"❌ No dated directories found for month: {month}")
+        return results
+
+    for date_str in dates:
+        result = rebuild_index_for_date(date_str, layout)
+        if result:
+            results.append(result)
+
     return results
 
 
@@ -218,17 +193,17 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    nexus = NexusCore()
+    layout = resolve_legacy_layout()
     
     if args.date:
-        rebuild_index_for_date(args.date, nexus)
+        rebuild_index_for_date(args.date, layout)
     
     elif args.month:
-        results = rebuild_all(nexus, args.month)
+        results = rebuild_all(layout, args.month)
         print(f"✅ Rebuilt {len(results)} dates in {args.month}")
     
     elif args.all:
-        results = rebuild_all(nexus)
+        results = rebuild_all(layout)
         print(f"✅ Rebuilt {len(results)} dates total")
     
     else:

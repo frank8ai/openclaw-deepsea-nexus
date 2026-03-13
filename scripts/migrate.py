@@ -7,14 +7,10 @@ Migrate from v1.0 format to v2.0 format
 import os
 import sys
 import json
-from pathlib import Path
 from datetime import datetime
-import shutil
+import re
 
-# Add project to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from src.nexus_core import NexusCore
+from _legacy_layout import resolve_legacy_layout
 
 
 class MigrationError(Exception):
@@ -57,14 +53,13 @@ def detect_v1_format(source_dir):
     return (False, "unknown")
 
 
-def migrate_from_v1(source_dir, target_dir, nexus):
+def migrate_from_v1(source_dir, target_dir):
     """
     Migrate from v1.0 to v2.0 format
     
     Args:
         source_dir: Source directory (v1.0)
         target_dir: Target directory (v2.0)
-        nexus: NexusCore instance
     
     Returns:
         Dict: Migration statistics
@@ -92,7 +87,7 @@ def migrate_from_v1(source_dir, target_dir, nexus):
             # Migrate each entry
             for entry in memory_data:
                 try:
-                    migrate_entry(entry, target_dir, nexus, stats)
+                    migrate_entry(entry, target_dir, stats)
                 except Exception as e:
                     stats["sessions_failed"] += 1
                     stats["errors"].append(str(e))
@@ -107,7 +102,7 @@ def migrate_from_v1(source_dir, target_dir, nexus):
             if filename.endswith('.md'):
                 try:
                     session_file = os.path.join(sessions_dir, filename)
-                    migrate_session_file(session_file, target_dir, nexus, stats)
+                    migrate_session_file(session_file, target_dir, stats)
                 except Exception as e:
                     stats["sessions_failed"] += 1
                     stats["errors"].append(f"{filename}: {e}")
@@ -115,14 +110,13 @@ def migrate_from_v1(source_dir, target_dir, nexus):
     return stats
 
 
-def migrate_entry(entry, target_dir, nexus, stats):
+def migrate_entry(entry, target_dir, stats):
     """
     Migrate a single entry from memory.json
     
     Args:
         entry: Memory entry dict
         target_dir: Target directory
-        nexus: NexusCore instance
         stats: Statistics dict
     """
     # Extract data from entry
@@ -171,14 +165,13 @@ created: {timestamp}
     print(f"  ✅ Migrated: {session_id}")
 
 
-def migrate_session_file(session_file, target_dir, nexus, stats):
+def migrate_session_file(session_file, target_dir, stats):
     """
     Migrate a single session file from sessions/ directory
     
     Args:
         session_file: Path to session file
         target_dir: Target directory
-        nexus: NexusCore instance
         stats: Statistics dict
     """
     with open(session_file, 'r', encoding='utf-8') as f:
@@ -236,7 +229,7 @@ def verify_migration(target_dir, expected_sessions):
     
     for item in os.listdir(target_dir):
         item_path = os.path.join(target_dir, item)
-        if os.path.isdir(item) and re.match(r'\d{4}-\d{2}-\d{2}', item):
+        if os.path.isdir(item_path) and re.match(r'\d{4}-\d{2}-\d{2}', item):
             # Count sessions
             for f in os.listdir(item_path):
                 if f.startswith("session_") and f.endswith(".md"):
@@ -261,7 +254,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    nexus = NexusCore()
+    layout = resolve_legacy_layout()
     
     # Detect format
     is_v1, format_type = detect_v1_format(args.source)
@@ -274,7 +267,7 @@ if __name__ == "__main__":
     
     # Set target
     if not args.target:
-        args.target = os.path.join(nexus.config.get("paths.base"), "memory", "90_Memory")
+        args.target = str(layout.memory_root)
     
     print(f"📁 Source: {args.source}")
     print(f"📁 Target: {args.target}")
@@ -295,7 +288,7 @@ if __name__ == "__main__":
                 print(f"  - {e}")
     else:
         print("🚀 Starting migration...")
-        stats = migrate_from_v1(args.source, args.target, nexus)
+        stats = migrate_from_v1(args.source, args.target)
         
         print("\n📊 Migration Summary:")
         print(f"  Sessions migrated: {stats['sessions_migrated']}")

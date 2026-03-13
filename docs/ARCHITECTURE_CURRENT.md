@@ -1,6 +1,6 @@
 # Deep-Sea Nexus Current Architecture
 
-Last updated: 2026-03-12
+Last updated: 2026-03-13
 
 This document is the source of truth for the current Deep-Sea Nexus runtime in
 package release `5.0.0`.
@@ -95,10 +95,15 @@ Main concepts:
 Current operational entrypoints:
 
 - `run_tests.py`
+- `scripts/_legacy_layout.py`
 - `scripts/deploy_local_v5.sh`
 - `scripts/memory_v5_smoke.py`
 - `scripts/memory_v5_maintenance.py`
 - `scripts/memory_v5_benchmark.py`
+
+Legacy maintenance scripts now use `scripts/_legacy_layout.py` to resolve the
+historical `memory/90_Memory` filesystem layout without importing
+`src/nexus_core.py` directly.
 
 ## Canonical Usage Paths
 
@@ -149,13 +154,13 @@ current implementation:
 - `docs/architecture_v3.md`: archived v4.1-on-v3 architecture doc
 - `plugins/nexus_core.py`: compatibility alias to `plugins/nexus_core_plugin.py`
 - `nexus_core.py`: compatibility-heavy legacy shell still referenced by some
-  scripts and tests
+  historical docs and tests
 - `src/nexus_core.py`: historical implementation snapshot
 
 ## Refactor Guardrails
 
-- Do not remove `nexus_core.py` until `plugins/context_engine.py` and legacy
-  scripts stop instantiating `NexusCore()` directly.
+- Do not remove `nexus_core.py` until historical docs/tests are either migrated
+  or explicitly archived.
 - Prefer package-root imports over deep module imports in new code.
 - Keep sync API behavior stable unless a specific breaking migration is planned.
 - Treat `README.md`, `README_EN.md`, this document, and `docs/API_CURRENT.md`

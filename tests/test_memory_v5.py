@@ -43,6 +43,22 @@ NexusCorePlugin = importlib.import_module(
 ).NexusCorePlugin
 
 
+def _load_script_module(module_name: str):
+    script_path = REPO_ROOT / "scripts" / f"{module_name}.py"
+    script_dir = str(script_path.parent)
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+    spec = importlib.util.spec_from_file_location(
+        f"deepsea_nexus_script_{module_name.replace('.', '_')}",
+        script_path,
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 class TestMemoryV5Scopes(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -230,6 +246,92 @@ class TestCurrentRuntimeFixes(unittest.TestCase):
         self.assertIsInstance(adapter, context_engine_module._CompatNexusCoreAdapter)
         self.assertTrue(callable(getattr(adapter, "search_recall", None)))
         self.assertTrue(callable(getattr(adapter, "add_document", None)))
+
+
+class TestLegacyMaintenanceScripts(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.workspace_root = Path(self.temp_dir) / "workspace"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+        self.workspace_root.mkdir(parents=True, exist_ok=True)
+        (self.repo_root / "config.json").write_text(
+            json.dumps(
+                {
+                    "paths": {
+                        "base": str(self.workspace_root),
+                        "memory": "memory/90_Memory",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.legacy_layout = _load_script_module("_legacy_layout")
+        self.index_rebuild = _load_script_module("index_rebuild")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_resolve_legacy_layout_uses_repo_config(self):
+        layout = self.legacy_layout.resolve_legacy_layout(repo_root=self.repo_root)
+
+        self.assertEqual(layout.repo_root, self.repo_root.resolve())
+        self.assertEqual(layout.workspace_root, self.workspace_root.resolve())
+        self.assertEqual(
+            layout.memory_root,
+            (self.workspace_root / "memory" / "90_Memory").resolve(),
+        )
+
+    def test_daily_flush_moves_sessions_into_month_archive(self):
+        layout = self.legacy_layout.resolve_legacy_layout(repo_root=self.repo_root)
+        date_str = "2026-03-13"
+        day_dir = layout.memory_root / date_str
+        day_dir.mkdir(parents=True, exist_ok=True)
+        session_path = day_dir / "session_1200_Test.md"
+        session_path.write_text("# test\n", encoding="utf-8")
+        (day_dir / "_INDEX.md").write_text("old index", encoding="utf-8")
+
+        stats = self.legacy_layout.daily_flush_legacy_layout(date_str=date_str, layout=layout)
+
+        archived_path = layout.memory_root / "2026-03" / session_path.name
+        self.assertEqual(stats["flushed_count"], 1)
+        self.assertEqual(stats["archive_dir"], str((layout.memory_root / "2026-03").resolve()))
+        self.assertFalse(session_path.exists())
+        self.assertTrue(archived_path.exists())
+        self.assertIn(
+            "# 2026-03-13 Daily Index",
+            (day_dir / "_INDEX.md").read_text(encoding="utf-8"),
+        )
+
+    def test_rebuild_all_filters_flat_daily_dirs_by_month(self):
+        layout = self.legacy_layout.resolve_legacy_layout(repo_root=self.repo_root)
+        target_dir = layout.memory_root / "2026-02-10"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        other_dir = layout.memory_root / "2026-03-01"
+        other_dir.mkdir(parents=True, exist_ok=True)
+
+        (target_dir / "session_0930_Test.md").write_text(
+            """---
+tags: [Testing]
+created: 2026-02-10T09:30:00
+---
+
+# Test
+
+#GOLD important regression keyword
+""",
+            encoding="utf-8",
+        )
+        (other_dir / "session_1015_Other.md").write_text("# noop\n", encoding="utf-8")
+
+        results = self.index_rebuild.rebuild_all(layout, month="2026-02")
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["date"], "2026-02-10")
+        self.assertTrue((target_dir / "_INDEX.md").exists())
+        self.assertFalse((other_dir / "_INDEX.md").exists())
 
 
 if __name__ == "__main__":
