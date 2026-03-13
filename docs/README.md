@@ -1,0 +1,71 @@
+# Deep-Sea Nexus Docs Guide
+
+Last updated: 2026-03-13
+
+This file is the documentation entrypoint for the current `v5.0.0` repository
+state.
+
+## Start Here
+
+- Current architecture source of truth: `ARCHITECTURE_CURRENT.md`
+- Current public API surface: `API_CURRENT.md`
+- Main repository overview:
+  - `../README.md`
+  - `../README_EN.md`
+
+## Current Runtime Guides
+
+- Local deploy and runtime checks: `LOCAL_DEPLOY.md`
+- Memory v5 plan and scope model: `SECOND_BRAIN_V5_PLAN.md`
+- Context-governance integration:
+  - `sop/Execution_Governor_Context_Management_v1.3_Integration.md`
+- SmartContext operating guidance:
+  - `SMART_CONTEXT_V4_4_0.md`
+  - `sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
+  - `sop/SmartContext_Effectiveness_Path.md`
+
+## Historical Or Reference-Only Docs
+
+These remain in the repo for background context, but they are not the current
+runtime source of truth:
+
+- `../DOCUMENTATION.md`
+- `architecture_v3.md`
+- `USAGE_GUIDE.md`
+- `SECOND_BRAIN_PARA.md`
+- `SMART_CONTEXT_V4_3_1.md`
+- `TASK_LIST.md`
+- `TASK_PLAN_context_summary.md`
+- `brainstorming_context_summary.md`
+
+## Practical Validation
+
+Recommended local validation order:
+
+```bash
+python3 tests/test_memory_v5.py -v
+python3 run_tests.py
+python3 scripts/archive_repo_runtime_data.py --apply --include-stale-venv --json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/archive_repo_runtime_data.py --json
+```
+
+What this checks:
+
+- focused Memory v5 and SmartContext regression coverage
+- broader package/runtime regression coverage
+- repo-tree cleanup of generated runtime artifacts
+- confirmation that no runtime artifacts remain inside the repo tree
+
+## Repo Notes
+
+- Current SmartContext refactor work moved shared logic into:
+  - `plugins/smart_context_round.py`
+  - `plugins/smart_context_summary.py`
+  - `plugins/smart_context_conversation.py`
+  - `plugins/smart_context_prompt.py`
+  - `plugins/smart_context_now.py`
+  - `plugins/smart_context_adaptive.py`
+  - `plugins/smart_context_recall.py`
+  - `plugins/smart_context_inject.py`
+- Runtime cleanup archives are written outside the repo to:
+  - `~/.openclaw-runtime/archive/deepsea-nexus/`

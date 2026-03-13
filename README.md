@@ -6,7 +6,7 @@
 
 **版本**: 5.0.0  
 **状态**: ✅ 生产就绪  
-**更新**: 2026-03-05
+**更新**: 2026-03-13
 
 ---
 
@@ -31,12 +31,32 @@
 | 🧪 **v4.4.1 记忆契约运营化** | 契约审计分组覆盖率 + PARA 三维评分 + Warm 信号晋升 | 🆕 v4.4.1 |
 | 🧠 **v5.0 记忆操作层** | memU 风格三层记忆 + 记忆对象化 + 作用域隔离 + RRF 融合召回 | 🆕 v5.0 |
 
-> v5.0 迭代详见：`docs/SECOND_BRAIN_V5_PLAN.md`（本次新增）。
+> 文档总入口：`docs/README.md`。
+> v5.0 迭代详见：`docs/SECOND_BRAIN_V5_PLAN.md`。
 > 当前架构与 API 真源：`docs/ARCHITECTURE_CURRENT.md`、`docs/API_CURRENT.md`。
 > v5.0 与上下文治理联动（Execution Governor v1.3）详见：`docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`。
 > v4.4.1 迭代详见：`docs/SOP_MEMORY_GAP_ITERATION_2026-02-23.md`、`docs/reports/2026-02-23-contract-audit.md`。
 > v4.4.0 使用与验收详见：`docs/SMART_CONTEXT_V4_4_0.md`、`docs/SECOND_BRAIN_PARA.md`、`docs/USAGE_GUIDE.md` 与 `docs/LOCAL_DEPLOY.md`。
 > 历史归档文档：`DOCUMENTATION.md`、`docs/architecture_v3.md`。
+
+---
+
+## 📚 当前文档入口
+
+优先阅读：
+
+- `docs/README.md`
+- `docs/ARCHITECTURE_CURRENT.md`
+- `docs/API_CURRENT.md`
+
+当前验证建议：
+
+```bash
+python3 tests/test_memory_v5.py -v
+python3 run_tests.py
+python3 scripts/archive_repo_runtime_data.py --apply --include-stale-venv --json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/archive_repo_runtime_data.py --json
+```
 
 ---
 

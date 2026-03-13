@@ -14,6 +14,23 @@ Deep-Sea Nexus provides a practical memory layer for agent systems:
 - SmartContext injection with context-budget controls
 - Operational scripts for smoke tests, migration, maintenance, and deploy checks
 
+Last updated: 2026-03-13
+
+## Documentation Entry
+
+- Docs index: `docs/README.md`
+- Current architecture: `docs/ARCHITECTURE_CURRENT.md`
+- Current API surface: `docs/API_CURRENT.md`
+
+Recommended validation:
+
+```bash
+python3 tests/test_memory_v5.py -v
+python3 run_tests.py
+python3 scripts/archive_repo_runtime_data.py --apply --include-stale-venv --json
+PYTHONDONTWRITEBYTECODE=1 python3 scripts/archive_repo_runtime_data.py --json
+```
+
 ## Key Runtime Paths
 
 - Main skill root: `skills/deepsea-nexus/`
