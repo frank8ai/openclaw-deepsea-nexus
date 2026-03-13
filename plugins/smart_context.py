@@ -543,20 +543,8 @@ class SmartContextPlugin(NexusPlugin):
             print(f"⚠️ SmartContext: 调用 nexus_core.{method_name} 失败: {e}")
             return None
 
-    def _resolve_metrics_path(self, config: Dict[str, Any]) -> str:
-        return self._runtime.resolve_metrics_path(config) or ""
-
-    def _resolve_config_path(self) -> str:
-        return self._runtime.resolve_config_path()
-
     def _append_metrics(self, payload: Dict[str, Any]) -> None:
         self._runtime.append_metrics(payload)
-
-    def _persist_smart_context_config(self, updates: Dict[str, Any]) -> None:
-        self._runtime.persist_config(updates)
-
-    def _flush_pending_config_updates(self) -> None:
-        self._runtime.flush_pending_config_updates(self.config)
     
     def _extract_summary(self, response: str) -> str:
         result = smart_context_text.extract_summary(
@@ -665,14 +653,6 @@ class SmartContextPlugin(NexusPlugin):
             self._last_keywords = keywords
         return switched
 
-    def _trim_injected_items(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        return smart_context_inject.trim_injected_items(
-            items,
-            max_chars_per_item=int(self.config.inject_max_chars_per_item),
-            max_lines_per_item=int(self.config.inject_max_lines_per_item),
-            max_lines_total=int(self.config.inject_max_lines_total),
-        )
-
     def _normalize_tags(self, metadata: Any) -> List[str]:
         return smart_context_inject.normalize_tags(metadata)
 
@@ -685,9 +665,6 @@ class SmartContextPlugin(NexusPlugin):
             topic_boost=float(self.config.inject_signal_boost_topic),
             summary_boost=float(self.config.inject_signal_boost_summary),
         )
-
-    def _has_signal_tag(self, tags: List[str], source: str) -> bool:
-        return smart_context_inject.has_signal_tag(tags, source)
 
     def _dynamic_inject_params(self, reason: str, items: List[Dict[str, Any]]) -> Tuple[int, float]:
         return smart_context_inject.dynamic_inject_params(
@@ -954,9 +931,6 @@ class SmartContextPlugin(NexusPlugin):
 
     def _maybe_alert_inject_ratio(self, avg_ratio: float, window: int) -> None:
         self._runtime.maybe_alert_inject_ratio(avg_ratio, window, self.config)
-
-    def _auto_tune_inject(self, avg_ratio: float) -> None:
-        self._runtime.auto_tune_inject(avg_ratio, self.config)
 
     def _tune_adaptive(self) -> None:
         adaptive = smart_context_adaptive.compute_adaptive_threshold(

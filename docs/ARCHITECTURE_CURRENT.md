@@ -134,6 +134,8 @@ Current cleanup status:
   - per-round turn-summary reuse
   - inject skip behavior when `nexus_core` is unavailable
   - recall + graph merge behavior on the active inject path
+- after helper extraction, `plugins/smart_context.py` has dropped a set of
+  dead private wrapper methods that only forwarded to runtime/helper modules
 - `plugins/smart_context_adaptive.py` now owns inject-stats aggregation and
   adaptive threshold calculation reused by `SmartContextPlugin`
 - `plugins/smart_context_conversation.py` now owns shared conversation-store
