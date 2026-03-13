@@ -72,6 +72,9 @@ smart_context_rescue = importlib.import_module(
 smart_context_recall = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_recall"
 )
+smart_context_graph_inject = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_graph_inject"
+)
 
 
 def _load_script_module(module_name: str):
@@ -845,6 +848,49 @@ class TestSmartContextRecallHelpers(unittest.TestCase):
         self.assertTrue(fallback_used)
         self.assertEqual(fallback_reason, "fallback_top1")
         self.assertEqual(selected[0]["content"], "b")
+
+
+class TestSmartContextGraphInjectHelpers(unittest.TestCase):
+    def test_should_graph_inject_only_allows_supported_reasons(self):
+        self.assertTrue(
+            smart_context_graph_inject.should_graph_inject(
+                graph_enabled=True,
+                graph_inject_enabled=True,
+                reason="question",
+            )
+        )
+        self.assertFalse(
+            smart_context_graph_inject.should_graph_inject(
+                graph_enabled=True,
+                graph_inject_enabled=True,
+                reason="none",
+            )
+        )
+
+    def test_build_graph_injected_items_formats_evidence_and_caps_output(self):
+        def fake_lookup(keyword, limit, evidence_limit):
+            del limit, evidence_limit
+            return [
+                {
+                    "subj": keyword,
+                    "rel": "uses",
+                    "obj": "FastAPI",
+                    "weight": 0.8,
+                    "evidence": [{"text": "very long evidence text"}],
+                }
+            ]
+
+        items = smart_context_graph_inject.build_graph_injected_items(
+            ["relay", "audit"],
+            edge_lookup_fn=fake_lookup,
+            max_items=1,
+            evidence_max_chars=4,
+        )
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["source"], "graph")
+        self.assertEqual(items[0]["relevance"], 0.8)
+        self.assertEqual(items[0]["content"], "relay uses FastAPI | 证据: very")
 
 
 if __name__ == "__main__":

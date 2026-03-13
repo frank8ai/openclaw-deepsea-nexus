@@ -27,6 +27,7 @@ from datetime import datetime
 
 from . import smart_context_decision
 from . import smart_context_graph
+from . import smart_context_graph_inject
 from . import smart_context_inject
 from . import smart_context_recall
 from . import smart_context_rescue
@@ -1088,9 +1089,11 @@ class SmartContextPlugin(NexusPlugin):
             self.config.inject_threshold = new_threshold
 
     def _inject_graph_associations(self, user_message: str, reason: str) -> List[Dict]:
-        if not (self._graph_enabled and self.config.graph_inject_enabled):
-            return []
-        if reason not in {"context_starved", "question", "technical_term", "keyword"}:
+        if not smart_context_graph_inject.should_graph_inject(
+            graph_enabled=bool(self._graph_enabled),
+            graph_inject_enabled=bool(self.config.graph_inject_enabled),
+            reason=reason,
+        ):
             return []
 
         keywords = self.extract_keywords(user_message)
@@ -1098,25 +1101,16 @@ class SmartContextPlugin(NexusPlugin):
             return []
 
         max_items = max(1, int(self.config.graph_max_items))
-        evidence_max = max(0, int(self.config.graph_evidence_max_chars))
-        out: List[Dict] = []
-        for kw in keywords[: max_items]:
-            edges = graph_related_with_evidence(kw, limit=max_items, evidence_limit=1)
-            for e in edges:
-                ev = ""
-                evidence = e.get("evidence") or []
-                if evidence:
-                    ev = (evidence[0].get("text") or "")[:evidence_max]
-                content = f"{e.get('subj')} {e.get('rel')} {e.get('obj')}"
-                if ev:
-                    content = f"{content} | 证据: {ev}"
-                out.append(
-                    {
-                        "content": content,
-                        "source": "graph",
-                        "relevance": e.get("weight", 1.0),
-                    }
-                )
+        out = smart_context_graph_inject.build_graph_injected_items(
+            keywords,
+            edge_lookup_fn=lambda keyword, limit, evidence_limit: graph_related_with_evidence(
+                keyword,
+                limit=limit,
+                evidence_limit=evidence_limit,
+            ),
+            max_items=max_items,
+            evidence_max_chars=int(self.config.graph_evidence_max_chars),
+        )
         if self.config.inject_debug and out:
             print(f"[SmartContext] GRAPH inject count={len(out)} keywords={keywords[:max_items]}")
         return out[: max_items]
