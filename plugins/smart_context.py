@@ -31,6 +31,7 @@ from . import smart_context_graph_inject
 from . import smart_context_inject
 from . import smart_context_recall
 from . import smart_context_rescue
+from . import smart_context_round
 from . import smart_context_storage
 from . import smart_context_text
 from .session_manager import SessionManagerPlugin
@@ -431,80 +432,54 @@ class SmartContextPlugin(NexusPlugin):
         Returns:
             处理结果
         """
-        result = {
-            "conversation_id": conversation_id,
-            "round_num": round_num,
-            "status": "unknown",
-            "stored": False,
-        }
-
-        token_estimate = self._estimate_tokens(f"{user_message}\n{ai_response}")
+        combined_text = f"{user_message}\n{ai_response}"
+        token_estimate = self._estimate_tokens(combined_text)
         status, reason = self._decide_status_with_tokens(round_num, token_estimate)
         usage_snapshot = self._context_token_usage()
 
         if status == "full":
-            # 完整保留
-            result["status"] = "full"
-            result["content"] = f"{user_message}\n{ai_response}"
-            result["compressed"] = False
-            
-        elif status == "summary":
-            # 只保留摘要
-            result["status"] = "summary"
-            summary = self._extract_summary(ai_response)
-            result["summary"] = summary
-            result["compressed"] = False
-            
-        else:  # compress
-            # 压缩
-            result["status"] = "compressed"
-            summary = self._extract_summary(ai_response)
-            result["summary"] = summary
-            result["compressed"] = True
-            rescue_result = self.rescue_before_compress(f"{user_message}\n{ai_response}")
-            result["rescue"] = rescue_result
-            self._append_metrics(
-                {
-                    "event": "rescue_result",
-                    "saved": bool(rescue_result.get("saved")),
-                    "skipped": bool(rescue_result.get("skipped")),
-                    "reason": rescue_result.get("reason", ""),
-                    "decisions": rescue_result.get("decisions_rescued", 0),
-                    "goals": rescue_result.get("goals_rescued", 0),
-                    "questions": rescue_result.get("questions_rescued", 0),
-                }
+            result = smart_context_round.build_round_result(
+                conversation_id,
+                round_num,
+                "full",
+                combined_text=combined_text,
             )
+        elif status == "summary":
+            summary = self._extract_summary(ai_response)
+            result = smart_context_round.build_round_result(
+                conversation_id,
+                round_num,
+                "summary",
+                combined_text=combined_text,
+                summary=summary,
+            )
+        else:  # compress
+            summary = self._extract_summary(ai_response)
+            rescue_result = self.rescue_before_compress(combined_text)
+            result = smart_context_round.build_round_result(
+                conversation_id,
+                round_num,
+                "compressed",
+                combined_text=combined_text,
+                summary=summary,
+                rescue_result=rescue_result,
+            )
+            for event in smart_context_round.build_rescue_metric_events(rescue_result):
+                self._append_metrics(event)
             if rescue_result.get("saved"):
-                self._append_metrics(
-                    {
-                        "event": "rescue_saved",
-                        "decisions": rescue_result.get("decisions_rescued", 0),
-                        "goals": rescue_result.get("goals_rescued", 0),
-                        "questions": rescue_result.get("questions_rescued", 0),
-                    }
-                )
-                print(
-                    "[SmartContext] RESCUE before compress "
-                    f"decisions={rescue_result.get('decisions_rescued', 0)} "
-                    f"goals={rescue_result.get('goals_rescued', 0)} "
-                    f"questions={rescue_result.get('questions_rescued', 0)}"
-                )
-        # Always emit context status for observability (full/summary/compressed)
+                print(smart_context_round.format_rescue_debug_line(rescue_result))
         self._append_metrics(
-            {
-                "event": "context_status",
-                "status": status,
-                "reason": reason,
-                "token_estimate": int(token_estimate),
-                "full_tokens": int(usage_snapshot.get("full", 0)),
-                "summary_tokens": int(usage_snapshot.get("summary", 0)),
-                "compressed_tokens": int(usage_snapshot.get("compressed", 0)),
-            }
+            smart_context_round.build_context_status_metric(
+                status,
+                reason,
+                token_estimate,
+                usage_snapshot,
+            )
         )
         
         blocks: List[str] = []
         if self.config.decision_block_enabled:
-            blocks = self._extract_decision_blocks(f"{user_message}\n{ai_response}")
+            blocks = self._extract_decision_blocks(combined_text)
 
         if self.config.summary_on_each_turn:
             turn_summary = self._build_turn_summary(
@@ -514,12 +489,11 @@ class SmartContextPlugin(NexusPlugin):
             )
             if turn_summary:
                 if self._nexus_core:
-                    self._call_nexus(
-                        "add_document",
-                        content=turn_summary,
-                        title=f"对话 {conversation_id} - 轮{round_num} (摘要卡)",
-                        tags=f"type:turn_summary,round:{round_num},conversation:{conversation_id}"
-                    )
+                    self._call_nexus("add_document", **smart_context_round.build_round_summary_document(
+                        conversation_id,
+                        round_num,
+                        turn_summary,
+                    ))
                     result["stored"] = True
                 self._append_metrics({"event": "turn_summary", "len": len(turn_summary)})
 
@@ -531,12 +505,12 @@ class SmartContextPlugin(NexusPlugin):
             )
             if topic_summary:
                 if self._nexus_core:
-                    self._call_nexus(
-                        "add_document",
-                        content=topic_summary,
-                        title=f"对话 {conversation_id} - 话题切换 (轮{round_num})",
-                        tags=f"type:topic_boundary,round:{round_num},conversation:{conversation_id}"
-                    )
+                    self._call_nexus("add_document", **smart_context_round.build_round_summary_document(
+                        conversation_id,
+                        round_num,
+                        topic_summary,
+                        topic_boundary=True,
+                    ))
                     result["stored"] = True
                 self._append_metrics({"event": "topic_switch", "round": round_num})
 
@@ -546,7 +520,7 @@ class SmartContextPlugin(NexusPlugin):
             if blocks:
                 self._store_decision_blocks(conversation_id, round_num, blocks)
             if self.config.topic_block_enabled:
-                topics = self._extract_topics(f"{user_message}\n{ai_response}")
+                topics = self._extract_topics(combined_text)
                 if topics:
                     self._store_topic_blocks(conversation_id, round_num, topics)
             result["stored"] = True

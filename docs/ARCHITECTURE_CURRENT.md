@@ -66,6 +66,7 @@ all live here.
 Current context-related runtime modules:
 
 - `plugins/smart_context.py`
+- `plugins/smart_context_round.py`
 - `plugins/smart_context_storage.py`
 - `plugins/smart_context_graph_inject.py`
 - `plugins/smart_context_recall.py`
@@ -115,6 +116,9 @@ Current cleanup status:
   formatted graph-evidence item assembly reused by `SmartContextPlugin`
 - `plugins/smart_context_storage.py` now owns shared SmartContext document
   payload assembly for round-context writes and conversation-summary writes
+- `plugins/smart_context_round.py` now owns round-result assembly plus rescue
+  and summary-card observability/document payloads reused by
+  `SmartContextPlugin`
 - legacy `store_conversation(...)` now joins user and assistant text with real
   newlines before decision/topic extraction so its compatibility path matches
   the current plugin behavior

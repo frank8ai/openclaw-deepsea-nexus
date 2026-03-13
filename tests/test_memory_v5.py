@@ -78,6 +78,9 @@ smart_context_graph_inject = importlib.import_module(
 smart_context_storage = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_storage"
 )
+smart_context_round = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_round"
+)
 
 
 def _load_script_module(module_name: str):
@@ -934,6 +937,47 @@ class TestSmartContextStorageHelpers(unittest.TestCase):
         self.assertEqual(entries[2]["content"], "alpha beta")
         self.assertEqual(entries[3]["compat"]["kind"], "decision")
         self.assertEqual(entries[4]["compat"]["tags"], "type:topic_block")
+
+
+class TestSmartContextRoundHelpers(unittest.TestCase):
+    def test_build_round_result_for_compressed_round_keeps_summary_and_rescue(self):
+        result = smart_context_round.build_round_result(
+            "conv-1",
+            5,
+            "compressed",
+            combined_text="u\na",
+            summary="摘要",
+            rescue_result={"saved": True},
+        )
+
+        self.assertEqual(result["status"], "compressed")
+        self.assertEqual(result["summary"], "摘要")
+        self.assertTrue(result["compressed"])
+        self.assertEqual(result["rescue"], {"saved": True})
+
+    def test_build_rescue_metric_events_includes_saved_event(self):
+        events = smart_context_round.build_rescue_metric_events(
+            {
+                "saved": True,
+                "decisions_rescued": 1,
+                "goals_rescued": 2,
+                "questions_rescued": 3,
+            }
+        )
+
+        self.assertEqual([event["event"] for event in events], ["rescue_result", "rescue_saved"])
+        self.assertEqual(events[1]["questions"], 3)
+
+    def test_build_round_summary_document_supports_topic_boundary(self):
+        doc = smart_context_round.build_round_summary_document(
+            "conv-2",
+            7,
+            "内容",
+            topic_boundary=True,
+        )
+
+        self.assertEqual(doc["title"], "对话 conv-2 - 话题切换 (轮7)")
+        self.assertEqual(doc["tags"], "type:topic_boundary,round:7,conversation:conv-2")
 
 
 if __name__ == "__main__":
