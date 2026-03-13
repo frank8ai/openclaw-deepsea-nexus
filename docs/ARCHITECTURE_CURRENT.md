@@ -67,6 +67,7 @@ Current context-related runtime modules:
 
 - `plugins/smart_context.py`
 - `plugins/smart_context_adaptive.py`
+- `plugins/smart_context_conversation.py`
 - `plugins/smart_context_now.py`
 - `plugins/smart_context_prompt.py`
 - `plugins/smart_context_round.py`
@@ -124,6 +125,9 @@ Current cleanup status:
   `SmartContextPlugin`
 - `plugins/smart_context_adaptive.py` now owns inject-stats aggregation and
   adaptive threshold calculation reused by `SmartContextPlugin`
+- `plugins/smart_context_conversation.py` now owns shared conversation-store
+  input preparation reused by `SmartContextPlugin.store_conversation(...)`
+  and the compatibility `store_conversation(...)` helper
 - `plugins/smart_context_now.py` now owns NOW-manager rescue persistence and
   retrieval helpers reused by `SmartContextPlugin`
 - `plugins/smart_context_prompt.py` now owns injected-memory prompt formatting

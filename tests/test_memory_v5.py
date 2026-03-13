@@ -50,6 +50,9 @@ context_engine_runtime = importlib.import_module(
 smart_context_runtime = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_runtime"
 )
+smart_context_conversation = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_conversation"
+)
 smart_context_text = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_text"
 )
@@ -699,6 +702,25 @@ class TestSmartContextConvenienceFunctions(unittest.TestCase):
         ]
         self.assertEqual(decision_contents, ["决定保留 FastAPI"])
         self.assertTrue(all("\\n" not in content for content in decision_contents))
+
+
+class TestSmartContextConversationHelpers(unittest.TestCase):
+    def test_build_conversation_store_data_collects_summary_keywords_and_topics(self):
+        data = smart_context_conversation.build_conversation_store_data(
+            "继续推进 relay audit",
+            "## 总结\n决定保留 FastAPI，并完善 relay audit provider metrics。",
+            summary_min_length=20,
+            summary_fallback_max_chars=120,
+            keyword_limit=5,
+            decision_max=3,
+            topic_max=3,
+            topic_min_keywords=2,
+        )
+
+        self.assertIn("FastAPI", data.summary)
+        self.assertIn("relay", " ".join(data.keywords).lower())
+        self.assertTrue(any("决定保留 FastAPI" in item for item in data.decisions))
+        self.assertTrue(any("relay" in topic.lower() for topic in data.topics))
 
 
 class TestSmartContextPromptHelpers(unittest.TestCase):

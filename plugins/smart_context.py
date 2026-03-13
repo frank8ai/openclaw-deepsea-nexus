@@ -27,6 +27,7 @@ from datetime import datetime
 
 from . import smart_context_decision
 from . import smart_context_adaptive
+from . import smart_context_conversation
 from . import smart_context_graph
 from . import smart_context_graph_inject
 from . import smart_context_inject
@@ -798,22 +799,23 @@ class SmartContextPlugin(NexusPlugin):
         
         try:
             summary = self._extract_summary(ai_response)
-            keywords = self.extract_keywords(user_message + " " + ai_response)
-            combined_text = f"{user_message}\n{ai_response}"
-            if self.config.decision_block_enabled:
-                blocks = self._extract_decision_blocks(combined_text)
-            else:
-                blocks = []
-            if self.config.topic_block_enabled:
-                topics = self._extract_topics(combined_text)
-            else:
-                topics = []
+            data = smart_context_conversation.build_conversation_store_data(
+                user_message,
+                ai_response,
+                summary=summary,
+                keyword_limit=5,
+                decision_max=int(self.config.decision_block_max),
+                topic_max=int(self.config.topic_block_max),
+                topic_min_keywords=int(self.config.topic_block_min_keywords),
+            )
+            blocks = data.decisions if self.config.decision_block_enabled else []
+            topics = data.topics if self.config.topic_block_enabled else []
 
             for entry in smart_context_storage.build_conversation_store_entries(
                 conversation_id,
                 ai_response=ai_response,
-                summary=summary,
-                keywords=keywords,
+                summary=data.summary,
+                keywords=data.keywords,
                 decisions=[],
                 topics=[],
             ):
@@ -1112,28 +1114,23 @@ def store_conversation(conversation_id: str, user_message: str, ai_response: str
 
     if not nexus_init():
         return {"error": "nexus init failed", "stored": False}
-    combined_text = f"{user_message}\n{ai_response}"
-
-    summary = smart_context_text.extract_summary(
+    data = smart_context_conversation.build_conversation_store_data(
+        user_message,
         ai_response,
-        min_summary_length=50,
-        fallback_max_chars=100,
-    ).summary
-    keywords = smart_context_text.extract_keywords(user_message + " " + ai_response, limit=5)
-    decisions = smart_context_text.extract_decision_blocks(combined_text, max_items=3)
-    topics = smart_context_text.extract_topics(
-        combined_text,
+        summary_min_length=50,
+        summary_fallback_max_chars=100,
+        keyword_limit=5,
+        decision_max=3,
         topic_max=3,
         topic_min_keywords=2,
-        keyword_limit=5,
     )
     for entry in smart_context_storage.build_conversation_store_entries(
         conversation_id,
         ai_response=ai_response,
-        summary=summary,
-        keywords=keywords,
-        decisions=decisions,
-        topics=topics,
+        summary=data.summary,
+        keywords=data.keywords,
+        decisions=data.decisions,
+        topics=data.topics,
     ):
         compat = entry["compat"]
         nexus_write(
