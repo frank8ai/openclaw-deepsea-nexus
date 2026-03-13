@@ -129,6 +129,11 @@ Current cleanup status:
 - `plugins/smart_context.py` now reuses one turn-summary build per round when
   both turn-summary cards and topic-boundary cards are emitted, avoiding
   duplicate summary/template extraction in the same round
+- `tests/test_memory_v5.py` now includes plugin-level SmartContext
+  orchestration coverage for:
+  - per-round turn-summary reuse
+  - inject skip behavior when `nexus_core` is unavailable
+  - recall + graph merge behavior on the active inject path
 - `plugins/smart_context_adaptive.py` now owns inject-stats aggregation and
   adaptive threshold calculation reused by `SmartContextPlugin`
 - `plugins/smart_context_conversation.py` now owns shared conversation-store

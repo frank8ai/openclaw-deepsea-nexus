@@ -612,6 +612,66 @@ class TestSmartContextPluginOrchestration(unittest.TestCase):
         plugin._store_decision_blocks.assert_called_once_with("conv-1", 1, ["决定保留 FastAPI"])
         plugin._store_topic_blocks.assert_called_once_with("conv-1", 1, ["Relay Runtime"])
 
+    def test_inject_memory_skips_when_nexus_core_missing(self):
+        plugin = smart_context_module.SmartContextPlugin()
+        plugin.should_inject = mock.Mock(return_value=(True, "question"))
+        plugin._append_metrics = mock.Mock()
+
+        result = plugin.inject_memory("What did we decide?")
+
+        self.assertEqual(result, [])
+        plugin._append_metrics.assert_called_once_with(
+            {
+                "event": "inject_skip",
+                "reason": "nexus_core_missing",
+            }
+        )
+
+    def test_inject_memory_merges_graph_items_and_records_metrics(self):
+        plugin = smart_context_module.SmartContextPlugin()
+        plugin._nexus_core = object()
+        plugin.should_inject = mock.Mock(return_value=(True, "question"))
+        plugin._append_metrics = mock.Mock()
+        plugin._record_inject_event = mock.Mock()
+        plugin._record_inject_stats = mock.Mock()
+        plugin._inject_graph_associations = mock.Mock(
+            return_value=[
+                {
+                    "content": "graph node",
+                    "source": "graph",
+                    "relevance": 0.7,
+                    "score": 0.7,
+                }
+            ]
+        )
+        plugin._call_nexus = mock.Mock(
+            return_value=[
+                SimpleNamespace(
+                    content="Alpha memory",
+                    source="doc-a",
+                    relevance=0.9,
+                    metadata={"tags": ["type:summary"]},
+                ),
+                SimpleNamespace(
+                    content="Beta memory",
+                    source="doc-b",
+                    relevance=0.55,
+                    metadata={},
+                ),
+            ]
+        )
+
+        result = plugin.inject_memory("What did we decide?")
+
+        self.assertEqual([item["content"] for item in result], ["Alpha memory", "graph node"])
+        plugin._call_nexus.assert_called_once_with("search_recall", "What did we decide?", 5)
+        plugin._inject_graph_associations.assert_called_once_with("What did we decide?", "question")
+        plugin._record_inject_event.assert_called_once_with("question", 2)
+        plugin._record_inject_stats.assert_called_once_with("question", 2, 1, 1, 0.65)
+        metric_events = [call.args[0]["event"] for call in plugin._append_metrics.call_args_list]
+        self.assertIn("inject", metric_events)
+        self.assertIn("graph_inject", metric_events)
+
 
 class TestSmartContextTextHelpers(unittest.TestCase):
     def test_extract_summary_reports_fallback_and_keeps_entities(self):
