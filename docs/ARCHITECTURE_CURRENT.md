@@ -96,6 +96,7 @@ Current operational entrypoints:
 
 - `run_tests.py`
 - `scripts/_legacy_layout.py`
+- `scripts/archive_repo_runtime_data.py`
 - `scripts/deploy_local_v5.sh`
 - `scripts/memory_v5_smoke.py`
 - `scripts/memory_v5_maintenance.py`
@@ -104,6 +105,10 @@ Current operational entrypoints:
 Legacy maintenance scripts now use `scripts/_legacy_layout.py` to resolve the
 historical `memory/90_Memory` filesystem layout without importing
 `src/nexus_core.py` directly.
+
+Repo-local runtime artifacts such as `logs/`, non-venv `__pycache__/`, and an
+optional stale `.venv/` are now archived out of the working tree via
+`scripts/archive_repo_runtime_data.py`.
 
 ## Canonical Usage Paths
 

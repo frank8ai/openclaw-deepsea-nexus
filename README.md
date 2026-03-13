@@ -93,7 +93,11 @@ bash scripts/nexus_doctor_local.sh --check --skip-deploy
 - Smoke: `python3 scripts/memory_v5_smoke.py`
 - Maintenance: `python3 scripts/memory_v5_maintenance.py --all-agents`
 - Benchmark: `python3 scripts/memory_v5_benchmark.py --cases docs/memory_v5_benchmark_sample.json --all-agents`
+- Repo Cleanup: `python3 scripts/archive_repo_runtime_data.py --apply --include-stale-venv`
 - Deploy: `bash scripts/deploy_local_v5.sh --quick`
+
+仓库运行时清理归档默认写到：
+- `~/.openclaw-runtime/archive/deepsea-nexus/`
 
 Benchmark 输出重点字段：
 - `score`：所有 `scope x case` 的总体命中率（微平均）

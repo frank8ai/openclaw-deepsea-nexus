@@ -88,7 +88,11 @@ memory/95_MemoryV5/
 - Smoke: `python3 scripts/memory_v5_smoke.py`
 - Benchmark: `python3 scripts/memory_v5_benchmark.py --cases docs/memory_v5_benchmark_sample.json`
 - Maintenance: `python3 scripts/memory_v5_maintenance.py --all-agents`
+- Repo cleanup: `python3 scripts/archive_repo_runtime_data.py --apply --include-stale-venv`
 - Local doctor: `bash scripts/nexus_doctor_local.sh --check --skip-deploy`
+
+Repo-cleanup archives are written outside the repo to
+`~/.openclaw-runtime/archive/deepsea-nexus/`.
 
 ## Verification
 

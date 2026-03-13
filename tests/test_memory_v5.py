@@ -334,5 +334,64 @@ created: 2026-02-10T09:30:00
         self.assertFalse((other_dir / "_INDEX.md").exists())
 
 
+class TestRepoRuntimeCleanupScript(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+        self.archive_base = Path(self.temp_dir) / "archive"
+        self.cleanup_script = _load_script_module("archive_repo_runtime_data")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_discover_runtime_artifacts_excludes_venv_by_default(self):
+        logs_dir = self.repo_root / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        (logs_dir / "runtime.log").write_text("log", encoding="utf-8")
+        cache_dir = self.repo_root / "pkg" / "__pycache__"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        (cache_dir / "mod.cpython-311.pyc").write_bytes(b"pyc")
+        venv_dir = self.repo_root / ".venv"
+        venv_dir.mkdir(parents=True, exist_ok=True)
+        (venv_dir / "pyvenv.cfg").write_text("version = 3.8.2\n", encoding="utf-8")
+
+        artifacts = self.cleanup_script.discover_runtime_artifacts(self.repo_root)
+        rels = {item.relative_path for item in artifacts}
+
+        self.assertIn("logs", rels)
+        self.assertIn("pkg/__pycache__", rels)
+        self.assertNotIn(".venv", rels)
+
+    def test_archive_runtime_artifacts_moves_selected_paths(self):
+        logs_dir = self.repo_root / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        (logs_dir / "runtime.log").write_text("log", encoding="utf-8")
+        cache_dir = self.repo_root / "pkg" / "__pycache__"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        (cache_dir / "mod.cpython-311.pyc").write_bytes(b"pyc")
+        venv_dir = self.repo_root / ".venv"
+        venv_dir.mkdir(parents=True, exist_ok=True)
+        (venv_dir / "pyvenv.cfg").write_text("version = 3.8.2\n", encoding="utf-8")
+
+        result = self.cleanup_script.archive_runtime_artifacts(
+            repo_root=self.repo_root,
+            archive_base=self.archive_base,
+            include_stale_venv=True,
+            apply=True,
+        )
+
+        archive_root = Path(result["archive_root"])
+        self.assertFalse(logs_dir.exists())
+        self.assertFalse(cache_dir.exists())
+        self.assertFalse(venv_dir.exists())
+        self.assertTrue((archive_root / "payload" / "logs" / "runtime.log").exists())
+        self.assertTrue((archive_root / "payload" / "pkg" / "__pycache__" / "mod.cpython-311.pyc").exists())
+        self.assertTrue((archive_root / "payload" / ".venv" / "pyvenv.cfg").exists())
+        self.assertTrue((archive_root / "manifest.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
