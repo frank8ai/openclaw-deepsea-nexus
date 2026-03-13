@@ -84,6 +84,9 @@ smart_context_round = importlib.import_module(
 smart_context_adaptive = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_adaptive"
 )
+smart_context_prompt = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_prompt"
+)
 
 
 def _load_script_module(module_name: str):
@@ -693,6 +696,39 @@ class TestSmartContextConvenienceFunctions(unittest.TestCase):
         ]
         self.assertEqual(decision_contents, ["决定保留 FastAPI"])
         self.assertTrue(all("\\n" not in content for content in decision_contents))
+
+
+class TestSmartContextPromptHelpers(unittest.TestCase):
+    def test_build_context_prompt_formats_dict_entries(self):
+        prompt = smart_context_prompt.build_context_prompt(
+            [
+                {
+                    "source": "doc-a",
+                    "relevance": 0.678,
+                    "content": "Alpha Beta Gamma",
+                }
+            ],
+            max_chars_per_item=10,
+        )
+
+        lines = prompt.splitlines()
+        self.assertEqual(lines[0], "## 相关记忆")
+        self.assertEqual(lines[2], "【1】(doc-a - 0.68)")
+        self.assertEqual(lines[3], "Alpha Beta")
+
+    def test_build_context_prompt_supports_object_entries(self):
+        prompt = smart_context_prompt.build_context_prompt(
+            [
+                SimpleNamespace(
+                    source="doc-b",
+                    relevance=0.4,
+                    content="Structured note",
+                )
+            ]
+        )
+
+        self.assertIn("【1】(doc-b - 0.40)", prompt)
+        self.assertIn("Structured note", prompt)
 
 
 class TestSmartContextDecisionHelpers(unittest.TestCase):

@@ -30,6 +30,7 @@ from . import smart_context_adaptive
 from . import smart_context_graph
 from . import smart_context_graph_inject
 from . import smart_context_inject
+from . import smart_context_prompt
 from . import smart_context_recall
 from . import smart_context_rescue
 from . import smart_context_round
@@ -1060,18 +1061,7 @@ class SmartContextPlugin(NexusPlugin):
         生成上下文提示词
         """
         results = self.inject_memory(user_message)
-        
-        if not results:
-            return ""
-        
-        parts = ["## 相关记忆", ""]
-        
-        for i, r in enumerate(results, 1):
-            parts.append(f"【{i}】({r.get('source', '未知')} - {r.get('relevance', 0):.2f})")
-            parts.append(r.get('content', '')[:200])
-            parts.append("")
-        
-        return "\n".join(parts)
+        return smart_context_prompt.build_context_prompt(results, max_chars_per_item=200)
     
     # ===================== 功能 3: 压缩前抢救 (NOW.md) =====================
     
@@ -1176,15 +1166,7 @@ def inject_memory_context(user_message: str) -> str:
         return ""
 
     results = nexus_recall(user_message, n=3)
-    if not results:
-        return ""
-
-    parts = ["## 相关记忆", ""]
-    for i, r in enumerate(results, 1):
-        parts.append(f"【{i}】({r.source} - {getattr(r, 'relevance', 0):.2f})")
-        parts.append((r.content or "")[:200])
-        parts.append("")
-    return "\n".join(parts)
+    return smart_context_prompt.build_context_prompt(results, max_chars_per_item=200)
 
 
 # ===================== 向后兼容 =====================

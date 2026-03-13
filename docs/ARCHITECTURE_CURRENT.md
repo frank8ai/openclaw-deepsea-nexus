@@ -67,6 +67,7 @@ Current context-related runtime modules:
 
 - `plugins/smart_context.py`
 - `plugins/smart_context_adaptive.py`
+- `plugins/smart_context_prompt.py`
 - `plugins/smart_context_round.py`
 - `plugins/smart_context_storage.py`
 - `plugins/smart_context_graph_inject.py`
@@ -122,6 +123,9 @@ Current cleanup status:
   `SmartContextPlugin`
 - `plugins/smart_context_adaptive.py` now owns inject-stats aggregation and
   adaptive threshold calculation reused by `SmartContextPlugin`
+- `plugins/smart_context_prompt.py` now owns injected-memory prompt formatting
+  shared by `SmartContextPlugin.generate_context_prompt(...)` and the
+  compatibility `inject_memory_context(...)` helper
 - legacy `store_conversation(...)` now joins user and assistant text with real
   newlines before decision/topic extraction so its compatibility path matches
   the current plugin behavior
