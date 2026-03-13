@@ -6,9 +6,50 @@ This module provides semantic search functionality for the vector store.
 """
 
 from typing import List, Dict, Any, Optional, Tuple
+import json
 import os
+from pathlib import Path
 import yaml
 from dataclasses import dataclass
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def resolve_config_path(config_path: str = None) -> Optional[Path]:
+    if config_path:
+        return Path(config_path).expanduser().resolve()
+
+    env_override = os.environ.get("DEEPSEA_NEXUS_CONFIG") or os.environ.get(
+        "DEEP_SEA_NEXUS_CONFIG"
+    )
+    candidates = []
+    if env_override:
+        candidates.append(Path(env_override).expanduser())
+
+    candidates.extend(
+        [
+            Path(os.getcwd()) / "config.json",
+            Path(os.getcwd()) / "config.yaml",
+            PROJECT_ROOT / "config.json",
+            PROJECT_ROOT / "config.yaml",
+        ]
+    )
+
+    for candidate in candidates:
+        expanded = candidate.expanduser()
+        if expanded.exists():
+            return expanded.resolve()
+    return None
+
+
+def load_config_file(config_path: str = None) -> dict:
+    resolved = resolve_config_path(config_path)
+    if resolved is None or not resolved.exists():
+        return {}
+    with open(resolved, "r", encoding="utf-8") as f:
+        if resolved.suffix == ".json":
+            return json.load(f)
+        return yaml.safe_load(f) or {}
 
 
 @dataclass
@@ -50,24 +91,8 @@ class SemanticRecall:
         self.max_context_tokens = rag_config.get('max_context_tokens', 2000)
     
     def _load_config(self, config_path: str) -> dict:
-        """Load configuration from YAML file."""
-        if config_path is None:
-            # 尝试多个可能的路径
-            possible_paths = [
-                os.path.join(os.path.dirname(__file__), '..', 'config.yaml'),
-                os.path.join(os.path.dirname(__file__), '..', '..', 'config.yaml'),
-                'config.yaml',
-                os.path.join(os.getcwd(), 'config.yaml'),
-            ]
-            for path in possible_paths:
-                if os.path.exists(path):
-                    config_path = path
-                    break
-        
-        if config_path and os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f)
-        return {}
+        """Load configuration from JSON/YAML file."""
+        return load_config_file(config_path)
     
     def search(
         self,

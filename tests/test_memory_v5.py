@@ -689,6 +689,84 @@ class TestNextThreeCuts(unittest.TestCase):
             self.assertEqual(config.base_path, str(self.repo_root.resolve()))
 
 
+class TestAnotherThreeCuts(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_nexus_core_default_base_prefers_current_repo_override(self):
+        with mock.patch.dict(
+            os.environ,
+            {"DEEPSEA_NEXUS_ROOT": str(self.repo_root)},
+            clear=False,
+        ):
+            nexus_core_module = _load_repo_file_module(
+                "src_nexus_core_current_base",
+                "src/nexus_core.py",
+            )
+            self.assertEqual(
+                nexus_core_module._resolve_default_base_path(),
+                str(self.repo_root.resolve()),
+            )
+            self.assertEqual(
+                nexus_core_module._DEFAULT_BASE,
+                str(self.repo_root.resolve()),
+            )
+
+    def test_semantic_recall_prefers_config_json(self):
+        config_json = self.repo_root / "config.json"
+        config_yaml = self.repo_root / "config.yaml"
+        config_json.write_text(
+            json.dumps({"rag": {"top_k": 9, "similarity_threshold": 0.7}}),
+            encoding="utf-8",
+        )
+        config_yaml.write_text(
+            "rag:\n  top_k: 3\n  similarity_threshold: 0.1\n",
+            encoding="utf-8",
+        )
+
+        with mock.patch("os.getcwd", return_value=str(self.repo_root)):
+            semantic_recall_module = _load_repo_file_module(
+                "src_semantic_recall_json",
+                "src/retrieval/semantic_recall.py",
+            )
+            recall = semantic_recall_module.SemanticRecall(manager=SimpleNamespace())
+            self.assertEqual(
+                semantic_recall_module.resolve_config_path(),
+                config_json.resolve(),
+            )
+            self.assertEqual(recall.default_top_k, 9)
+            self.assertEqual(recall.similarity_threshold, 0.7)
+
+    def test_rag_integrator_prefers_current_repo_config_json(self):
+        config_json = self.repo_root / "config.json"
+        config_json.write_text(
+            json.dumps({"rag": {"top_k": 11, "max_context_tokens": 4096}}),
+            encoding="utf-8",
+        )
+
+        with mock.patch("os.getcwd", return_value=str(self.repo_root)):
+            rag_integrator_module = _load_repo_file_module(
+                "src_rag_integrator_json",
+                "src/rag/rag_integrator.py",
+            )
+            integrator = rag_integrator_module.RAGIntegrator(
+                semantic_recall=SimpleNamespace(),
+            )
+            self.assertEqual(
+                rag_integrator_module.resolve_config_path(),
+                config_json.resolve(),
+            )
+            self.assertEqual(integrator.default_top_k, 11)
+            self.assertEqual(integrator.max_context_tokens, 4096)
+
+
 class TestRepoRuntimeCleanupScript(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()

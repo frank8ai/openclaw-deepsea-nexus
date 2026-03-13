@@ -14,16 +14,22 @@ import os
 import re
 import time
 import json
+from pathlib import Path
 from datetime import datetime, timedelta
 from threading import Lock
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
+
+def _resolve_default_base_path() -> str:
+    override = os.environ.get("DEEPSEA_NEXUS_ROOT", "").strip()
+    if override:
+        return str(Path(override).expanduser().resolve())
+    return str(Path(__file__).resolve().parent.parent)
+
+
 # Base path fallback for legacy v2 defaults.
-_DEFAULT_BASE = os.path.join(
-    os.environ.get("OPENCLAW_WORKSPACE", os.path.expanduser("~/.openclaw/workspace")),
-    "DEEP_SEA_NEXUS_V2",
-)
+_DEFAULT_BASE = _resolve_default_base_path()
 # Import local modules (fallback to built-in types if not available)
 try:
     from .config import NexusConfig
