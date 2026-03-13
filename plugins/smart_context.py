@@ -21,12 +21,12 @@ Smart Context - 第二大脑核心子功能
 import re
 import json
 import asyncio
-import os
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
 from .session_manager import SessionManagerPlugin
+from .smart_context_runtime import SmartContextRuntimeState
 from ..core.plugin_system import NexusPlugin, PluginMetadata
 from ..core.event_bus import EventTypes
 from ..compat_async import run_coro_sync
@@ -199,11 +199,7 @@ class SmartContextPlugin(NexusPlugin):
         self._graph_enabled = False
         self._inject_history: List[Dict[str, Any]] = []
         self._inject_stats: List[Dict[str, Any]] = []
-        self._inject_ratio_streak = 0
-        self._config_path: Optional[str] = None
-        self._pending_config_updates: Dict[str, Any] = {}
-        self._last_persist_ts = 0.0
-        self._metrics_path: Optional[str] = None
+        self._runtime = SmartContextRuntimeState()
         self._last_keywords: List[str] = []
     
     async def initialize(self, config: Dict[str, Any]) -> bool:
@@ -302,8 +298,7 @@ class SmartContextPlugin(NexusPlugin):
                     base_path=config.get("paths", {}).get("base", "."),
                     db_path=graph_cfg.get("db_path"),
                 )
-            self._metrics_path = self._resolve_metrics_path(config)
-            self._config_path = self._resolve_config_path()
+            self._runtime.prime(config)
             self._append_metrics(
                 {
                     "event": "smart_context_init",
@@ -579,55 +574,19 @@ class SmartContextPlugin(NexusPlugin):
             return None
 
     def _resolve_metrics_path(self, config: Dict[str, Any]) -> str:
-        base_path = config.get("paths", {}).get("base", ".")
-        base_path = os.path.expanduser(base_path)
-        log_dir = os.path.join(base_path, "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        return os.path.join(log_dir, "smart_context_metrics.log")
+        return self._runtime.resolve_metrics_path(config) or ""
 
     def _resolve_config_path(self) -> str:
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        return os.path.join(base_dir, "config.json")
+        return self._runtime.resolve_config_path()
 
     def _append_metrics(self, payload: Dict[str, Any]) -> None:
-        if not self._metrics_path:
-            return
-        try:
-            payload.setdefault("schema_version", "4.4.0")
-            payload.setdefault("component", "smart_context")
-            payload.setdefault("event", "unknown")
-            payload.setdefault("ts", datetime.now().isoformat())
-            with open(self._metrics_path, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
-        except Exception:
-            return
+        self._runtime.append_metrics(payload)
 
     def _persist_smart_context_config(self, updates: Dict[str, Any]) -> None:
-        if not updates:
-            return
-        self._pending_config_updates.update(updates)
+        self._runtime.persist_config(updates)
 
     def _flush_pending_config_updates(self) -> None:
-        if not self._config_path or not self._pending_config_updates:
-            return
-        now_ts = datetime.now().timestamp()
-        interval = max(10, int(self.config.inject_persist_interval_sec))
-        if now_ts - self._last_persist_ts < interval:
-            return
-        try:
-            if not os.path.exists(self._config_path):
-                return
-            with open(self._config_path, "r", encoding="utf-8") as fh:
-                data = json.load(fh)
-            smart_cfg = data.get("smart_context", {})
-            smart_cfg.update(self._pending_config_updates)
-            data["smart_context"] = smart_cfg
-            with open(self._config_path, "w", encoding="utf-8") as fh:
-                fh.write(json.dumps(data, ensure_ascii=False, indent=2))
-            self._pending_config_updates = {}
-            self._last_persist_ts = now_ts
-        except Exception:
-            return
+        self._runtime.flush_pending_config_updates(self.config)
     
     def _extract_summary(self, response: str) -> str:
         """
@@ -1364,66 +1323,10 @@ class SmartContextPlugin(NexusPlugin):
         self._maybe_alert_inject_ratio(avg_ratio, count)
 
     def _maybe_alert_inject_ratio(self, avg_ratio: float, window: int) -> None:
-        if not self.config.inject_ratio_alert_enabled:
-            return
-        threshold = float(self.config.inject_ratio_alert_threshold)
-        if avg_ratio < threshold:
-            self._inject_ratio_streak += 1
-        else:
-            self._inject_ratio_streak = 0
-        if self._inject_ratio_streak >= int(self.config.inject_ratio_alert_streak):
-            self._append_metrics(
-                {
-                    "event": "inject_ratio_alert",
-                    "avg_ratio": round(avg_ratio, 3),
-                    "threshold": round(threshold, 3),
-                    "window": int(window),
-                    "streak": int(self._inject_ratio_streak),
-                }
-            )
-            if self.config.inject_debug:
-                print(
-                    f"[SmartContext] ALERT inject ratio low avg={avg_ratio:.2f} "
-                    f"threshold={threshold:.2f} window={window}"
-                )
-        if self.config.inject_ratio_auto_tune:
-            self._auto_tune_inject(avg_ratio)
-        self._flush_pending_config_updates()
+        self._runtime.maybe_alert_inject_ratio(avg_ratio, window, self.config)
 
     def _auto_tune_inject(self, avg_ratio: float) -> None:
-        step = float(self.config.inject_ratio_auto_tune_step)
-        if avg_ratio <= 0 and step <= 0:
-            return
-        old_threshold = float(self.config.inject_threshold)
-        new_threshold = max(self.config.adaptive_min_threshold, old_threshold - step)
-        if new_threshold != old_threshold:
-            self.config.inject_threshold = new_threshold
-        old_max_items = int(self.config.inject_max_items)
-        max_cap = int(self.config.inject_ratio_auto_tune_max_items)
-        new_max_items = min(max_cap, max(old_max_items, old_max_items + 1))
-        if new_max_items != old_max_items:
-            self.config.inject_max_items = new_max_items
-        self._append_metrics(
-            {
-                "event": "inject_auto_tune",
-                "avg_ratio": round(avg_ratio, 3),
-                "threshold_before": round(old_threshold, 3),
-                "threshold_after": round(float(self.config.inject_threshold), 3),
-                "max_items_before": old_max_items,
-                "max_items_after": int(self.config.inject_max_items),
-            }
-        )
-        self._persist_smart_context_config(
-            {
-                "inject_threshold": float(self.config.inject_threshold),
-                "inject_max_items": int(self.config.inject_max_items),
-            }
-        )
-        if self.config.inject_debug:
-            print(
-                f"[SmartContext] AUTO_TUNE inject threshold {old_threshold:.2f}->{self.config.inject_threshold:.2f} "
-                f"max_items {old_max_items}->{self.config.inject_max_items}"
-            )
+        self._runtime.auto_tune_inject(avg_ratio, self.config)
 
     def _tune_adaptive(self) -> None:
         if not self._inject_history:

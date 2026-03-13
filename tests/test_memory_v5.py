@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 os.environ.setdefault("NEXUS_TEST_MODE", "1")
@@ -44,6 +45,9 @@ NexusCorePlugin = importlib.import_module(
 runtime_paths = importlib.import_module(f"{deepsea_nexus.__name__}.runtime_paths")
 context_engine_runtime = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.context_engine_runtime"
+)
+smart_context_runtime = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_runtime"
 )
 
 
@@ -465,6 +469,68 @@ class TestContextEngineRuntimeState(unittest.TestCase):
         self.assertLess(len(trimmed), 1200)
         self.assertEqual(runtime.last_trim_reason, "token_budget")
         self.assertGreater(runtime.last_trim_before_tokens, 100)
+
+
+class TestSmartContextRuntimeState(unittest.TestCase):
+    def test_maybe_alert_inject_ratio_auto_tunes_and_persists_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.json"
+            config_path.write_text(json.dumps({"smart_context": {}}, ensure_ascii=False), encoding="utf-8")
+
+            runtime = smart_context_runtime.SmartContextRuntimeState(config_path=str(config_path))
+            runtime.prime({"paths": {"base": temp_dir}})
+            config = SimpleNamespace(
+                inject_ratio_alert_enabled=True,
+                inject_ratio_alert_threshold=0.2,
+                inject_ratio_alert_streak=1,
+                inject_ratio_auto_tune=True,
+                inject_ratio_auto_tune_step=0.05,
+                inject_ratio_auto_tune_max_items=4,
+                inject_persist_interval_sec=60,
+                inject_threshold=0.6,
+                inject_max_items=2,
+                adaptive_min_threshold=0.35,
+                inject_debug=False,
+            )
+
+            runtime.maybe_alert_inject_ratio(0.1, 12, config)
+
+            self.assertAlmostEqual(config.inject_threshold, 0.55, places=6)
+            self.assertEqual(config.inject_max_items, 3)
+
+            persisted = json.loads(config_path.read_text(encoding="utf-8"))
+            self.assertAlmostEqual(
+                persisted["smart_context"]["inject_threshold"],
+                0.55,
+                places=6,
+            )
+            self.assertEqual(persisted["smart_context"]["inject_max_items"], 3)
+
+            metrics_path = Path(temp_dir) / "logs" / "smart_context_metrics.log"
+            self.assertTrue(metrics_path.exists())
+            events = [
+                json.loads(line)["event"]
+                for line in metrics_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertIn("inject_ratio_alert", events)
+            self.assertIn("inject_auto_tune", events)
+
+    def test_auto_tune_inject_respects_floor_and_cap(self):
+        runtime = smart_context_runtime.SmartContextRuntimeState()
+        config = SimpleNamespace(
+            inject_ratio_auto_tune_step=0.05,
+            inject_threshold=0.36,
+            adaptive_min_threshold=0.35,
+            inject_max_items=5,
+            inject_ratio_auto_tune_max_items=5,
+            inject_debug=False,
+        )
+
+        runtime.auto_tune_inject(0.1, config)
+
+        self.assertAlmostEqual(config.inject_threshold, 0.35, places=6)
+        self.assertEqual(config.inject_max_items, 5)
 
 
 if __name__ == "__main__":

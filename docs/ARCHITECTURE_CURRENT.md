@@ -66,6 +66,7 @@ all live here.
 Current context-related runtime modules:
 
 - `plugins/smart_context.py`
+- `plugins/smart_context_runtime.py`
 - `plugins/context_engine.py`
 - `plugins/context_engine_runtime.py`
 - `auto_summary.py`
@@ -83,6 +84,10 @@ Current cleanup status:
 - `plugins/context_engine_runtime.py` now owns ContextEngine budget, trim,
   metrics, and auto-tune state so `plugins/context_engine.py` can focus on
   retrieval and context assembly
+- `plugins/smart_context_runtime.py` now owns SmartContext inject metrics,
+  alert streak, auto-tune, and config persistence state so
+  `plugins/smart_context.py` can focus on retrieval, summaries, and inject
+  decisions
 - runtime path resolution for metrics and Memory v5 roots is now centralized in
   `runtime_paths.py` instead of being reimplemented in multiple active modules
 
