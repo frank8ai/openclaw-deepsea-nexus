@@ -26,6 +26,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 
 from . import smart_context_decision
+from . import smart_context_adaptive
 from . import smart_context_graph
 from . import smart_context_graph_inject
 from . import smart_context_inject
@@ -979,35 +980,27 @@ class SmartContextPlugin(NexusPlugin):
         if not self.config.inject_stats_enabled:
             return
         self._inject_stats.append(
-            {
-                "reason": reason,
-                "retrieved": int(retrieved),
-                "injected": int(injected),
-                "graph": int(graph_injected),
-                "ratio": round((injected / retrieved), 3) if retrieved else 0.0,
-                "threshold": round(float(threshold), 3),
-            }
+            smart_context_adaptive.build_inject_stats_entry(
+                reason,
+                retrieved,
+                injected,
+                graph_injected,
+                threshold,
+            )
         )
-        window = int(self.config.inject_stats_window)
-        if window <= 0 or len(self._inject_stats) < window:
+        summary = smart_context_adaptive.summarize_inject_stats(
+            self._inject_stats,
+            int(self.config.inject_stats_window),
+        )
+        if not summary:
             return
-        recent = self._inject_stats[-window:]
-        count = len(recent)
-        total_retrieved = sum(r.get("retrieved", 0) for r in recent)
-        total_injected = sum(r.get("injected", 0) for r in recent)
-        total_graph = sum(r.get("graph", 0) for r in recent)
-        avg_ratio = (total_injected / total_retrieved) if total_retrieved else 0.0
         self._append_metrics(
             {
                 "event": "inject_stats",
-                "window": count,
-                "retrieved": total_retrieved,
-                "injected": total_injected,
-                "graph_injected": total_graph,
-                "avg_ratio": round(avg_ratio, 3),
+                **summary,
             }
         )
-        self._maybe_alert_inject_ratio(avg_ratio, count)
+        self._maybe_alert_inject_ratio(float(summary["avg_ratio"]), int(summary["window"]))
 
     def _maybe_alert_inject_ratio(self, avg_ratio: float, window: int) -> None:
         self._runtime.maybe_alert_inject_ratio(avg_ratio, window, self.config)
@@ -1016,27 +1009,22 @@ class SmartContextPlugin(NexusPlugin):
         self._runtime.auto_tune_inject(avg_ratio, self.config)
 
     def _tune_adaptive(self) -> None:
-        if not self._inject_history:
+        adaptive = smart_context_adaptive.compute_adaptive_threshold(
+            self._inject_history,
+            adaptive_window=int(self.config.adaptive_window),
+            current_threshold=float(self.config.inject_threshold),
+            adaptive_min_threshold=float(self.config.adaptive_min_threshold),
+            adaptive_max_threshold=float(self.config.adaptive_max_threshold),
+            adaptive_step=float(self.config.adaptive_step),
+        )
+        if not adaptive:
             return
-        window = int(self.config.adaptive_window)
-        if window <= 0:
-            return
-        recent = self._inject_history[-window:]
-        success = sum(1 for r in recent if r.get("count", 0) > 0)
-        ratio = success / float(len(recent))
-
-        step = float(self.config.adaptive_step)
-        new_threshold = self.config.inject_threshold
-        if ratio < 0.35:
-            new_threshold = min(self.config.adaptive_max_threshold, self.config.inject_threshold + step)
-        elif ratio > 0.7:
-            new_threshold = max(self.config.adaptive_min_threshold, self.config.inject_threshold - step)
-
+        new_threshold = float(adaptive["new_threshold"])
         if new_threshold != self.config.inject_threshold:
             if self.config.inject_debug:
                 print(
                     f"[SmartContext] ADAPT threshold {self.config.inject_threshold:.2f} -> {new_threshold:.2f} "
-                    f"(ratio={ratio:.2f}, window={len(recent)})"
+                    f"(ratio={float(adaptive['ratio']):.2f}, window={int(adaptive['window'])})"
                 )
             self.config.inject_threshold = new_threshold
 

@@ -66,6 +66,7 @@ all live here.
 Current context-related runtime modules:
 
 - `plugins/smart_context.py`
+- `plugins/smart_context_adaptive.py`
 - `plugins/smart_context_round.py`
 - `plugins/smart_context_storage.py`
 - `plugins/smart_context_graph_inject.py`
@@ -119,6 +120,8 @@ Current cleanup status:
 - `plugins/smart_context_round.py` now owns round-result assembly plus rescue
   and summary-card observability/document payloads reused by
   `SmartContextPlugin`
+- `plugins/smart_context_adaptive.py` now owns inject-stats aggregation and
+  adaptive threshold calculation reused by `SmartContextPlugin`
 - legacy `store_conversation(...)` now joins user and assistant text with real
   newlines before decision/topic extraction so its compatibility path matches
   the current plugin behavior

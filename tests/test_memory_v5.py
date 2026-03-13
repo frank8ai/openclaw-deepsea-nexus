@@ -81,6 +81,9 @@ smart_context_storage = importlib.import_module(
 smart_context_round = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_round"
 )
+smart_context_adaptive = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_adaptive"
+)
 
 
 def _load_script_module(module_name: str):
@@ -978,6 +981,41 @@ class TestSmartContextRoundHelpers(unittest.TestCase):
 
         self.assertEqual(doc["title"], "对话 conv-2 - 话题切换 (轮7)")
         self.assertEqual(doc["tags"], "type:topic_boundary,round:7,conversation:conv-2")
+
+
+class TestSmartContextAdaptiveHelpers(unittest.TestCase):
+    def test_summarize_inject_stats_aggregates_recent_window(self):
+        summary = smart_context_adaptive.summarize_inject_stats(
+            [
+                {"retrieved": 2, "injected": 1, "graph": 0},
+                {"retrieved": 4, "injected": 2, "graph": 1},
+            ],
+            2,
+        )
+
+        self.assertEqual(
+            summary,
+            {
+                "window": 2,
+                "retrieved": 6,
+                "injected": 3,
+                "graph_injected": 1,
+                "avg_ratio": 0.5,
+            },
+        )
+
+    def test_compute_adaptive_threshold_increases_when_recent_success_is_low(self):
+        adaptive = smart_context_adaptive.compute_adaptive_threshold(
+            [{"count": 0}, {"count": 0}, {"count": 1}],
+            adaptive_window=3,
+            current_threshold=0.6,
+            adaptive_min_threshold=0.35,
+            adaptive_max_threshold=0.75,
+            adaptive_step=0.05,
+        )
+
+        self.assertAlmostEqual(adaptive["ratio"], 1 / 3, places=6)
+        self.assertAlmostEqual(adaptive["new_threshold"], 0.65, places=6)
 
 
 if __name__ == "__main__":
