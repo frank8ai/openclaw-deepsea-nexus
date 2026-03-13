@@ -30,9 +30,9 @@ from . import smart_context_adaptive
 from . import smart_context_graph
 from . import smart_context_graph_inject
 from . import smart_context_inject
+from . import smart_context_now
 from . import smart_context_prompt
 from . import smart_context_recall
-from . import smart_context_rescue
 from . import smart_context_round
 from . import smart_context_storage
 from . import smart_context_text
@@ -1074,43 +1074,33 @@ class SmartContextPlugin(NexusPlugin):
         if not self.config.rescue_enabled:
             return {"skipped": True, "reason": "rescue_disabled"}
         
-        result = {"decisions_rescued": 0, "goals_rescued": 0, "questions_rescued": 0, "saved": False}
-        
         try:
-            from .now_manager import NOWManager
-            now = NOWManager()
-
-            updates = smart_context_rescue.collect_rescue_updates(
+            return smart_context_now.rescue_before_compress(
                 conversation,
                 rescue_gold=bool(self.config.rescue_gold),
                 rescue_decisions=bool(self.config.rescue_decisions),
                 rescue_next_actions=bool(self.config.rescue_next_actions),
             )
-            result.update(smart_context_rescue.apply_rescue_updates(now.state, updates))
-
-            total = result["decisions_rescued"] + result["goals_rescued"] + result["questions_rescued"]
-            if total > 0:
-                now.save()
-                result["saved"] = True
-                
         except Exception as e:
-            result["error"] = str(e)
-        
-        return result
+            return {
+                "decisions_rescued": 0,
+                "goals_rescued": 0,
+                "questions_rescued": 0,
+                "saved": False,
+                "error": str(e),
+            }
     
     def get_rescue_context(self) -> str:
         """获取抢救上下文"""
         try:
-            from .now_manager import NOWManager
-            return NOWManager().format_context()
+            return smart_context_now.get_rescue_context()
         except:
             return ""
     
     def clear_rescue(self):
         """清空抢救状态"""
         try:
-            from .now_manager import NOWManager
-            NOWManager().clear()
+            smart_context_now.clear_rescue()
         except:
             pass
     

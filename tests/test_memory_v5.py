@@ -84,6 +84,9 @@ smart_context_round = importlib.import_module(
 smart_context_adaptive = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_adaptive"
 )
+smart_context_now = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_now"
+)
 smart_context_prompt = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_prompt"
 )
@@ -850,6 +853,56 @@ class TestSmartContextRescueHelpers(unittest.TestCase):
         self.assertIn("增加回归测试", state["decisions"])
         self.assertIn("推进重构", state["next_actions"])
         self.assertIn("确认边界", state["open_questions"])
+
+
+class TestSmartContextNOWHelpers(unittest.TestCase):
+    def test_rescue_before_compress_updates_now_state_and_saves(self):
+        class FakeNOW:
+            def __init__(self):
+                self.state = {
+                    "decisions": [],
+                    "next_actions": [],
+                    "open_questions": [],
+                }
+                self.saved = False
+
+            def save(self):
+                self.saved = True
+
+        fake = FakeNOW()
+        result = smart_context_now.rescue_before_compress(
+            "#GOLD: 保留 FastAPI\n这个问题？后续补测试计划",
+            rescue_gold=True,
+            rescue_decisions=False,
+            rescue_next_actions=True,
+            manager_factory=lambda: fake,
+        )
+
+        self.assertTrue(result["saved"])
+        self.assertEqual(result["decisions_rescued"], 1)
+        self.assertEqual(result["questions_rescued"], 1)
+        self.assertTrue(fake.saved)
+        self.assertEqual(fake.state["decisions"], ["保留 FastAPI"])
+        self.assertEqual(fake.state["open_questions"], ["后续补测试计划"])
+
+    def test_get_and_clear_rescue_delegate_to_manager(self):
+        class FakeNOW:
+            def __init__(self):
+                self.cleared = False
+
+            def format_context(self):
+                return "rescued-context"
+
+            def clear(self):
+                self.cleared = True
+
+        fake = FakeNOW()
+        self.assertEqual(
+            smart_context_now.get_rescue_context(manager_factory=lambda: fake),
+            "rescued-context",
+        )
+        smart_context_now.clear_rescue(manager_factory=lambda: fake)
+        self.assertTrue(fake.cleared)
 
 
 class TestSmartContextRecallHelpers(unittest.TestCase):
