@@ -32,6 +32,7 @@ from .compat import (
     nexus_stats,
     nexus_health,
     nexus_write,
+    resolve_default_config_path,
     start_session,
 )
 from .core.config_manager import ConfigManager, get_config_manager
@@ -105,6 +106,7 @@ __all__ = [
     "nexus_health",
     "nexus_stats",
     "nexus_write",
+    "resolve_default_config_path",
     "SessionManager",
     "get_session_manager",
     "start_session",

@@ -134,7 +134,7 @@ def _verify_write_hit(plugin: Any, doc_id: str, context: str) -> bool:
         return False
 
 
-def _resolve_default_config_path() -> Optional[str]:
+def resolve_default_config_path() -> Optional[str]:
     """
     Resolve default Deep-Sea Nexus config path when caller does not pass one.
 
@@ -196,7 +196,7 @@ def nexus_init(config_path: Optional[str] = None) -> bool:
         return True
     
     # Load configuration (prefer explicit path; otherwise auto-discover config.json)
-    resolved_config_path = config_path or _resolve_default_config_path()
+    resolved_config_path = config_path or resolve_default_config_path()
     config = get_config_manager(resolved_config_path)
     if resolved_config_path:
         config.load_file(resolved_config_path)

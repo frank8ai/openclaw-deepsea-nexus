@@ -63,6 +63,7 @@ python3 scripts/memory_v5_maintenance.py --all-agents
 python3 scripts/memory_v5_benchmark.py --cases docs/memory_v5_benchmark_sample.json --all-agents
 bash scripts/deploy_local_v5.sh --quick
 python -m deepsea_nexus health --json
+python -m deepsea_nexus paths --json
 ```
 
 ## Source Of Truth

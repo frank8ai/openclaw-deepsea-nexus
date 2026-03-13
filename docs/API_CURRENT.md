@@ -100,6 +100,7 @@ The package CLI now exposes the current package surface:
 ```bash
 python -m deepsea_nexus version
 python -m deepsea_nexus health --json
+python -m deepsea_nexus paths --json
 python -m deepsea_nexus recall "control plane" -n 3
 ```
 
@@ -107,6 +108,7 @@ Supported commands:
 
 - `version`
 - `health`
+- `paths`
 - `recall`
 
 ## Version Contract

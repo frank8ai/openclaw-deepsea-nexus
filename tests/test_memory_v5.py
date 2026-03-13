@@ -9,6 +9,7 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -245,6 +246,65 @@ class TestVersionAndEntrypoints(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["package_version"], deepsea_nexus.__version__)
+        self.assertEqual(payload["api_version"], deepsea_nexus.get_version())
+
+    def test_cli_paths_json(self):
+        cli = importlib.import_module(f"{deepsea_nexus.__name__}.__main__")
+        stdout = io.StringIO()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "paths": {"base": temp_dir},
+                        "memory_v5": {"root": "memory/95_MemoryV5"},
+                        "brain": {"base_path": temp_dir},
+                        "nexus": {
+                            "vector_db_path": str(Path(temp_dir) / "vector-db"),
+                            "collection_name": "test_collection",
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            isolated_env = dict(os.environ)
+            isolated_env.pop("NEXUS_VECTOR_DB", None)
+            isolated_env.pop("NEXUS_COLLECTION", None)
+
+            with mock.patch.dict(os.environ, isolated_env, clear=True):
+                with mock.patch.object(
+                    deepsea_nexus,
+                    "resolve_default_config_path",
+                    return_value=str(config_path),
+                ):
+                    with contextlib.redirect_stdout(stdout):
+                        exit_code = cli.main(["paths", "--json"])
+
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["config_path"], str(config_path))
+        self.assertEqual(payload["workspace_base"], temp_dir)
+        self.assertEqual(
+            payload["memory_v5_root"],
+            str(Path(temp_dir) / "memory/95_MemoryV5"),
+        )
+        self.assertEqual(payload["vector_db"], str(Path(temp_dir) / "vector-db"))
+        self.assertEqual(payload["collection"], "test_collection")
+        self.assertEqual(payload["brain_base_path"], temp_dir)
+
+    def test_repo_shim_package_supports_standard_imports(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "deepsea_nexus", "version", "--json"],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        payload = json.loads(result.stdout)
         self.assertEqual(payload["package_version"], deepsea_nexus.__version__)
         self.assertEqual(payload["api_version"], deepsea_nexus.get_version())
 
