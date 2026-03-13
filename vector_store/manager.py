@@ -5,11 +5,54 @@ Phase 3: Vector Storage Management
 This module provides CRUD operations for the ChromaDB vector store.
 """
 
+from __future__ import annotations
+
 from typing import List, Dict, Optional, Any
+import json
 import uuid
 import os
+from pathlib import Path
 import yaml
 from datetime import datetime
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def resolve_config_path(config_path: str = None) -> Path | None:
+    if config_path:
+        return Path(config_path).expanduser().resolve()
+
+    env_override = os.environ.get("DEEPSEA_NEXUS_CONFIG") or os.environ.get(
+        "DEEP_SEA_NEXUS_CONFIG"
+    )
+    candidates = []
+    if env_override:
+        candidates.append(Path(env_override).expanduser())
+
+    candidates.extend(
+        [
+            Path(os.getcwd()) / "config.json",
+            Path(os.getcwd()) / "config.yaml",
+            PROJECT_ROOT / "config.json",
+            PROJECT_ROOT / "config.yaml",
+        ]
+    )
+
+    for candidate in candidates:
+        expanded = candidate.expanduser()
+        if expanded.exists():
+            return expanded.resolve()
+    return None
+
+
+def load_config_file(config_path: str = None) -> dict:
+    resolved = resolve_config_path(config_path)
+    if resolved is None or not resolved.exists():
+        return {}
+    with open(resolved, "r", encoding="utf-8") as f:
+        if resolved.suffix == ".json":
+            return json.load(f)
+        return yaml.safe_load(f) or {}
 
 
 class VectorStoreManager:
@@ -22,15 +65,8 @@ class VectorStoreManager:
         self.config = self._load_config(config_path)
         
     def _load_config(self, config_path: str) -> dict:
-        """Load configuration."""
-        if config_path is None:
-            config_path = os.path.join(
-                os.path.dirname(__file__), 
-                '..', 
-                'config.yaml'
-            )
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+        """Load configuration from JSON/YAML file."""
+        return load_config_file(config_path)
     
     def add_note(
         self,

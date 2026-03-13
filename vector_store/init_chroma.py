@@ -5,7 +5,11 @@ Phase 1: Infrastructure Setup
 This module initializes the ChromaDB vector database with proper configuration.
 """
 
+from __future__ import annotations
+
+import json
 import os
+from pathlib import Path
 
 # Patch chromadb persist loader before importing chromadb itself.
 # This keeps old on-disk collections readable on newer chromadb.
@@ -17,9 +21,47 @@ except Exception:
 import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
-from pathlib import Path
 import yaml
 from utils.vector_db_lock import vector_db_write_lock
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def resolve_config_path(config_path: str = None) -> Path | None:
+    if config_path:
+        return Path(config_path).expanduser().resolve()
+
+    env_override = os.environ.get("DEEPSEA_NEXUS_CONFIG") or os.environ.get(
+        "DEEP_SEA_NEXUS_CONFIG"
+    )
+    candidates = []
+    if env_override:
+        candidates.append(Path(env_override).expanduser())
+
+    candidates.extend(
+        [
+            Path(os.getcwd()) / "config.json",
+            Path(os.getcwd()) / "config.yaml",
+            PROJECT_ROOT / "config.json",
+            PROJECT_ROOT / "config.yaml",
+        ]
+    )
+
+    for candidate in candidates:
+        expanded = candidate.expanduser()
+        if expanded.exists():
+            return expanded.resolve()
+    return None
+
+
+def load_config_file(config_path: str = None) -> dict:
+    resolved = resolve_config_path(config_path)
+    if resolved is None or not resolved.exists():
+        return {}
+    with open(resolved, "r", encoding="utf-8") as f:
+        if resolved.suffix == ".json":
+            return json.load(f)
+        return yaml.safe_load(f) or {}
 
 
 class VectorStoreInit:
@@ -39,16 +81,8 @@ class VectorStoreInit:
         self.persist_dir = ""
         
     def _load_config(self, config_path: str) -> dict:
-        """Load configuration from YAML file."""
-        if config_path is None:
-            config_path = os.path.join(
-                os.path.dirname(__file__), 
-                '..', 
-                'config.yaml'
-            )
-        
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+        """Load configuration from JSON/YAML file."""
+        return load_config_file(config_path)
     
     def initialize_embedder(self):
         """Initialize the sentence transformer embedder."""

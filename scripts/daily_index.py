@@ -49,7 +49,7 @@ class DailyIndexUpdater:
         Initialize the index updater.
         
         Args:
-            config_path: Path to config.yaml
+            config_path: Path to config.json/config.yaml
             index_db_path: Path to index state file
         """
         self.config_path = config_path
@@ -402,7 +402,7 @@ def main():
     )
     parser.add_argument(
         "--config",
-        help="Path to config.yaml"
+        help="Path to config.json/config.yaml"
     )
     parser.add_argument(
         "--reset",

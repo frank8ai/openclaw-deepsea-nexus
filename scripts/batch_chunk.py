@@ -5,9 +5,12 @@ Phase 4: Batch Processing
 This script processes multiple markdown files and indexes them into the vector store.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import argparse
+import json
 from pathlib import Path
 from typing import List, Dict, Any
 from datetime import datetime
@@ -19,6 +22,45 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chunking.text_splitter import create_splitter
 from vector_store.init_chroma import create_vector_store
 from vector_store.manager import create_manager
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def resolve_config_path(config_path: str = None) -> Path | None:
+    if config_path:
+        return Path(config_path).expanduser().resolve()
+
+    env_override = os.environ.get("DEEPSEA_NEXUS_CONFIG") or os.environ.get(
+        "DEEP_SEA_NEXUS_CONFIG"
+    )
+    candidates = []
+    if env_override:
+        candidates.append(Path(env_override).expanduser())
+
+    candidates.extend(
+        [
+            Path(os.getcwd()) / "config.json",
+            Path(os.getcwd()) / "config.yaml",
+            PROJECT_ROOT / "config.json",
+            PROJECT_ROOT / "config.yaml",
+        ]
+    )
+
+    for candidate in candidates:
+        expanded = candidate.expanduser()
+        if expanded.exists():
+            return expanded.resolve()
+    return None
+
+
+def load_config_file(config_path: str = None) -> dict:
+    resolved = resolve_config_path(config_path)
+    if resolved is None or not resolved.exists():
+        return {}
+    with open(resolved, "r", encoding="utf-8") as f:
+        if resolved.suffix == ".json":
+            return json.load(f)
+        return yaml.safe_load(f) or {}
 
 
 class BatchChunkProcessor:
@@ -54,17 +96,8 @@ class BatchChunkProcessor:
         }
     
     def _load_config(self, config_path: str) -> dict:
-        """Load configuration."""
-        if config_path is None:
-            config_path = os.path.join(
-                os.path.dirname(__file__),
-                '..',
-                'config.yaml'
-            )
-        if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f)
-        return {}
+        """Load configuration from JSON/YAML file."""
+        return load_config_file(config_path)
     
     def parse_frontmatter(self, content: str) -> tuple:
         """
@@ -354,7 +387,7 @@ def main():
     parser.add_argument(
         '--config',
         default=None,
-        help='Path to config.yaml'
+        help='Path to config.json/config.yaml'
     )
     
     parser.add_argument(

@@ -14,7 +14,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -125,6 +125,13 @@ def _load_repo_file_module(module_name: str, relative_path: str):
     assert spec.loader is not None
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
+    return module
+
+
+def _make_stub_module(name: str, **attrs):
+    module = ModuleType(name)
+    for key, value in attrs.items():
+        setattr(module, key, value)
     return module
 
 
@@ -765,6 +772,189 @@ class TestAnotherThreeCuts(unittest.TestCase):
             )
             self.assertEqual(integrator.default_top_k, 11)
             self.assertEqual(integrator.max_context_tokens, 4096)
+
+
+class TestFiveMoreCuts(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _vector_store_stubs(self):
+        class DummySettings:
+            def __init__(self, *args, **kwargs):
+                self.kwargs = kwargs
+
+        class DummySentenceTransformer:
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
+        @contextlib.contextmanager
+        def _dummy_lock(*args, **kwargs):
+            yield
+
+        utils_pkg = _make_stub_module("utils")
+        vector_db_lock = _make_stub_module(
+            "utils.vector_db_lock",
+            vector_db_write_lock=_dummy_lock,
+        )
+        utils_pkg.vector_db_lock = vector_db_lock
+
+        return {
+            "chromadb": _make_stub_module("chromadb", PersistentClient=object),
+            "chromadb.config": _make_stub_module(
+                "chromadb.config",
+                Settings=DummySettings,
+            ),
+            "sentence_transformers": _make_stub_module(
+                "sentence_transformers",
+                SentenceTransformer=DummySentenceTransformer,
+            ),
+            "utils": utils_pkg,
+            "utils.vector_db_lock": vector_db_lock,
+        }
+
+    def _batch_script_stubs(self):
+        chunking_pkg = _make_stub_module("chunking")
+        chunking_text_splitter = _make_stub_module(
+            "chunking.text_splitter",
+            create_splitter=lambda *args, **kwargs: SimpleNamespace(),
+        )
+        chunking_pkg.text_splitter = chunking_text_splitter
+
+        vector_store_pkg = _make_stub_module("vector_store")
+        vector_store_init = _make_stub_module(
+            "vector_store.init_chroma",
+            create_vector_store=lambda *args, **kwargs: SimpleNamespace(
+                embedder=SimpleNamespace(),
+                collection=SimpleNamespace(),
+            ),
+        )
+        vector_store_manager = _make_stub_module(
+            "vector_store.manager",
+            create_manager=lambda *args, **kwargs: SimpleNamespace(),
+        )
+        vector_store_pkg.init_chroma = vector_store_init
+        vector_store_pkg.manager = vector_store_manager
+
+        return {
+            "chunking": chunking_pkg,
+            "chunking.text_splitter": chunking_text_splitter,
+            "vector_store": vector_store_pkg,
+            "vector_store.init_chroma": vector_store_init,
+            "vector_store.manager": vector_store_manager,
+        }
+
+    def test_vector_store_init_prefers_config_json(self):
+        config_json = self.repo_root / "config.json"
+        config_yaml = self.repo_root / "config.yaml"
+        config_json.write_text(
+            json.dumps({"embedding": {"model_name": "json-model"}}),
+            encoding="utf-8",
+        )
+        config_yaml.write_text(
+            "embedding:\n  model_name: yaml-model\n",
+            encoding="utf-8",
+        )
+
+        with mock.patch.dict(sys.modules, self._vector_store_stubs(), clear=False):
+            with mock.patch("os.getcwd", return_value=str(self.repo_root)):
+                module = _load_repo_file_module(
+                    "vector_store_init_json",
+                    "vector_store/init_chroma.py",
+                )
+                store = module.VectorStoreInit()
+                self.assertEqual(module.resolve_config_path(), config_json.resolve())
+                self.assertEqual(store.config["embedding"]["model_name"], "json-model")
+
+    def test_vector_store_manager_prefers_config_json(self):
+        config_json = self.repo_root / "config.json"
+        config_yaml = self.repo_root / "config.yaml"
+        config_json.write_text(
+            json.dumps({"vector_store": {"collection_name": "json-collection"}}),
+            encoding="utf-8",
+        )
+        config_yaml.write_text(
+            "vector_store:\n  collection_name: yaml-collection\n",
+            encoding="utf-8",
+        )
+
+        with mock.patch("os.getcwd", return_value=str(self.repo_root)):
+            module = _load_repo_file_module(
+                "vector_store_manager_json",
+                "vector_store/manager.py",
+            )
+            manager = module.VectorStoreManager(
+                embedder=SimpleNamespace(),
+                collection=SimpleNamespace(),
+            )
+            self.assertEqual(module.resolve_config_path(), config_json.resolve())
+            self.assertEqual(
+                manager.config["vector_store"]["collection_name"],
+                "json-collection",
+            )
+
+    def test_text_splitter_prefers_config_json(self):
+        config_json = self.repo_root / "config.json"
+        config_yaml = self.repo_root / "config.yaml"
+        config_json.write_text(
+            json.dumps({"chunking": {"chunk_size": 321, "chunk_overlap": 12}}),
+            encoding="utf-8",
+        )
+        config_yaml.write_text(
+            "chunking:\n  chunk_size: 111\n  chunk_overlap: 7\n",
+            encoding="utf-8",
+        )
+
+        with mock.patch("os.getcwd", return_value=str(self.repo_root)):
+            module = _load_repo_file_module(
+                "text_splitter_json",
+                "chunking/text_splitter.py",
+            )
+            splitter = module.TextSplitter()
+            self.assertEqual(module.resolve_config_path(), config_json.resolve())
+            self.assertEqual(splitter.chunk_size, 321)
+            self.assertEqual(splitter.chunk_overlap, 12)
+
+    def test_batch_chunk_prefers_config_json(self):
+        config_json = self.repo_root / "config.json"
+        config_yaml = self.repo_root / "config.yaml"
+        config_json.write_text(
+            json.dumps({"chunking": {"chunk_size": 222}}),
+            encoding="utf-8",
+        )
+        config_yaml.write_text("chunking:\n  chunk_size: 99\n", encoding="utf-8")
+
+        with mock.patch.dict(sys.modules, self._batch_script_stubs(), clear=False):
+            with mock.patch("os.getcwd", return_value=str(self.repo_root)):
+                module = _load_repo_file_module(
+                    "batch_chunk_json",
+                    "scripts/batch_chunk.py",
+                )
+                processor = module.BatchChunkProcessor()
+                self.assertEqual(module.resolve_config_path(), config_json.resolve())
+                self.assertEqual(processor.config["chunking"]["chunk_size"], 222)
+
+    def test_daily_index_help_mentions_config_json_and_yaml(self):
+        with mock.patch.dict(sys.modules, self._batch_script_stubs(), clear=False):
+            module = _load_repo_file_module(
+                "daily_index_help",
+                "scripts/daily_index.py",
+            )
+            stdout = io.StringIO()
+            with mock.patch.object(sys, "argv", ["daily_index.py", "--help"]):
+                with contextlib.redirect_stdout(stdout):
+                    with self.assertRaises(SystemExit) as exc:
+                        module.main()
+
+        self.assertEqual(exc.exception.code, 0)
+        self.assertIn("config.json/config.yaml", stdout.getvalue())
 
 
 class TestRepoRuntimeCleanupScript(unittest.TestCase):
