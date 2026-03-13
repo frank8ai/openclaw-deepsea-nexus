@@ -60,6 +60,9 @@ smart_context_module = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context"
 )
 compat_module = importlib.import_module(f"{deepsea_nexus.__name__}.compat")
+smart_context_decision = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_decision"
+)
 
 
 def _load_script_module(module_name: str):
@@ -669,6 +672,44 @@ class TestSmartContextConvenienceFunctions(unittest.TestCase):
         ]
         self.assertEqual(decision_contents, ["决定保留 FastAPI"])
         self.assertTrue(all("\\n" not in content for content in decision_contents))
+
+
+class TestSmartContextDecisionHelpers(unittest.TestCase):
+    def test_should_inject_returns_context_starved_first(self):
+        should_inject, reason = smart_context_decision.should_inject(
+            "继续",
+            inject_enabled=True,
+            association_enabled=True,
+            context_starved_min_chars=16,
+            inject_mode="balanced",
+        )
+
+        self.assertTrue(should_inject)
+        self.assertEqual(reason, "context_starved")
+
+    def test_should_inject_balanced_mode_detects_technical_term(self):
+        should_inject, reason = smart_context_decision.should_inject(
+            "observability pipeline tuning",
+            inject_enabled=True,
+            association_enabled=False,
+            context_starved_min_chars=16,
+            inject_mode="balanced",
+        )
+
+        self.assertTrue(should_inject)
+        self.assertEqual(reason, "technical_term")
+
+    def test_detect_topic_switch_returns_new_keywords(self):
+        switched, keywords = smart_context_decision.detect_topic_switch(
+            "ledger settlement audit",
+            topic_switch_enabled=True,
+            last_keywords=["relay", "provider"],
+            topic_switch_keywords_max=8,
+            topic_switch_min_overlap_ratio=0.2,
+        )
+
+        self.assertTrue(switched)
+        self.assertEqual(keywords[:3], ["ledger", "settlement", "audit"])
 
 
 if __name__ == "__main__":

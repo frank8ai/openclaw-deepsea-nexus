@@ -66,6 +66,7 @@ all live here.
 Current context-related runtime modules:
 
 - `plugins/smart_context.py`
+- `plugins/smart_context_decision.py`
 - `plugins/smart_context_inject.py`
 - `plugins/smart_context_text.py`
 - `plugins/smart_context_runtime.py`
@@ -96,6 +97,8 @@ Current cleanup status:
 - `plugins/smart_context_inject.py` now owns shared inject-item trimming,
   signal scoring, and dynamic threshold/max-items rules reused by
   `SmartContextPlugin`
+- `plugins/smart_context_decision.py` now owns shared context-starved,
+  inject-trigger, and topic-switch rules reused by `SmartContextPlugin`
 - legacy `store_conversation(...)` now joins user and assistant text with real
   newlines before decision/topic extraction so its compatibility path matches
   the current plugin behavior

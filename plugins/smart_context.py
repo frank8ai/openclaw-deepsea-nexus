@@ -25,6 +25,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
+from . import smart_context_decision
 from . import smart_context_inject
 from . import smart_context_text
 from .session_manager import SessionManagerPlugin
@@ -678,13 +679,10 @@ class SmartContextPlugin(NexusPlugin):
         return smart_context_text.extract_keywords(text, limit=5)
 
     def _is_context_starved(self, user_message: str) -> bool:
-        msg = (user_message or "").strip()
-        if len(msg) <= self.config.context_starved_min_chars:
-            return True
-        for kw in ("继续", "接着", "刚才", "上次", "之前", "延续", "帮我继续"):
-            if kw in msg:
-                return True
-        return False
+        return smart_context_decision.is_context_starved(
+            user_message,
+            int(self.config.context_starved_min_chars),
+        )
 
     def _extract_decision_blocks(self, text: str) -> List[str]:
         return smart_context_text.extract_decision_blocks(
@@ -741,21 +739,16 @@ class SmartContextPlugin(NexusPlugin):
         )
 
     def _detect_topic_switch(self, user_message: str) -> bool:
-        if not self.config.topic_switch_enabled:
-            return False
-        msg = (user_message or "").strip()
-        if any(k in msg for k in ("换个话题", "另一个问题", "新话题", "顺便问", "另外")):
-            return True
-        keywords = self.extract_keywords(msg)[: int(self.config.topic_switch_keywords_max)]
-        if not keywords:
-            return False
-        if not self._last_keywords:
+        switched, keywords = smart_context_decision.detect_topic_switch(
+            user_message,
+            topic_switch_enabled=bool(self.config.topic_switch_enabled),
+            last_keywords=self._last_keywords,
+            topic_switch_keywords_max=int(self.config.topic_switch_keywords_max),
+            topic_switch_min_overlap_ratio=float(self.config.topic_switch_min_overlap_ratio),
+        )
+        if keywords:
             self._last_keywords = keywords
-            return False
-        overlap = len(set(keywords) & set(self._last_keywords))
-        ratio = overlap / float(max(1, len(set(keywords))))
-        self._last_keywords = keywords
-        return ratio <= float(self.config.topic_switch_min_overlap_ratio)
+        return switched
 
     def _trim_injected_items(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return smart_context_inject.trim_injected_items(
@@ -935,34 +928,13 @@ class SmartContextPlugin(NexusPlugin):
         """
         判断是否需要注入上下文
         """
-        if not self.config.inject_enabled:
-            return False, "disabled"
-
-        if self.config.association_enabled and self._is_context_starved(user_message):
-            return True, "context_starved"
-        
-        question_patterns = [
-            r'怎么', r'如何', r'是什么', r'为什么', r'哪些',
-            r'区别', r'实现', r'使用', r'解决'
-        ]
-        
-        for pattern in question_patterns:
-            if re.search(pattern, user_message):
-                return True, "question"
-        
-        keywords = self.extract_keywords(user_message)
-        mode = (self.config.inject_mode or "balanced").strip().lower()
-        if mode == "aggressive":
-            if any(k for k in keywords if len(k) > 3):
-                return True, "keyword"
-        elif mode == "conservative":
-            if any(k for k in keywords if len(k) > 8):
-                return True, "technical_term"
-        else:  # balanced
-            if any(k for k in keywords if len(k) > 6):
-                return True, "technical_term"
-        
-        return False, "none"
+        return smart_context_decision.should_inject(
+            user_message,
+            inject_enabled=bool(self.config.inject_enabled),
+            association_enabled=bool(self.config.association_enabled),
+            context_starved_min_chars=int(self.config.context_starved_min_chars),
+            inject_mode=str(self.config.inject_mode),
+        )
     
     def inject_memory(self, user_message: str) -> List[Dict]:
         """
