@@ -449,6 +449,55 @@ created: 2026-02-10T09:30:00
         self.assertFalse((other_dir / "_INDEX.md").exists())
 
 
+class TestImportSessionsScript(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.workspace_root = Path(self.temp_dir) / "workspace"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+        self.workspace_root.mkdir(parents=True, exist_ok=True)
+        self.import_sessions = _load_script_module("import_sessions")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_resolve_config_path_prefers_config_json(self):
+        json_path = self.repo_root / "config.json"
+        yaml_path = self.repo_root / "config.yaml"
+        json_path.write_text('{"paths": {"base": "json-base"}}', encoding="utf-8")
+        yaml_path.write_text("paths:\n  base: yaml-base\n", encoding="utf-8")
+
+        resolved = self.import_sessions.resolve_config_path(nexus_root=self.repo_root)
+
+        self.assertEqual(resolved, json_path.resolve())
+
+    def test_build_default_session_dirs_discovers_repo_and_workspace_roots(self):
+        repo_session_dir = self.repo_root / "memory" / "90_Memory" / "2026-02"
+        workspace_session_dir = self.workspace_root / "memory" / "90_Memory" / "2026-03"
+        repo_session_dir.mkdir(parents=True, exist_ok=True)
+        workspace_session_dir.mkdir(parents=True, exist_ok=True)
+        (repo_session_dir / "session_0900_Repo.md").write_text("# repo\n", encoding="utf-8")
+        (workspace_session_dir / "session_1000_Workspace.md").write_text(
+            "# workspace\n",
+            encoding="utf-8",
+        )
+
+        session_dirs = self.import_sessions.build_default_session_dirs(
+            workspace_root=self.workspace_root,
+            nexus_root=self.repo_root,
+        )
+
+        self.assertEqual(
+            set(session_dirs),
+            {
+                str(repo_session_dir.resolve()),
+                str(workspace_session_dir.resolve()),
+            },
+        )
+
+
 class TestRepoRuntimeCleanupScript(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()

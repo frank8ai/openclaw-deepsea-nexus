@@ -5,8 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${NEXUS_PYTHON_PATH:-python3}"
 MODE="${1:---install}"
 
-BEGIN_MARK="# BEGIN deepsea-nexus-v4.4.0"
-END_MARK="# END deepsea-nexus-v4.4.0"
+CURRENT_BLOCK_ID="deepsea-nexus-smart-context-v5"
+LEGACY_BLOCK_ID="deepsea-nexus-v4.4.0"
+BEGIN_MARK="# BEGIN ${CURRENT_BLOCK_ID}"
+END_MARK="# END ${CURRENT_BLOCK_ID}"
+LEGACY_BEGIN_MARK="# BEGIN ${LEGACY_BLOCK_ID}"
+LEGACY_END_MARK="# END ${LEGACY_BLOCK_ID}"
 
 CRON_BLOCK=$(cat <<CRON
 ${BEGIN_MARK}
@@ -22,15 +26,23 @@ CRON
 
 existing="$(crontab -l 2>/dev/null || true)"
 
-cleaned="$(printf '%s\n' "$existing" | awk -v begin="$BEGIN_MARK" -v end="$END_MARK" '
-  $0==begin {skip=1; next}
-  $0==end {skip=0; next}
-  skip==0 {print}
-')"
+strip_block() {
+  local begin_mark="$1"
+  local end_mark="$2"
+  awk -v begin="$begin_mark" -v end="$end_mark" '
+    $0==begin {skip=1; next}
+    $0==end {skip=0; next}
+    skip==0 {print}
+  '
+}
+
+cleaned="$(printf '%s\n' "$existing" \
+  | strip_block "$LEGACY_BEGIN_MARK" "$LEGACY_END_MARK" \
+  | strip_block "$BEGIN_MARK" "$END_MARK")"
 
 if [[ "$MODE" == "--remove" ]]; then
   printf '%s\n' "$cleaned" | crontab -
-  echo "[cron] removed deepsea-nexus-v4.4.0 block"
+  echo "[cron] removed ${CURRENT_BLOCK_ID} block(s)"
   exit 0
 fi
 
@@ -42,5 +54,5 @@ fi
 new_cron+="$CRON_BLOCK"
 
 printf '%s\n' "$new_cron" | crontab -
-echo "[cron] installed deepsea-nexus-v4.4.0 block"
-crontab -l | sed -n '/deepsea-nexus-v4.4.0/,+8p'
+echo "[cron] installed ${CURRENT_BLOCK_ID} block"
+crontab -l | sed -n "/${CURRENT_BLOCK_ID}/,+8p"

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deep-Sea Nexus v2.0 Rollback Script
+# Deep-Sea Nexus rollback script
 
 set -e
 
@@ -10,8 +10,10 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Config
-PROJECT_DIR="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/DEEP_SEA_NEXUS_V2"
-BACKUP_DIR="${PROJECT_DIR}/backups"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PROJECT_DIR="${NEXUS_PROJECT_DIR:-${DEEPSEA_NEXUS_ROOT:-${DEFAULT_PROJECT_DIR}}}"
+BACKUP_DIR="${NEXUS_ROLLBACK_BACKUP_DIR:-${PROJECT_DIR}/backups}"
 
 # Parse arguments
 TARGET=""
@@ -36,7 +38,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --help            显示帮助"
             echo ""
             echo "示例:"
-            echo "  ./rollback.sh --target v2.0.0 --yes"
+            echo "  ./rollback.sh --target HEAD~1 --yes"
             echo "  ./rollback.sh --target a210b64"
             exit 0
             ;;
@@ -47,12 +49,22 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo -e "${YELLOW}🔙 Deep-Sea Nexus v2.0 Rollback${NC}"
+echo -e "${YELLOW}🔙 Deep-Sea Nexus Rollback${NC}"
 echo ""
 
 # Check if git is available
 if ! command -v git &> /dev/null; then
     echo -e "${RED}❌ Git not found${NC}"
+    exit 1
+fi
+
+if [ ! -d "${PROJECT_DIR}" ]; then
+    echo -e "${RED}❌ 项目目录不存在: ${PROJECT_DIR}${NC}"
+    exit 1
+fi
+
+if ! git -C "${PROJECT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo -e "${RED}❌ 不是 git 仓库: ${PROJECT_DIR}${NC}"
     exit 1
 fi
 
@@ -80,6 +92,7 @@ BACKUP_NAME="rollback_${TIMESTAMP}"
 echo -e "${YELLOW}📦 创建备份: ${BACKUP_NAME}${NC}"
 
 mkdir -p "${BACKUP_DIR}"
+mkdir -p "${BACKUP_DIR}/${BACKUP_NAME}"
 git archive HEAD | tar -x -C "${BACKUP_DIR}/${BACKUP_NAME}"
 
 # Show what will change
