@@ -580,6 +580,39 @@ class TestSmartContextRuntimeState(unittest.TestCase):
         self.assertEqual(config.inject_max_items, 5)
 
 
+class TestSmartContextPluginOrchestration(unittest.TestCase):
+    def test_process_round_reuses_turn_summary_for_topic_switch(self):
+        plugin = smart_context_module.SmartContextPlugin()
+        plugin._nexus_core = object()
+        plugin._append_metrics = mock.Mock()
+        plugin._store_context = mock.Mock()
+        plugin._store_decision_blocks = mock.Mock()
+        plugin._store_topic_blocks = mock.Mock()
+        plugin._call_nexus = mock.Mock()
+        plugin._extract_decision_blocks = mock.Mock(return_value=["决定保留 FastAPI"])
+        plugin._extract_topics = mock.Mock(return_value=["Relay Runtime"])
+        plugin._detect_topic_switch = mock.Mock(return_value=True)
+        plugin._build_turn_summary = mock.Mock(return_value="Summary: keep FastAPI")
+        plugin._estimate_tokens = mock.Mock(return_value=12)
+        plugin._context_token_usage = mock.Mock(return_value={"full": 0, "summary": 0, "compressed": 0})
+        plugin._decide_status_with_tokens = mock.Mock(return_value=("full", "full"))
+
+        result = plugin.process_round("conv-1", 1, "继续", "决定保留 FastAPI")
+
+        self.assertEqual(plugin._build_turn_summary.call_count, 1)
+        self.assertTrue(result["stored"])
+        self.assertEqual(plugin._call_nexus.call_count, 2)
+        first_call = plugin._call_nexus.call_args_list[0]
+        second_call = plugin._call_nexus.call_args_list[1]
+        self.assertEqual(first_call.args[0], "add_document")
+        self.assertEqual(second_call.args[0], "add_document")
+        self.assertIn("摘要卡", first_call.kwargs["title"])
+        self.assertIn("话题切换", second_call.kwargs["title"])
+        plugin._store_context.assert_called_once()
+        plugin._store_decision_blocks.assert_called_once_with("conv-1", 1, ["决定保留 FastAPI"])
+        plugin._store_topic_blocks.assert_called_once_with("conv-1", 1, ["Relay Runtime"])
+
+
 class TestSmartContextTextHelpers(unittest.TestCase):
     def test_extract_summary_reports_fallback_and_keeps_entities(self):
         result = smart_context_text.extract_summary(

@@ -466,13 +466,20 @@ class SmartContextPlugin(NexusPlugin):
         blocks: List[str] = []
         if self.config.decision_block_enabled:
             blocks = self._extract_decision_blocks(combined_text)
+        turn_summary_cache: Optional[str] = None
+
+        def get_turn_summary() -> str:
+            nonlocal turn_summary_cache
+            if turn_summary_cache is None:
+                turn_summary_cache = self._build_turn_summary(
+                    user_message,
+                    ai_response,
+                    blocks if self.config.decision_block_enabled else [],
+                )
+            return turn_summary_cache
 
         if self.config.summary_on_each_turn:
-            turn_summary = self._build_turn_summary(
-                user_message,
-                ai_response,
-                blocks if self.config.decision_block_enabled else [],
-            )
+            turn_summary = get_turn_summary()
             if turn_summary:
                 if self._nexus_core:
                     self._call_nexus("add_document", **smart_context_round.build_round_summary_document(
@@ -484,11 +491,7 @@ class SmartContextPlugin(NexusPlugin):
                 self._append_metrics({"event": "turn_summary", "len": len(turn_summary)})
 
         if self._detect_topic_switch(user_message):
-            topic_summary = self._build_turn_summary(
-                user_message,
-                ai_response,
-                blocks if self.config.decision_block_enabled else [],
-            )
+            topic_summary = get_turn_summary()
             if topic_summary:
                 if self._nexus_core:
                     self._call_nexus("add_document", **smart_context_round.build_round_summary_document(

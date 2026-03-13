@@ -126,6 +126,9 @@ Current cleanup status:
 - `plugins/smart_context_round.py` now owns round-result assembly plus rescue
   status-branch processing, context-history payloads, plus rescue and
   summary-card observability/document payloads reused by `SmartContextPlugin`
+- `plugins/smart_context.py` now reuses one turn-summary build per round when
+  both turn-summary cards and topic-boundary cards are emitted, avoiding
+  duplicate summary/template extraction in the same round
 - `plugins/smart_context_adaptive.py` now owns inject-stats aggregation and
   adaptive threshold calculation reused by `SmartContextPlugin`
 - `plugins/smart_context_conversation.py` now owns shared conversation-store
