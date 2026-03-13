@@ -4,20 +4,58 @@ Deep-Sea Nexus Summary Flush Script
 Batch imports structured summaries from ~/.openclaw/logs/summaries/ to the vector store.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import json
 import glob
 import subprocess
 from datetime import datetime
+from pathlib import Path
+
+try:
+    import yaml
+except Exception:
+    yaml = None
 
 # Setup paths
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-NEXUS_ROOT = os.path.dirname(SCRIPT_DIR)
-WORKSPACE_ROOT = os.path.dirname(os.path.dirname(NEXUS_ROOT))
-sys.path.insert(0, NEXUS_ROOT)
-sys.path.insert(0, os.path.join(NEXUS_ROOT, 'vector_store'))
-sys.path.insert(0, SCRIPT_DIR)
+SCRIPT_DIR = Path(__file__).resolve().parent
+NEXUS_ROOT = SCRIPT_DIR.parent
+OPENCLAW_HOME = Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser()
+DEFAULT_WORKSPACE_ROOT = Path(
+    os.environ.get("OPENCLAW_WORKSPACE", OPENCLAW_HOME / "workspace")
+).expanduser()
+
+
+def load_repo_config() -> dict:
+    candidates = [
+        NEXUS_ROOT / "config.json",
+        NEXUS_ROOT / "config.yaml",
+    ]
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        with open(candidate, "r", encoding="utf-8") as f:
+            if candidate.suffix == ".json":
+                return json.load(f)
+            if yaml is not None:
+                return yaml.safe_load(f) or {}
+    return {}
+
+
+def resolve_workspace_root(config: dict | None = None) -> Path:
+    cfg = config or load_repo_config()
+    base = cfg.get("paths", {}).get("base") if isinstance(cfg, dict) else None
+    if base:
+        return Path(base).expanduser().resolve()
+    return DEFAULT_WORKSPACE_ROOT.resolve()
+
+
+WORKSPACE_ROOT = resolve_workspace_root()
+sys.path.insert(0, str(NEXUS_ROOT))
+sys.path.insert(0, str(NEXUS_ROOT / "vector_store"))
+sys.path.insert(0, str(SCRIPT_DIR))
 
 try:
     from auto_summary import HybridStorage
@@ -39,7 +77,7 @@ except Exception:
     normalize_text = None
     stable_hash = None
 
-SUMMARY_LOG_DIR = os.path.expanduser("~/.openclaw/logs/summaries")
+SUMMARY_LOG_DIR = (OPENCLAW_HOME / "logs" / "summaries").expanduser()
 
 
 def maybe_write_warm(json_file: str) -> None:
@@ -51,26 +89,27 @@ def maybe_write_warm(json_file: str) -> None:
     project = data.get("project关联") or data.get("项目关联") or data.get("project") or ""
     if not project:
         return
-    warm_writer = os.path.join(SCRIPT_DIR, "warm_writer.py")
-    if not os.path.exists(warm_writer):
+    warm_writer = SCRIPT_DIR / "warm_writer.py"
+    if not warm_writer.exists():
         return
-    subprocess.run([sys.executable, warm_writer, "--from", json_file], check=False)
+    subprocess.run([sys.executable, str(warm_writer), "--from", json_file], check=False)
 
 
-def maybe_write_pipeline_inbox(data: dict, json_file: str) -> None:
-    policy_path = os.path.join(WORKSPACE_ROOT, "config", "knowledge-pipeline", "policy.v1.json")
-    inbox_normalized = os.path.join(WORKSPACE_ROOT, "Obsidian", "00_Inbox", "normalized")
-    if os.path.exists(policy_path):
+def maybe_write_pipeline_inbox(data: dict, json_file: str, workspace_root: Path | None = None) -> None:
+    active_workspace = Path(workspace_root or WORKSPACE_ROOT).expanduser().resolve()
+    policy_path = active_workspace / "config" / "knowledge-pipeline" / "policy.v1.json"
+    inbox_normalized = active_workspace / "Obsidian" / "00_Inbox" / "normalized"
+    if policy_path.exists():
         try:
-            policy = json.loads(open(policy_path, "r", encoding="utf-8").read())
-            inbox_normalized = os.path.join(
-                WORKSPACE_ROOT,
-                policy.get("paths", {}).get("inbox_normalized", "Obsidian/00_Inbox/normalized"),
+            policy = json.loads(policy_path.read_text(encoding="utf-8"))
+            inbox_normalized = active_workspace / policy.get("paths", {}).get(
+                "inbox_normalized",
+                "Obsidian/00_Inbox/normalized",
             )
         except Exception:
             pass
 
-    os.makedirs(inbox_normalized, exist_ok=True)
+    inbox_normalized.mkdir(parents=True, exist_ok=True)
     raw_text = (
         data.get("本次核心产出")
         or data.get("core_output")
@@ -88,8 +127,8 @@ def maybe_write_pipeline_inbox(data: dict, json_file: str) -> None:
     if classify_text is not None:
         try:
             policy = {}
-            if os.path.exists(policy_path):
-                policy = json.loads(open(policy_path, "r", encoding="utf-8").read())
+            if policy_path.exists():
+                policy = json.loads(policy_path.read_text(encoding="utf-8"))
             domain, action, _ = classify_text(raw_text, policy)
         except Exception:
             pass
@@ -104,7 +143,7 @@ def maybe_write_pipeline_inbox(data: dict, json_file: str) -> None:
     base = f"{json_file}:{raw_text}"
     item_hash = stable_hash(base, length=10) if stable_hash is not None else str(abs(hash(base)))
     item_id = f"inbox_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{item_hash}"
-    out_file = os.path.join(inbox_normalized, f"{item_id}.json")
+    out_file = inbox_normalized / f"{item_id}.json"
     payload = {
         "id": item_id,
         "source": json_file,
@@ -123,11 +162,11 @@ def maybe_write_pipeline_inbox(data: dict, json_file: str) -> None:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 def main():
-    if not os.path.exists(SUMMARY_LOG_DIR):
+    if not SUMMARY_LOG_DIR.exists():
         print(f"ℹ️ Directory not found: {SUMMARY_LOG_DIR}")
         return
 
-    json_files = glob.glob(os.path.join(SUMMARY_LOG_DIR, "*.json"))
+    json_files = glob.glob(str(SUMMARY_LOG_DIR / "*.json"))
     
     if not json_files:
         print(f"ℹ️ No pending summaries found in {SUMMARY_LOG_DIR}")
@@ -178,7 +217,7 @@ def main():
             if result.get('stored_count', 0) > 0:
                 print(f"✅ Successfully imported. Stored {result['stored_count']} items.")
                 maybe_write_warm(json_file)
-                maybe_write_pipeline_inbox(data, json_file)
+                maybe_write_pipeline_inbox(data, json_file, workspace_root=WORKSPACE_ROOT)
                 os.remove(json_file)
                 success_count += 1
             else:
@@ -187,7 +226,7 @@ def main():
                 # Consider deleting to avoid loop, or moving to 'failed' dir.
                 # For now, assume it's processed and remove.
                 maybe_write_warm(json_file)
-                maybe_write_pipeline_inbox(data, json_file)
+                maybe_write_pipeline_inbox(data, json_file, workspace_root=WORKSPACE_ROOT)
                 os.remove(json_file)
                 success_count += 1
 

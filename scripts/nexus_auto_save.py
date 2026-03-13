@@ -11,12 +11,19 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-# DeepSea Nexus 路径
-NEXUS_PATH = os.path.expanduser("~/.openclaw/workspace/skills/deepsea-nexus")
+SCRIPT_DIR = Path(__file__).resolve().parent
+NEXUS_ROOT = Path(
+    os.environ.get("DEEPSEA_NEXUS_ROOT", SCRIPT_DIR.parent)
+).expanduser().resolve()
+OPENCLAW_HOME = Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser()
+WORKSPACE_ROOT = Path(
+    os.environ.get("OPENCLAW_WORKSPACE", OPENCLAW_HOME / "workspace")
+).expanduser()
+NEXUS_PATH = str(NEXUS_ROOT)
 VECTOR_DB_PATH = os.path.expanduser(
-    os.environ.get("NEXUS_VECTOR_DB", "~/.openclaw/workspace/memory/.vector_db_restored")
+    os.environ.get("NEXUS_VECTOR_DB", str(WORKSPACE_ROOT / "memory" / ".vector_db_restored"))
 )
-LOG_DIR = os.path.expanduser("~/.openclaw/logs")
+LOG_DIR = str(OPENCLAW_HOME / "logs")
 
 
 def extract_summaries_from_logs(hours: int = 1) -> list:

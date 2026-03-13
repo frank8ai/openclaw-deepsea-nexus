@@ -8,7 +8,41 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 from typing import Dict, Any
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_WORKSPACE_ROOT = Path(
+    os.environ.get(
+        "OPENCLAW_WORKSPACE",
+        os.path.join(os.path.expanduser("~"), ".openclaw", "workspace"),
+    )
+).expanduser()
+
+
+def resolve_config_path(path: str | None = None) -> Path:
+    if path:
+        return Path(path).expanduser().resolve()
+
+    env_override = os.environ.get("DEEPSEA_CONFIG_PATH") or os.environ.get(
+        "DEEPSEA_NEXUS_CONFIG"
+    )
+    candidates = []
+    if env_override:
+        candidates.append(Path(env_override).expanduser())
+    candidates.extend(
+        [
+            Path(os.getcwd()) / "config.json",
+            PROJECT_ROOT / "config.json",
+            DEFAULT_WORKSPACE_ROOT / "skills" / "deepsea-nexus" / "config.json",
+        ]
+    )
+
+    for candidate in candidates:
+        expanded = candidate.expanduser()
+        if expanded.exists():
+            return expanded.resolve()
+    return (PROJECT_ROOT / "config.json").resolve()
 
 
 def load_config(path: str) -> Dict[str, Any]:
@@ -47,7 +81,7 @@ def classify(text: str, routing: Dict[str, Any]) -> Dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default=os.path.expanduser("~/.openclaw/workspace/skills/deepsea-nexus/config.json"))
+    parser.add_argument("--config", default=str(resolve_config_path()))
     parser.add_argument("--text", default="")
     args = parser.parse_args()
 

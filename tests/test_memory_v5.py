@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest import mock
@@ -995,6 +996,145 @@ class TestFiveMoreCuts(unittest.TestCase):
                     module.resolve_default_index_directory(),
                     memory_dir.resolve(),
                 )
+
+
+class TestFiveFurtherCuts(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_conftest_makes_pytest_asyncio_optional(self):
+        conftest_module = _load_repo_file_module(
+            "tests_conftest_optional_plugin",
+            "tests/conftest.py",
+        )
+
+        with mock.patch.object(
+            conftest_module.importlib.util,
+            "find_spec",
+            return_value=None,
+        ):
+            self.assertEqual(conftest_module.optional_pytest_plugins(), [])
+
+        with mock.patch.object(
+            conftest_module.importlib.util,
+            "find_spec",
+            return_value=object(),
+        ):
+            self.assertEqual(
+                conftest_module.optional_pytest_plugins(),
+                ["pytest_asyncio"],
+            )
+
+    def test_model_router_prefers_current_repo_config_json(self):
+        config_json = self.repo_root / "config.json"
+        config_json.write_text(
+            json.dumps({"routing": {"enabled": True, "light_model": "gpt-test"}}),
+            encoding="utf-8",
+        )
+
+        with mock.patch("os.getcwd", return_value=str(self.repo_root)):
+            module = _load_repo_file_module(
+                "scripts_model_router_json",
+                "scripts/model_router.py",
+            )
+            self.assertEqual(module.resolve_config_path(), config_json.resolve())
+            self.assertEqual(
+                module.load_config(str(config_json))["routing"]["light_model"],
+                "gpt-test",
+            )
+
+    def test_flush_summaries_workspace_root_prefers_config_base(self):
+        workspace_root = self.repo_root / "workspace"
+        workspace_root.mkdir(parents=True, exist_ok=True)
+        flush_stubs = {
+            "auto_summary": _make_stub_module("auto_summary", HybridStorage=object),
+            "vector_store": _make_stub_module(
+                "vector_store",
+                create_vector_store=lambda *args, **kwargs: SimpleNamespace(),
+            ),
+            "knowledge_common": _make_stub_module(
+                "knowledge_common",
+                classify_text=None,
+                make_trace_id=None,
+                normalize_text=None,
+                stable_hash=None,
+            ),
+        }
+
+        with mock.patch.dict(sys.modules, flush_stubs, clear=False):
+            module = _load_repo_file_module(
+                "scripts_flush_summaries_paths",
+                "scripts/flush_summaries.py",
+            )
+
+        resolved = module.resolve_workspace_root({"paths": {"base": str(workspace_root)}})
+        self.assertEqual(resolved, workspace_root.resolve())
+
+    def test_nexus_auto_save_uses_current_repo_and_workspace_overrides(self):
+        workspace_root = self.repo_root / "workspace"
+        openclaw_home = self.repo_root / "openclaw-home"
+        with mock.patch.dict(
+            os.environ,
+            {
+                "DEEPSEA_NEXUS_ROOT": str(self.repo_root),
+                "OPENCLAW_WORKSPACE": str(workspace_root),
+                "OPENCLAW_HOME": str(openclaw_home),
+                "NEXUS_VECTOR_DB": str(
+                    workspace_root / "memory" / ".vector_db_restored"
+                ),
+            },
+            clear=False,
+        ):
+            module = _load_repo_file_module(
+                "scripts_nexus_auto_save_paths",
+                "scripts/nexus_auto_save.py",
+            )
+            self.assertEqual(module.NEXUS_PATH, str(self.repo_root.resolve()))
+            self.assertEqual(
+                module.VECTOR_DB_PATH,
+                str((workspace_root / "memory" / ".vector_db_restored")),
+            )
+            self.assertEqual(module.LOG_DIR, str(openclaw_home / "logs"))
+
+    def test_smart_context_param_advisor_defaults_to_current_repo_config(self):
+        with mock.patch.dict(
+            os.environ,
+            {},
+            clear=True,
+        ):
+            module = _load_repo_file_module(
+                "scripts_smart_context_param_advisor_defaults",
+                "scripts/smart_context_param_advisor.py",
+            )
+            self.assertEqual(
+                module.resolve_default_deepsea_config_path(),
+                (REPO_ROOT / "config.json").resolve(),
+            )
+
+    def test_repo_root_init_supports_top_level_import(self):
+        module_path = REPO_ROOT / "__init__.py"
+        spec = importlib.util.spec_from_file_location(
+            "__init__",
+            module_path,
+        )
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        sys.modules[spec.name] = module
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", ImportWarning)
+                spec.loader.exec_module(module)
+            self.assertTrue(hasattr(module, "get_version"))
+            self.assertEqual(module.__version__, deepsea_nexus.__version__)
+        finally:
+            sys.modules.pop(spec.name, None)
 
 
 class TestRepoRuntimeCleanupScript(unittest.TestCase):

@@ -7,6 +7,22 @@ Public API expected by the test suite lives here.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Pytest may import this file as a top-level ``__init__`` module while collecting
+# ``tests/``. Bootstrap a synthetic package name so relative imports still work.
+if not __package__:
+    _REPO_ROOT = Path(__file__).resolve().parent
+    _BOOTSTRAP_PACKAGE = "deepsea_nexus_repo_root"
+    __package__ = _BOOTSTRAP_PACKAGE
+    __path__ = [str(_REPO_ROOT)]
+    if __spec__ is not None:
+        __spec__.submodule_search_locations = [str(_REPO_ROOT)]
+    _current_module = sys.modules.get(__name__)
+    if _current_module is not None:
+        sys.modules.setdefault(_BOOTSTRAP_PACKAGE, _current_module)
+
 from ._version import __version__
 from .auto_summary import StructuredSummary, SummaryParser
 from .app import NexusApplication, create_app, get_app, set_app

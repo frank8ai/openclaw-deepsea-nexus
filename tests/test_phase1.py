@@ -1,6 +1,7 @@
 """
 Phase 1 Testing: Infrastructure
 """
+import json
 import pytest
 from pathlib import Path
 import tempfile
@@ -20,6 +21,9 @@ from exceptions import (
     StorageFullError, TimeoutError as NexusTimeoutError
 )
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CURRENT_PROJECT_CONFIG = json.loads((REPO_ROOT / "config.json").read_text(encoding="utf-8"))
+
 
 class TestConfig:
     """Test configuration management"""
@@ -28,26 +32,26 @@ class TestConfig:
         """Test default configuration values"""
         config = NexusConfig()
         
-        # Test project info
-        assert config.get("project.name") == "Deep-Sea Nexus v2.0"
-        assert config.get("project.version") == "2.0.0"
+        # Current repo config should override the legacy built-in defaults.
+        assert config.get("project.name") == CURRENT_PROJECT_CONFIG["project"]["name"]
+        assert config.get("project.version") == CURRENT_PROJECT_CONFIG["project"]["version"]
         
         # Test index limits
-        assert config.max_index_tokens == 300
-        assert config.max_session_tokens == 1000
+        assert config.max_index_tokens() == CURRENT_PROJECT_CONFIG["index"]["max_index_tokens"]
+        assert config.max_session_tokens() == CURRENT_PROJECT_CONFIG["index"]["max_session_tokens"]
         
         # Test paths
-        assert Path(config.base_path).is_absolute()
-        assert "DEEP_SEA_NEXUS_V2" not in str(config.base_path)
+        assert Path(config.base_path()).is_absolute()
+        assert "DEEP_SEA_NEXUS_V2" not in config.base_path()
     
     def test_config_properties(self):
         """Test config properties"""
         config = NexusConfig()
         
-        assert isinstance(config.base_path, Path)
-        assert isinstance(config.memory_path, Path)
-        assert isinstance(config.max_index_tokens, int)
-        assert isinstance(config.max_session_tokens, int)
+        assert isinstance(config.base_path(), str)
+        assert isinstance(config.memory_path(), str)
+        assert isinstance(config.max_index_tokens(), int)
+        assert isinstance(config.max_session_tokens(), int)
 
 
 class TestDataStructures:
@@ -163,7 +167,7 @@ def test_phase1_completion():
     from exceptions import NexusException
     
     # Basic functionality works
-    assert config.get("project.name") == "Deep-Sea Nexus v2.0"
+    assert config.get("project.name") == CURRENT_PROJECT_CONFIG["project"]["name"]
     print("✅ Phase 1: Infrastructure components working")
 
 

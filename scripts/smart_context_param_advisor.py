@@ -14,17 +14,33 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+OPENCLAW_HOME = Path("~/.openclaw").expanduser()
+DEFAULT_WORKSPACE_ROOT = Path(
+    os.environ.get("OPENCLAW_WORKSPACE", OPENCLAW_HOME / "workspace")
+).expanduser()
 
-DEFAULT_METRICS_PATH = Path("~/.openclaw/workspace/logs/smart_context_metrics.log").expanduser()
-DEFAULT_OVERRIDE_PATH = Path("~/.openclaw/state/context-optimizer-single-source.json").expanduser()
-DEFAULT_DEEPSEA_CONFIG_PATH = Path("~/.openclaw/workspace/skills/deepsea-nexus/config.json").expanduser()
-DEFAULT_REPORT_DIR = Path("~/.openclaw/workspace/logs/smart-context-advisor").expanduser()
+
+def resolve_default_deepsea_config_path() -> Path:
+    override = os.environ.get("DEEPSEA_CONFIG_PATH") or os.environ.get(
+        "DEEPSEA_NEXUS_CONFIG"
+    )
+    if override:
+        return Path(override).expanduser().resolve()
+    return (PROJECT_ROOT / "config.json").resolve()
+
+
+DEFAULT_METRICS_PATH = (DEFAULT_WORKSPACE_ROOT / "logs" / "smart_context_metrics.log").expanduser()
+DEFAULT_OVERRIDE_PATH = (OPENCLAW_HOME / "state" / "context-optimizer-single-source.json").expanduser()
+DEFAULT_DEEPSEA_CONFIG_PATH = resolve_default_deepsea_config_path()
+DEFAULT_REPORT_DIR = (DEFAULT_WORKSPACE_ROOT / "logs" / "smart-context-advisor").expanduser()
 DEFAULT_LOOKBACK_HOURS = 24
 DEFAULT_MIN_EVENTS = 8
 
