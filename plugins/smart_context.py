@@ -31,6 +31,7 @@ from . import smart_context_graph_inject
 from . import smart_context_inject
 from . import smart_context_recall
 from . import smart_context_rescue
+from . import smart_context_storage
 from . import smart_context_text
 from .session_manager import SessionManagerPlugin
 from .smart_context_runtime import SmartContextRuntimeState
@@ -636,33 +637,14 @@ class SmartContextPlugin(NexusPlugin):
         存储上下文到向量库
         """
         try:
-            if context["status"] == "full":
-                # 完整内容
-                self._call_nexus(
-                    "add_document",
-                    content=context["content"],
-                    title=f"对话 {conversation_id} - 轮{round_num} (完整)",
-                    tags=f"type:full,round:{round_num},conversation:{conversation_id}"
-                )
-                
-            elif context["status"] == "summary":
-                # 只存摘要
-                self._call_nexus(
-                    "add_document",
-                    content=f"[摘要] {context['summary']}",
-                    title=f"对话 {conversation_id} - 轮{round_num} (摘要)",
-                    tags=f"type:summary,round:{round_num},conversation:{conversation_id}"
-                )
-                
-            else:  # compressed
-                # 压缩存储
-                self._call_nexus(
-                    "add_document",
-                    content=f"[已压缩] {context['summary']}",
-                    title=f"对话 {conversation_id} - 轮{round_num} (已压缩)",
-                    tags=f"type:compressed,round:{round_num},conversation:{conversation_id}"
-                )
-                
+            self._call_nexus(
+                "add_document",
+                **smart_context_storage.build_round_context_document(
+                    conversation_id,
+                    round_num,
+                    context,
+                ),
+            )
         except Exception as e:
             print(f"⚠️ 存储上下文失败: {e}")
     
@@ -839,43 +821,39 @@ class SmartContextPlugin(NexusPlugin):
             return result
         
         try:
-            # 存储原文
-            self._call_nexus(
-                "add_document",
-                content=ai_response,
-                title=f"对话 {conversation_id} - 原文",
-                tags=f"type:content,source:{conversation_id}"
-            )
-            result["stored"] = True
-            
-            # 存储摘要
             summary = self._extract_summary(ai_response)
-            if summary:
-                self._call_nexus(
-                    "add_document",
-                    content=f"[摘要] {summary}",
-                    title=f"对话 {conversation_id} - 摘要",
-                    tags=f"type:summary,source:{conversation_id}"
-                )
-            
-            # 存储关键词
             keywords = self.extract_keywords(user_message + " " + ai_response)
-            if keywords:
+            combined_text = f"{user_message}\n{ai_response}"
+            if self.config.decision_block_enabled:
+                blocks = self._extract_decision_blocks(combined_text)
+            else:
+                blocks = []
+            if self.config.topic_block_enabled:
+                topics = self._extract_topics(combined_text)
+            else:
+                topics = []
+
+            for entry in smart_context_storage.build_conversation_store_entries(
+                conversation_id,
+                ai_response=ai_response,
+                summary=summary,
+                keywords=keywords,
+                decisions=[],
+                topics=[],
+            ):
                 self._call_nexus(
                     "add_document",
-                    content=" ".join(keywords),
-                    title=f"对话 {conversation_id} - 关键词",
-                    tags=f"type:keywords,source:{conversation_id}"
+                    content=entry["content"],
+                    title=entry["title"],
+                    tags=entry["tags"],
                 )
+                result["stored"] = True
 
-            if self.config.decision_block_enabled:
-                blocks = self._extract_decision_blocks(f"{user_message}\n{ai_response}")
+            if self.config.decision_block_enabled and blocks:
                 self._store_decision_blocks(conversation_id, 0, blocks)
 
-            if self.config.topic_block_enabled:
-                topics = self._extract_topics(f"{user_message}\n{ai_response}")
-                if topics:
-                    self._store_topic_blocks(conversation_id, 0, topics)
+            if self.config.topic_block_enabled and topics:
+                self._store_topic_blocks(conversation_id, 0, topics)
                 
         except Exception as e:
             result["error"] = str(e)
@@ -1199,26 +1177,31 @@ def store_conversation(conversation_id: str, user_message: str, ai_response: str
         min_summary_length=50,
         fallback_max_chars=100,
     ).summary
-    nexus_write(ai_response, f"对话 {conversation_id} - 原文", priority="P2", kind="summary", source=str(conversation_id), tags="type:content")
-    if summary:
-        nexus_write(f"[摘要] {summary}", f"对话 {conversation_id} - 摘要", priority="P1", kind="summary", source=str(conversation_id), tags="type:summary")
-
     keywords = smart_context_text.extract_keywords(user_message + " " + ai_response, limit=5)
-    if keywords:
-        nexus_write(" ".join(keywords), f"对话 {conversation_id} - 关键词", priority="P2", kind="fact", source=str(conversation_id), tags="type:keywords")
-
     decisions = smart_context_text.extract_decision_blocks(combined_text, max_items=3)
-    for idx, block in enumerate(decisions, 1):
-        nexus_write(block, f"决策块 {conversation_id} - ({idx})", priority="P0", kind="decision", source=str(conversation_id), tags="type:decision_block")
-
     topics = smart_context_text.extract_topics(
         combined_text,
         topic_max=3,
         topic_min_keywords=2,
         keyword_limit=5,
     )
-    for idx, topic in enumerate(topics, 1):
-        nexus_write(topic, f"主题块 {conversation_id} - ({idx})", priority="P1", kind="strategy", source=str(conversation_id), tags="type:topic_block")
+    for entry in smart_context_storage.build_conversation_store_entries(
+        conversation_id,
+        ai_response=ai_response,
+        summary=summary,
+        keywords=keywords,
+        decisions=decisions,
+        topics=topics,
+    ):
+        compat = entry["compat"]
+        nexus_write(
+            entry["content"],
+            entry["title"],
+            priority=compat["priority"],
+            kind=compat["kind"],
+            source=compat["source"],
+            tags=compat["tags"],
+        )
 
     return {"stored": True, "conversation_id": conversation_id}
 

@@ -75,6 +75,9 @@ smart_context_recall = importlib.import_module(
 smart_context_graph_inject = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_graph_inject"
 )
+smart_context_storage = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_storage"
+)
 
 
 def _load_script_module(module_name: str):
@@ -891,6 +894,46 @@ class TestSmartContextGraphInjectHelpers(unittest.TestCase):
         self.assertEqual(items[0]["source"], "graph")
         self.assertEqual(items[0]["relevance"], 0.8)
         self.assertEqual(items[0]["content"], "relay uses FastAPI | 证据: very")
+
+
+class TestSmartContextStorageHelpers(unittest.TestCase):
+    def test_build_round_context_document_uses_status_specific_payload(self):
+        summary_doc = smart_context_storage.build_round_context_document(
+            "conv-1",
+            2,
+            {"status": "summary", "summary": "保留 FastAPI"},
+        )
+        compressed_doc = smart_context_storage.build_round_context_document(
+            "conv-1",
+            3,
+            {"status": "compressed", "summary": "压缩摘要"},
+        )
+
+        self.assertEqual(summary_doc["content"], "[摘要] 保留 FastAPI")
+        self.assertEqual(summary_doc["title"], "对话 conv-1 - 轮2 (摘要)")
+        self.assertEqual(compressed_doc["content"], "[已压缩] 压缩摘要")
+        self.assertEqual(compressed_doc["tags"], "type:compressed,round:3,conversation:conv-1")
+
+    def test_build_conversation_store_entries_preserves_order_and_compat_meta(self):
+        entries = smart_context_storage.build_conversation_store_entries(
+            "conv-2",
+            ai_response="原文",
+            summary="摘要",
+            keywords=["alpha", "beta"],
+            decisions=["决定 A"],
+            topics=["主题 B"],
+        )
+
+        self.assertEqual([entry["title"] for entry in entries], [
+            "对话 conv-2 - 原文",
+            "对话 conv-2 - 摘要",
+            "对话 conv-2 - 关键词",
+            "决策块 conv-2 - (1)",
+            "主题块 conv-2 - (1)",
+        ])
+        self.assertEqual(entries[2]["content"], "alpha beta")
+        self.assertEqual(entries[3]["compat"]["kind"], "decision")
+        self.assertEqual(entries[4]["compat"]["tags"], "type:topic_block")
 
 
 if __name__ == "__main__":
