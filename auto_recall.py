@@ -19,13 +19,15 @@ DeepSea Nexus Auto-Recall Integration
 - NEXUS_SOCKET_PATH: Socket 路径（默认 /tmp/nexus_warmup.sock）
 """
 
-import os
-import sys
+from __future__ import annotations
+
 import json
-import socket
+import os
 import re
+import socket
+import sys
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 # ===================== 触发词配置 =====================
 TRIGGER_PATTERNS = [
@@ -41,6 +43,14 @@ TRIGGER_PATTERNS = [
 ]
 
 STOP_WORDS = {'的', '了', '是', '在', '我', '你', '他', '她', '它', '这', '那', '和', '与', '或', '就', '都', '也', '会', '可以', '什么', '怎么', '如何'}
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+DEFAULT_WORKSPACE_ROOT = Path(
+    os.environ.get(
+        "OPENCLAW_WORKSPACE",
+        os.path.join(os.path.expanduser("~"), ".openclaw", "workspace"),
+    )
+).expanduser()
 
 
 def detect_trigger(user_input: str) -> Optional[Dict[str, Any]]:
@@ -113,24 +123,73 @@ def _compat_search(query: str, n: int = 5) -> Optional[Dict]:
     return {"query": query, "results": out}
 
 
-# ===================== 直接加载模式 =====================
-WORKSPACE = os.environ.get('OPENCLAW_WORKSPACE', os.path.expanduser('~/.openclaw/workspace'))
-NEXUS_PATH = os.path.join(WORKSPACE, 'deepsea-nexus')
-VECTOR_STORE_PATH = os.path.join(NEXUS_PATH, 'vector_store')
-RETRIEVAL_PATH = os.path.join(NEXUS_PATH, 'src', 'retrieval')
+def resolve_nexus_root() -> Path:
+    override = os.environ.get("DEEPSEA_NEXUS_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return PROJECT_ROOT
 
-for path in [NEXUS_PATH, VECTOR_STORE_PATH, RETRIEVAL_PATH]:
-    if path not in sys.path:
-        sys.path.insert(0, path)
+
+def resolve_config_path(
+    config_path: Optional[str] = None,
+    *,
+    nexus_root: Optional[Path] = None,
+) -> Path:
+    if config_path:
+        return Path(config_path).expanduser().resolve()
+
+    root = Path(nexus_root or resolve_nexus_root()).resolve()
+    candidates = [
+        root / "config.json",
+        root / "config.yaml",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+def configure_import_paths(nexus_root: Path) -> None:
+    for candidate in [
+        nexus_root,
+        nexus_root / "vector_store",
+        nexus_root / "src" / "retrieval",
+    ]:
+        candidate_str = str(candidate)
+        if candidate_str not in sys.path:
+            sys.path.insert(0, candidate_str)
+
+
+# ===================== 直接加载模式 =====================
+NEXUS_ROOT = resolve_nexus_root()
+NEXUS_PATH = str(NEXUS_ROOT)
+VECTOR_STORE_PATH = str(NEXUS_ROOT / "vector_store")
+RETRIEVAL_PATH = str(NEXUS_ROOT / "src" / "retrieval")
+configure_import_paths(NEXUS_ROOT)
 
 
 class AutoRecall:
     """自动回忆集成"""
     
-    def __init__(self, use_socket: bool = True):
+    def __init__(
+        self,
+        use_socket: bool = True,
+        nexus_root: Optional[str] = None,
+        config_path: Optional[str] = None,
+    ):
         self.use_socket = use_socket
         self.recall = None
-        self.config_path = os.path.join(NEXUS_PATH, 'config.yaml')
+        self.nexus_root = (
+            Path(nexus_root).expanduser().resolve()
+            if nexus_root
+            else resolve_nexus_root()
+        )
+        configure_import_paths(self.nexus_root)
+        self.vector_store_path = self.nexus_root / "vector_store"
+        self.retrieval_path = self.nexus_root / "src" / "retrieval"
+        self.config_path = str(
+            resolve_config_path(config_path, nexus_root=self.nexus_root)
+        )
     
     def init(self) -> bool:
         """初始化向量存储（直接加载模式）"""
@@ -140,27 +199,39 @@ class AutoRecall:
         try:
             import importlib.util
             
-            spec = importlib.util.spec_from_file_location("init_chroma", 
-                os.path.join(VECTOR_STORE_PATH, 'init_chroma.py'))
+            spec = importlib.util.spec_from_file_location(
+                "init_chroma",
+                self.vector_store_path / "init_chroma.py",
+            )
             init_chroma = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(init_chroma)
             
-            spec2 = importlib.util.spec_from_file_location("manager", 
-                os.path.join(VECTOR_STORE_PATH, 'manager.py'))
+            spec2 = importlib.util.spec_from_file_location(
+                "manager",
+                self.vector_store_path / "manager.py",
+            )
             manager_mod = importlib.util.module_from_spec(spec2)
             spec2.loader.exec_module(manager_mod)
             
-            spec3 = importlib.util.spec_from_file_location("semantic_recall", 
-                os.path.join(RETRIEVAL_PATH, 'semantic_recall.py'))
+            spec3 = importlib.util.spec_from_file_location(
+                "semantic_recall",
+                self.retrieval_path / "semantic_recall.py",
+            )
             sr_mod = importlib.util.module_from_spec(spec3)
             spec3.loader.exec_module(sr_mod)
             
             store = init_chroma.create_vector_store(self.config_path)
             manager = manager_mod.create_manager(store.embedder, store.collection, self.config_path)
             self.recall = sr_mod.create_semantic_recall(manager, self.config_path)
+            stats_getter = getattr(store, "get_collection_stats", None)
+            if not callable(stats_getter):
+                stats_getter = getattr(store, "get_stats", None)
+            stats = stats_getter() if callable(stats_getter) else {}
             
-            print(f"✓ AutoRecall 初始化成功 ({store.get_stats().get('total_documents', '?')} docs)", 
-                  file=sys.stderr)
+            print(
+                f"✓ AutoRecall 初始化成功 ({stats.get('total_documents', '?')} docs)",
+                file=sys.stderr,
+            )
             return True
             
         except Exception as e:

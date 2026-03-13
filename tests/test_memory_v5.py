@@ -115,6 +115,19 @@ def _load_script_module(module_name: str):
     return module
 
 
+def _load_repo_file_module(module_name: str, relative_path: str):
+    module_path = REPO_ROOT / relative_path
+    spec = importlib.util.spec_from_file_location(
+        f"deepsea_nexus_repo_{module_name.replace('.', '_')}",
+        module_path,
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 class TestMemoryV5Scopes(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -496,6 +509,95 @@ class TestImportSessionsScript(unittest.TestCase):
                 str(workspace_session_dir.resolve()),
             },
         )
+
+
+class TestLegacyEntryHelpers(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.workspace_root = Path(self.temp_dir) / "workspace"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+        self.workspace_root.mkdir(parents=True, exist_ok=True)
+        self.import_sessions_simple = _load_script_module("import_sessions_simple")
+        self.import_sessions_sqlite = _load_script_module("import_sessions_sqlite")
+        self.auto_recall = _load_repo_file_module("auto_recall", "auto_recall.py")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_import_sessions_simple_uses_current_metadata_key(self):
+        session_dir = self.repo_root / "memory" / "90_Memory" / "2026-03"
+        session_dir.mkdir(parents=True, exist_ok=True)
+        (session_dir / "session_0900_Test.md").write_text(
+            """---
+title: Test Session
+tags: [alpha, beta]
+created: 2026-03-13T09:00:00
+---
+
+Session body
+""",
+            encoding="utf-8",
+        )
+
+        collection = SimpleNamespace()
+        add_calls = []
+
+        def _add(**kwargs):
+            add_calls.append(kwargs)
+
+        collection.add = _add
+
+        stats = self.import_sessions_simple.import_sessions(str(session_dir), collection)
+
+        self.assertEqual(stats["imported"], 1)
+        self.assertEqual(stats["failed"], 0)
+        self.assertEqual(len(add_calls), 1)
+        self.assertIn("metadatas", add_calls[0])
+        self.assertNotIn("metadatars", add_calls[0])
+        self.assertEqual(add_calls[0]["metadatas"][0]["title"], "Test Session")
+
+    def test_import_sessions_sqlite_discovers_repo_and_workspace_roots(self):
+        repo_session_dir = self.repo_root / "memory" / "90_Memory" / "2026-02"
+        workspace_session_dir = self.workspace_root / "memory" / "90_Memory" / "2026-03"
+        repo_session_dir.mkdir(parents=True, exist_ok=True)
+        workspace_session_dir.mkdir(parents=True, exist_ok=True)
+        (repo_session_dir / "session_0900_Repo.md").write_text("# repo\n", encoding="utf-8")
+        (workspace_session_dir / "session_1000_Workspace.md").write_text(
+            "# workspace\n",
+            encoding="utf-8",
+        )
+
+        session_dirs = self.import_sessions_sqlite.build_default_session_dirs(
+            workspace_root=self.workspace_root,
+            nexus_root=self.repo_root,
+        )
+
+        self.assertEqual(
+            set(session_dirs),
+            {
+                str(repo_session_dir.resolve()),
+                str(workspace_session_dir.resolve()),
+            },
+        )
+
+    def test_auto_recall_prefers_current_repo_config_json(self):
+        json_path = self.repo_root / "config.json"
+        yaml_path = self.repo_root / "config.yaml"
+        json_path.write_text('{"paths": {"base": "json-base"}}', encoding="utf-8")
+        yaml_path.write_text("paths:\n  base: yaml-base\n", encoding="utf-8")
+
+        resolved = self.auto_recall.resolve_config_path(nexus_root=self.repo_root)
+        recall = self.auto_recall.AutoRecall(
+            use_socket=False,
+            nexus_root=str(self.repo_root),
+        )
+
+        self.assertEqual(resolved, json_path.resolve())
+        self.assertEqual(recall.nexus_root, self.repo_root.resolve())
+        self.assertEqual(recall.config_path, str(json_path.resolve()))
 
 
 class TestRepoRuntimeCleanupScript(unittest.TestCase):
