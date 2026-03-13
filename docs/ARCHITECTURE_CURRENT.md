@@ -152,10 +152,13 @@ current implementation:
 
 - `DOCUMENTATION.md`: archived v2.3 technical doc
 - `docs/architecture_v3.md`: archived v4.1-on-v3 architecture doc
+- `docs/USAGE_GUIDE.md`: historical compatibility guide, not the v5 source of truth
 - `plugins/nexus_core.py`: compatibility alias to `plugins/nexus_core_plugin.py`
 - `nexus_core.py`: compatibility-heavy legacy shell still referenced by some
   historical docs and tests
 - `src/nexus_core.py`: historical implementation snapshot
+- `tests/test_core.py`, `tests/test_complete.py`: archived v2-era tests, not part
+  of the v5 release gate
 
 ## Refactor Guardrails
 

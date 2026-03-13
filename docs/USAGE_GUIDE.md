@@ -1,7 +1,7 @@
-# Deep-Sea Nexus v4.4.0 使用指南
+# Deep-Sea Nexus 使用指南（历史兼容版）
 
-> 说明：本文保留 v2 兼容说明，同时已适配 v4.x（插件模式优先，`config.json` 推荐）。
-> 核心逻辑零依赖，可选组件（sentence-transformers / chromadb）存在即用、缺失自动降级。
+> 状态：本文保留较多 v2/v4 时代的兼容说明，已不再是 v5 当前真源。
+> 当前文档请优先看：`README.md`、`README_EN.md`、`docs/ARCHITECTURE_CURRENT.md`、`docs/API_CURRENT.md`。
 > 本地部署流程见：`docs/LOCAL_DEPLOY.md`。
 
 ## 目录
@@ -100,37 +100,23 @@ tqdm>=4.65.0
 
 ### CLI 命令
 
-#### 初始化系统
+当前推荐 CLI 入口：
 
 ```bash
-python src/nexus_core.py --init
+python3 __main__.py version --json
+python3 __main__.py health --json
+python3 __main__.py recall "列表" -n 5 --json
 ```
 
-#### 创建会话
+维护旧文件布局时，继续使用脚本入口：
 
 ```bash
-python src/nexus_core.py --session "Python学习"
+python3 scripts/daily_flush.py --once
+python3 scripts/index_rebuild.py --all
+python3 scripts/session_split.py --scan
 ```
 
-#### 写入内容
-
-```bash
-python src/nexus_core.py --write "今天学习列表推导式"
-```
-
-#### 召回记忆
-
-```bash
-python src/nexus_core.py --recall "列表"
-```
-
-#### 查看索引
-
-```bash
-python src/nexus_core.py --index
-```
-
-> 提示：如果插件系统已启动，`nexus_core.py` 会优先走插件/compat 路径；未启动时回退为独立脚本模式。
+> `src/nexus_core.py` 现仅保留为历史实现快照，不建议新接入继续依赖。
 
 ### 批量索引工具
 
@@ -254,29 +240,20 @@ python scripts/migrate.py --source /path/to/v1 --verify
 ### Python API
 
 ```python
-from src.nexus_core import NexusCore
+from deepsea_nexus import nexus_add, nexus_init, nexus_recall
 
 # 初始化
-nexus = NexusCore()
-
-# 创建会话
-session_id = nexus.start_session("Python学习")
-
-# 写入内容（支持 #GOLD 标记）
-nexus.write_session(session_id, "今天学习列表推导式")
-nexus.write_session(session_id, "#GOLD 使用列表推导式更高效", is_gold=True)
+nexus_init()
+nexus_add(
+    content="今天学习列表推导式，过滤条件写在尾部更易读。",
+    title="Python学习",
+    tags="python,list-comprehension",
+)
 
 # 召回记忆
-results = nexus.recall("列表")
+results = nexus_recall("列表", n=5)
 for r in results:
-    print(f"[{r.relevance:.2f}] {r.content}")
-
-# 每日 Flush
-stats = nexus.daily_flush()
-
-# 获取统计
-stats = nexus.get_stats()
-print(f"今日会话数: {stats['today_sessions']}")
+    print(f"[{r.relevance:.2f}] {r.source}")
 ```
 
 ### 向量存储 API
@@ -458,13 +435,13 @@ cp -r backup/.vector_db memory/.vector_db
 2. 不加载任何 Session 历史
 
 ## 对话规则
-1. 用户提问时调用 `nexus.recall(query)`
+1. 用户提问时调用 `nexus_recall(query)` 或通过当前 SmartContext 注入
 2. 只加载相关内容 (< 500 tokens)
 3. 不注入完整上下文
 
 ## 写入规则
 1. 关键信息添加 `#GOLD` 标记
-2. 每次交互后调用 `nexus.write_session()`
+2. 每次交互后调用 `nexus_add()` / `nexus_write()`
 ```
 
 ### Q6: 报错 "client" 属性不存在？

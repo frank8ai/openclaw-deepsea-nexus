@@ -12,6 +12,11 @@ from pathlib import Path
 from datetime import datetime
 from unittest.mock import patch, MagicMock
 
+pytest.skip(
+    "Legacy v2 archive test module; use run_tests.py and tests/test_memory_v5.py for current v5 coverage.",
+    allow_module_level=True,
+)
+
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))

@@ -9,6 +9,11 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+pytest.skip(
+    "Legacy v2 archive test module; use run_tests.py and tests/test_memory_v5.py for current v5 coverage.",
+    allow_module_level=True,
+)
+
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
