@@ -25,6 +25,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
+from . import smart_context_inject
 from . import smart_context_text
 from .session_manager import SessionManagerPlugin
 from .smart_context_runtime import SmartContextRuntimeState
@@ -757,84 +758,40 @@ class SmartContextPlugin(NexusPlugin):
         return ratio <= float(self.config.topic_switch_min_overlap_ratio)
 
     def _trim_injected_items(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        if not items:
-            return []
-        max_chars = max(80, int(self.config.inject_max_chars_per_item))
-        max_lines_per = max(2, int(self.config.inject_max_lines_per_item))
-        max_lines_total = max(10, int(self.config.inject_max_lines_total))
-
-        trimmed: List[Dict[str, Any]] = []
-        used_lines = 0
-        for item in items:
-            content = (item.get("content") or "").strip()
-            if not content:
-                continue
-            lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
-            if len(lines) > max_lines_per:
-                lines = lines[:max_lines_per]
-            text = "\n".join(lines)
-            if len(text) > max_chars:
-                text = text[:max_chars].rstrip() + "..."
-            line_count = max(1, text.count("\n") + 1)
-            if used_lines + line_count > max_lines_total:
-                break
-            used_lines += line_count
-            item = dict(item)
-            item["content"] = text
-            trimmed.append(item)
-        return trimmed
+        return smart_context_inject.trim_injected_items(
+            items,
+            max_chars_per_item=int(self.config.inject_max_chars_per_item),
+            max_lines_per_item=int(self.config.inject_max_lines_per_item),
+            max_lines_total=int(self.config.inject_max_lines_total),
+        )
 
     def _normalize_tags(self, metadata: Any) -> List[str]:
-        tags: List[str] = []
-        if isinstance(metadata, dict):
-            raw = metadata.get("tags") or []
-            if isinstance(raw, list):
-                tags.extend([str(t).strip() for t in raw if str(t).strip()])
-            elif isinstance(raw, str):
-                tags.extend([t.strip() for t in raw.split(",") if t.strip()])
-        return tags
+        return smart_context_inject.normalize_tags(metadata)
 
     def _score_injected_item(self, relevance: float, tags: List[str], source: str) -> float:
-        score = float(relevance or 0.0)
-        tag_str = ",".join(tags)
-        if "type:decision_block" in tag_str or "决策块" in (source or ""):
-            score += float(self.config.inject_signal_boost_decision)
-        if "type:topic_block" in tag_str or "主题块" in (source or ""):
-            score += float(self.config.inject_signal_boost_topic)
-        if "type:summary" in tag_str or "摘要" in (source or ""):
-            score += float(self.config.inject_signal_boost_summary)
-        return min(1.5, score)
+        return smart_context_inject.score_injected_item(
+            relevance,
+            tags,
+            source,
+            decision_boost=float(self.config.inject_signal_boost_decision),
+            topic_boost=float(self.config.inject_signal_boost_topic),
+            summary_boost=float(self.config.inject_signal_boost_summary),
+        )
 
     def _has_signal_tag(self, tags: List[str], source: str) -> bool:
-        if not tags and not source:
-            return False
-        tag_str = ",".join(tags)
-        if "type:decision_block" in tag_str or "type:topic_block" in tag_str:
-            return True
-        if "决策块" in (source or "") or "主题块" in (source or ""):
-            return True
-        return False
+        return smart_context_inject.has_signal_tag(tags, source)
 
     def _dynamic_inject_params(self, reason: str, items: List[Dict[str, Any]]) -> Tuple[int, float]:
-        max_items = int(self.config.inject_max_items)
-        threshold = float(self.config.inject_threshold)
-
-        if reason == "context_starved":
-            max_items = max(1, min(2, max_items))
-            threshold = max(0.0, min(1.0, threshold * 0.85))
-
-        if not self.config.inject_dynamic_enabled:
-            return max_items, threshold
-
-        signal_hits = sum(1 for item in items if self._has_signal_tag(item.get("tags", []), item.get("source", "")))
-        if signal_hits == 0:
-            max_items = max(1, max_items - int(self.config.inject_dynamic_low_signal_penalty))
-            threshold = min(0.95, threshold + 0.05)
-        elif signal_hits >= 2:
-            max_items = min(int(self.config.inject_dynamic_max_items), max_items + int(self.config.inject_dynamic_high_signal_bonus))
-            threshold = max(0.0, threshold - 0.05)
-
-        return max_items, threshold
+        return smart_context_inject.dynamic_inject_params(
+            reason,
+            items,
+            max_items=int(self.config.inject_max_items),
+            threshold=float(self.config.inject_threshold),
+            inject_dynamic_enabled=bool(self.config.inject_dynamic_enabled),
+            dynamic_max_items=int(self.config.inject_dynamic_max_items),
+            dynamic_low_signal_penalty=int(self.config.inject_dynamic_low_signal_penalty),
+            dynamic_high_signal_bonus=int(self.config.inject_dynamic_high_signal_bonus),
+        )
 
     def _extract_graph_edges(self, block: str, conversation_id: str) -> List[Dict[str, Any]]:
         if not block:

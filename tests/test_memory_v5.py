@@ -52,6 +52,9 @@ smart_context_runtime = importlib.import_module(
 smart_context_text = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_text"
 )
+smart_context_inject = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.smart_context_inject"
+)
 
 
 def _load_script_module(module_name: str):
@@ -575,6 +578,64 @@ class TestSmartContextTextHelpers(unittest.TestCase):
 
         self.assertIn("Relay Runtime", topics)
         self.assertTrue(any("relay / runtime / provider" == topic for topic in topics))
+
+
+class TestSmartContextInjectHelpers(unittest.TestCase):
+    def test_trim_injected_items_respects_line_and_char_budget(self):
+        items = [
+            {"content": "line1\nline2\nline3"},
+            {"content": "line4\nline5\nline6"},
+            {"content": "line7\nline8\nline9"},
+            {"content": "line10\nline11\nline12"},
+            {"content": "x" * 120},
+            {"content": "extra-1"},
+            {"content": "extra-2"},
+        ]
+
+        trimmed = smart_context_inject.trim_injected_items(
+            items,
+            max_chars_per_item=80,
+            max_lines_per_item=2,
+            max_lines_total=10,
+        )
+
+        self.assertEqual(len(trimmed), 6)
+        self.assertEqual(trimmed[0]["content"], "line1\nline2")
+        self.assertTrue(trimmed[4]["content"].endswith("..."))
+        self.assertEqual(trimmed[-1]["content"], "extra-1")
+
+    def test_dynamic_inject_params_penalizes_low_signal_items(self):
+        max_items, threshold = smart_context_inject.dynamic_inject_params(
+            "question",
+            [{"tags": [], "source": ""}],
+            max_items=3,
+            threshold=0.6,
+            inject_dynamic_enabled=True,
+            dynamic_max_items=5,
+            dynamic_low_signal_penalty=1,
+            dynamic_high_signal_bonus=1,
+        )
+
+        self.assertEqual(max_items, 2)
+        self.assertAlmostEqual(threshold, 0.65, places=6)
+
+    def test_dynamic_inject_params_rewards_high_signal_items(self):
+        max_items, threshold = smart_context_inject.dynamic_inject_params(
+            "question",
+            [
+                {"tags": ["type:decision_block"], "source": ""},
+                {"tags": [], "source": "主题块 test"},
+            ],
+            max_items=3,
+            threshold=0.6,
+            inject_dynamic_enabled=True,
+            dynamic_max_items=5,
+            dynamic_low_signal_penalty=1,
+            dynamic_high_signal_bonus=1,
+        )
+
+        self.assertEqual(max_items, 4)
+        self.assertAlmostEqual(threshold, 0.55, places=6)
 
 
 if __name__ == "__main__":
