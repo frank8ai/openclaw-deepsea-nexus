@@ -18,7 +18,6 @@ infer_workspace_dir() {
 }
 
 OPENCLAW_WORKSPACE_DIR="$(infer_workspace_dir)"
-export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE_DIR}"
 if [[ -n "${NEXUS_PYTHON_PATH:-}" && -x "${NEXUS_PYTHON_PATH}" ]]; then
   PYTHON_BIN="${NEXUS_PYTHON_PATH}"
 elif [[ -x "${ROOT_DIR}/.venv-3.13/bin/python" ]]; then
@@ -84,14 +83,15 @@ EOF
   esac
 done
 
-export NEXUS_VECTOR_DB="${NEXUS_VECTOR_DB:-${OPENCLAW_WORKSPACE_DIR}/memory/.vector_db_restored}"
-export NEXUS_COLLECTION="${NEXUS_COLLECTION:-deepsea_nexus_restored}"
+NEXUS_VECTOR_DB_VALUE="${NEXUS_VECTOR_DB:-${OPENCLAW_WORKSPACE_DIR}/memory/.vector_db_restored}"
+NEXUS_COLLECTION_VALUE="${NEXUS_COLLECTION:-deepsea_nexus_restored}"
 
 echo "[deploy] Deep-Sea Nexus local deploy (v5.0.0)"
 echo "[deploy] root=${ROOT_DIR}"
 echo "[deploy] python=${PYTHON_BIN}"
-echo "[deploy] vector_db=${NEXUS_VECTOR_DB}"
-echo "[deploy] collection=${NEXUS_COLLECTION}"
+echo "[deploy] workspace=${OPENCLAW_WORKSPACE_DIR}"
+echo "[deploy] vector_db=${NEXUS_VECTOR_DB_VALUE}"
+echo "[deploy] collection=${NEXUS_COLLECTION_VALUE}"
 echo "[deploy] benchmark_cases=${BENCH_CASES}"
 echo "[deploy] lifecycle_audit=${RUN_LIFECYCLE_AUDIT}"
 echo "[deploy] lifecycle_all_agents=${LIFECYCLE_ALL_AGENTS}"
@@ -121,6 +121,35 @@ run_py() {
   return ${rc}
 }
 
+run_py_runtime() {
+  local -a env_args=(
+    "OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE_DIR}"
+    "NEXUS_VECTOR_DB=${NEXUS_VECTOR_DB_VALUE}"
+    "NEXUS_COLLECTION=${NEXUS_COLLECTION_VALUE}"
+  )
+
+  set +e
+  env "${env_args[@]}" "${PYTHON_BIN}" "$@"
+  rc=$?
+  set -e
+  if [[ ${rc} -eq 0 ]]; then
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    FALLBACK_PY="$(command -v python3)"
+    if [[ "${FALLBACK_PY}" != "${PYTHON_BIN}" ]]; then
+      echo "[deploy] primary python failed (rc=${rc}), fallback -> ${FALLBACK_PY}"
+      env "${env_args[@]}" "${FALLBACK_PY}" "$@"
+      fb_rc=$?
+      if [[ ${fb_rc} -eq 0 ]]; then
+        PYTHON_BIN="${FALLBACK_PY}"
+      fi
+      return ${fb_rc}
+    fi
+  fi
+  return ${rc}
+}
+
 if [[ "${MODE}" == "--quick" ]]; then
   echo "[deploy] quick mode: run memory_v5 focused tests"
   run_py tests/test_memory_v5.py -v
@@ -130,7 +159,7 @@ else
 fi
 
 echo "[deploy] runtime smoke check"
-run_py - <<'PY'
+run_py_runtime - <<'PY'
 import json
 import os
 import sys
@@ -168,10 +197,10 @@ print(
 PY
 
 echo "[deploy] memory_v5 smoke"
-run_py scripts/memory_v5_smoke.py
+run_py_runtime scripts/memory_v5_smoke.py
 
 echo "[deploy] memory_v5 benchmark"
-BENCH_JSON="$(run_py scripts/memory_v5_benchmark.py --cases "${BENCH_CASES}" --all-agents)"
+BENCH_JSON="$(run_py_runtime scripts/memory_v5_benchmark.py --cases "${BENCH_CASES}" --all-agents)"
 echo "${BENCH_JSON}"
 run_py - "${BENCH_JSON}" <<'PY'
 import json
@@ -193,7 +222,7 @@ if [[ "${RUN_LIFECYCLE_AUDIT}" == "1" ]]; then
   if [[ "${LIFECYCLE_ALL_AGENTS}" == "1" ]]; then
     MAINTENANCE_ARGS+=("--all-agents")
   fi
-  run_py "${MAINTENANCE_ARGS[@]}"
+  run_py_runtime "${MAINTENANCE_ARGS[@]}"
 fi
 
 echo "[deploy] done"
