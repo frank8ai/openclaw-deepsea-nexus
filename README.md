@@ -8,6 +8,11 @@ AI agent 的本地长期记忆与上下文治理层。
 **状态**: `v5.0.0` 正式版（official release）
 **更新**: `2026-03-14`
 
+## Comparison
+
+**Beyond Context Management:** Deep-Sea Nexus 不是在重复做记忆框架，而是在补齐治理层（evidence gate、scope isolation、lifecycle governance、ops audit）。  
+Read the technical manifesto: [`COMPARISON.md`](COMPARISON.md)
+
 ## 项目定义
 
 Deep-Sea Nexus 的目标不是“无限保存原始聊天记录”，而是通过上下文治理实现

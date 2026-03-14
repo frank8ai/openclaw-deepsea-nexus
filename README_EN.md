@@ -7,6 +7,11 @@ workflows.
 
 Last updated: 2026-03-14
 
+## Comparison
+
+**Beyond Context Management:** Deep-Sea Nexus focuses on governance-grade memory operations (evidence-gated writes, scope isolation, lifecycle governance, and operator auditability).  
+Read the technical manifesto: [`COMPARISON.md`](COMPARISON.md)
+
 ## What It Is
 
 Deep-Sea Nexus is a local-first memory and context-governance layer for
