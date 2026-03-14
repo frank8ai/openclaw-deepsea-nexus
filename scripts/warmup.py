@@ -4,17 +4,59 @@ DeepSea Nexus 预热脚本
 预加载模型和向量库，避免首次搜索延迟
 """
 
-import sys
+from __future__ import annotations
+
 import os
+import sys
+from pathlib import Path
 
-WORKSPACE = '/Users/yizhi/.openclaw/workspace'
-NEXUS_PATH = os.path.join(WORKSPACE, 'deepsea-nexus')
-VECTOR_STORE_PATH = os.path.join(NEXUS_PATH, 'vector_store')
-RETRIEVAL_PATH = os.path.join(NEXUS_PATH, 'src', 'retrieval')
+SCRIPT_PATH = Path(__file__).resolve()
 
-for path in [NEXUS_PATH, VECTOR_STORE_PATH, RETRIEVAL_PATH]:
-    if path not in sys.path:
-        sys.path.insert(0, path)
+
+def resolve_repo_root() -> Path:
+    override = os.environ.get("DEEPSEA_NEXUS_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return SCRIPT_PATH.parent.parent.resolve()
+
+
+REPO_ROOT = resolve_repo_root()
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from runtime_paths import resolve_openclaw_workspace
+
+
+def resolve_workspace_root() -> Path:
+    return Path(resolve_openclaw_workspace()).expanduser().resolve()
+
+
+def resolve_vector_db_path() -> Path:
+    override = os.environ.get("NEXUS_VECTOR_DB", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (resolve_workspace_root() / "memory" / ".vector_db_restored").resolve()
+
+
+def resolve_collection_name() -> str:
+    return (
+        os.environ.get("NEXUS_COLLECTION")
+        or os.environ.get("NEXUS_PRIMARY_COLLECTION")
+        or "deepsea_nexus_restored"
+    )
+
+
+def bootstrap_repo_paths() -> None:
+    vector_store_path = REPO_ROOT / "vector_store"
+    retrieval_path = REPO_ROOT / "src" / "retrieval"
+
+    for path in (REPO_ROOT, vector_store_path, retrieval_path):
+        path_str = str(path)
+        if path_str not in sys.path:
+            sys.path.insert(0, path_str)
+
+
+bootstrap_repo_paths()
 
 
 def warmup():
@@ -33,9 +75,12 @@ def warmup():
     import chromadb
     from chromadb.config import Settings
     
-    path = '/Users/yizhi/.openclaw/workspace/memory/.vector_db'
-    client = chromadb.PersistentClient(path=path, settings=Settings(anonymized_telemetry=False))
-    collection = client.get_or_create_collection(name='deep_sea_nexus_notes')
+    path = resolve_vector_db_path()
+    client = chromadb.PersistentClient(
+        path=str(path),
+        settings=Settings(anonymized_telemetry=False),
+    )
+    collection = client.get_or_create_collection(name=resolve_collection_name())
     print(f"    ✓ 向量库连接成功 ({collection.count()} 文档)")
     
     # 3. 测试检索

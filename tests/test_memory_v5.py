@@ -1662,8 +1662,63 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
         self.assertEqual(report_dir, (REPO_ROOT / "docs" / "reports").resolve())
         self.assertEqual(stores, [])
 
+    def test_warmup_script_defaults_follow_workspace_and_current_collection(self):
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {
+                "OPENCLAW_WORKSPACE": temp_dir,
+                "NEXUS_VECTOR_DB": "",
+                "NEXUS_COLLECTION": "deepsea_nexus_restored",
+            },
+            clear=False,
+        ):
+            module = _load_script_module("warmup")
+            self.assertEqual(module.resolve_workspace_root(), Path(temp_dir).resolve())
+            self.assertEqual(
+                module.resolve_vector_db_path(),
+                (Path(temp_dir).resolve() / "memory" / ".vector_db_restored").resolve(),
+            )
+            self.assertEqual(module.resolve_collection_name(), "deepsea_nexus_restored")
+            self.assertEqual(module.resolve_repo_root(), REPO_ROOT.resolve())
+
+    def test_warmup_daemon_defaults_follow_workspace_repo_and_socket_env(self):
+        with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as repo_root, mock.patch.dict(
+            os.environ,
+            {
+                "OPENCLAW_WORKSPACE": temp_dir,
+                "DEEPSEA_NEXUS_ROOT": repo_root,
+                "NEXUS_VECTOR_DB": "",
+                "NEXUS_COLLECTION": "custom_collection",
+                "NEXUS_SOCKET_PATH": "/tmp/custom-nexus.sock",
+            },
+            clear=False,
+        ):
+            module = _load_script_module("warmup_daemon")
+            self.assertEqual(module.resolve_workspace_root(), Path(temp_dir).resolve())
+            self.assertEqual(module.resolve_repo_root(), Path(repo_root).resolve())
+            self.assertEqual(
+                module.resolve_vector_db_path(),
+                (Path(temp_dir).resolve() / "memory" / ".vector_db_restored").resolve(),
+            )
+            self.assertEqual(module.resolve_collection_name(), "custom_collection")
+            self.assertEqual(module.SOCKET_PATH, "/tmp/custom-nexus.sock")
+
+    def test_warmup_service_script_uses_current_repo_defaults(self):
+        script_path = REPO_ROOT / "scripts" / "warmup_service.sh"
+        contents = script_path.read_text(encoding="utf-8")
+
+        self.assertIn('ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"', contents)
+        self.assertIn('SCRIPT_PATH="${NEXUS_WARMUP_SCRIPT:-${ROOT_DIR}/scripts/warmup_daemon.py}"', contents)
+        self.assertIn('OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-${OPENCLAW_HOME_DIR}/workspace}"', contents)
+        self.assertIn('LOG_PATH="${NEXUS_WARMUP_LOG:-${OPENCLAW_WORKSPACE_DIR}/logs/nexus_warmup.log}"', contents)
+        self.assertNotIn("/Users/yizhi", contents)
+
     def test_current_shell_entrypoints_have_valid_syntax(self):
-        for relative_path in ("scripts/deploy_local_v5.sh", "scripts/nexus_doctor_local.sh"):
+        for relative_path in (
+            "scripts/deploy_local_v5.sh",
+            "scripts/nexus_doctor_local.sh",
+            "scripts/warmup_service.sh",
+        ):
             result = subprocess.run(
                 ["bash", "-n", str(REPO_ROOT / relative_path)],
                 capture_output=True,

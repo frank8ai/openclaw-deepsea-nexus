@@ -4,25 +4,64 @@ DeepSea Nexus 后台预热服务 (带 Socket 接口)
 保持模型和向量库常驻内存，避免重复加载延迟
 """
 
+from __future__ import annotations
+
+import json
 import os
-import sys
 import signal
 import socket
-import json
+import sys
 import threading
-import time
+from pathlib import Path
 
-# 设置工作目录
-WORKSPACE = '/Users/yizhi/.openclaw/workspace'
-NEXUS_PATH = os.path.join(WORKSPACE, 'deepsea-nexus')
-VECTOR_STORE_PATH = os.path.join(NEXUS_PATH, 'vector_store')
-RETRIEVAL_PATH = os.path.join(NEXUS_PATH, 'src', 'retrieval')
+SCRIPT_PATH = Path(__file__).resolve()
 
-for path in [NEXUS_PATH, VECTOR_STORE_PATH, RETRIEVAL_PATH]:
-    if path not in sys.path:
-        sys.path.insert(0, path)
 
-SOCKET_PATH = "/tmp/nexus_warmup.sock"
+def resolve_repo_root() -> Path:
+    override = os.environ.get("DEEPSEA_NEXUS_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return SCRIPT_PATH.parent.parent.resolve()
+
+
+REPO_ROOT = resolve_repo_root()
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from runtime_paths import resolve_openclaw_workspace
+
+
+def resolve_workspace_root() -> Path:
+    return Path(resolve_openclaw_workspace()).expanduser().resolve()
+
+
+def resolve_vector_db_path() -> Path:
+    override = os.environ.get("NEXUS_VECTOR_DB", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (resolve_workspace_root() / "memory" / ".vector_db_restored").resolve()
+
+
+def resolve_collection_name() -> str:
+    return (
+        os.environ.get("NEXUS_COLLECTION")
+        or os.environ.get("NEXUS_PRIMARY_COLLECTION")
+        or "deepsea_nexus_restored"
+    )
+
+
+def bootstrap_repo_paths() -> None:
+    vector_store_path = REPO_ROOT / "vector_store"
+    retrieval_path = REPO_ROOT / "src" / "retrieval"
+
+    for path in (REPO_ROOT, vector_store_path, retrieval_path):
+        path_str = str(path)
+        if path_str not in sys.path:
+            sys.path.insert(0, path_str)
+
+
+bootstrap_repo_paths()
+SOCKET_PATH = os.environ.get("NEXUS_SOCKET_PATH", "/tmp/nexus_warmup.sock")
 
 
 class NexusWarmupService:
@@ -50,9 +89,12 @@ class NexusWarmupService:
         import chromadb
         from chromadb.config import Settings
         
-        path = '/Users/yizhi/.openclaw/workspace/memory/.vector_db'
-        self.client = chromadb.PersistentClient(path=path, settings=Settings(anonymized_telemetry=False))
-        self.collection = self.client.get_or_create_collection(name='deep_sea_nexus_notes')
+        path = resolve_vector_db_path()
+        self.client = chromadb.PersistentClient(
+            path=str(path),
+            settings=Settings(anonymized_telemetry=False),
+        )
+        self.collection = self.client.get_or_create_collection(name=resolve_collection_name())
         print(f"    ✓ 向量库连接成功 ({self.collection.count()} 文档)", flush=True)
         
         # 3. 创建 Unix Socket
