@@ -1,4 +1,4 @@
-# OpenClaw Deep-Sea Nexus v5.0.0
+# OpenClaw Deep-Sea Nexus v5.0.1
 
 Local-first long-term memory and context-governance tooling for agent
 workflows.
@@ -6,6 +6,8 @@ workflows.
 [简体中文](README.md)
 
 Last updated: 2026-03-14
+
+Current release: `v5.0.1` patch release
 
 ## What It Is
 
@@ -44,7 +46,17 @@ Detailed current source of truth remains in Chinese.
 - async runtime and plugin lifecycle
 - Memory v5 scoped memory (`agent_id` / `user_id`)
 - context-governed recall / inject / compress / rescue
+- lifecycle maintenance with thresholded status / alerts / hot-scope summaries
 - local deploy / doctor / smoke / benchmark workflows
+
+## Patch Focus
+
+`v5.0.1` tightens the default lifecycle operator path:
+
+- thresholded maintenance status
+- flattened alerts for risky scopes
+- hot-scope summaries for operators
+- explicit follow-up recommendations without enabling silent auto-mutation
 
 ## Validation
 
@@ -53,4 +65,5 @@ python3 -m unittest tests.test_memory_v5 -v
 python3 run_tests.py
 bash scripts/nexus_doctor_local.sh --check --skip-deploy
 python3 scripts/memory_v5_smoke.py
+python3 scripts/memory_v5_maintenance.py --dry-run --write-report
 ```

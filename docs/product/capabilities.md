@@ -50,6 +50,7 @@ Last updated: 2026-03-14
 - Memory v5 scoped layout
 - SQLite-backed index
 - Memory v5 lifecycle audit / explicit archive maintenance
+- thresholded lifecycle status / alerts / hot-scope summaries
 - optional per-kind lifecycle defaults for narrower retention tuning
 - explicit archive-default backfill for older zero-valued rows
 

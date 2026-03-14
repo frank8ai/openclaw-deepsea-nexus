@@ -4,6 +4,8 @@ Last updated: 2026-03-14
 
 This file is the minimal English entrypoint for the current product narrative.
 
+Current release: `v5.0.1` patch release
+
 ## Product Summary
 
 OpenClaw Deep-Sea Nexus is a local-first memory and context-governance layer for agent
@@ -15,6 +17,7 @@ Current product promises:
 - gradual migration from older sync automation
 - scoped memory with `agent_id` / `user_id`
 - observable local operation through deploy / doctor / smoke / benchmark flows
+- lifecycle maintenance with thresholded status / alerts / hot-scope summaries
 
 ## Read In This Order
 

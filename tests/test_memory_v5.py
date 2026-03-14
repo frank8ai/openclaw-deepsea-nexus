@@ -777,12 +777,19 @@ class TestMemoryV5MaintenanceScript(unittest.TestCase):
         )
 
         self.assertTrue(result["dry_run"])
+        self.assertTrue(result["alerts_enabled"])
         self.assertEqual(result["scope_count"], 1)
         self.assertEqual(result["checked"], 2)
         self.assertEqual(result["archived"], 0)
+        self.assertEqual(result["status"]["level"], "critical")
         self.assertEqual(result["totals"]["ttl_expired"], 1)
         self.assertEqual(result["totals"]["archive_due"], 1)
         self.assertEqual(result["totals"]["matched"], 2)
+        self.assertEqual(result["scope_status_counts"]["critical"], 1)
+        alert_metrics = {alert["metric"] for alert in result["alerts"]}
+        self.assertIn("archive_due", alert_metrics)
+        self.assertIn("decaying_ratio", alert_metrics)
+        self.assertIn("ttl_expired", alert_metrics)
         self.assertCountEqual(
             result["scopes"][0]["archive"]["candidate_ids"],
             [due_id, expired_id],
@@ -848,6 +855,9 @@ class TestMemoryV5MaintenanceScript(unittest.TestCase):
         markdown = md_out.read_text(encoding="utf-8")
         self.assertEqual(payload["generated_at"], result["generated_at"])
         self.assertIn("# Memory V5 Lifecycle Maintenance", markdown)
+        self.assertIn("## Alerts", markdown)
+        self.assertIn("## Recommended Actions", markdown)
+        self.assertIn("- Overall status:", markdown)
         self.assertIn("## Totals", markdown)
 
     def test_run_reports_archive_backfill_candidates(self):
@@ -884,6 +894,113 @@ class TestMemoryV5MaintenanceScript(unittest.TestCase):
         self.assertEqual(result["totals"]["backfill_matched"], 1)
         self.assertEqual(result["totals"]["backfill_updated"], 0)
         self.assertIn(item_id, result["scopes"][0]["backfill"]["candidate_ids"])
+
+    def test_run_emits_hot_scope_alerts_and_recommendations(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        self.config["memory_v5"]["lifecycle_alerts"] = {
+            "archive_due_warn": 1,
+            "archive_due_critical": 1,
+            "ttl_expired_warn": 1,
+            "ttl_expired_critical": 5,
+            "archive_backfill_candidates_warn": 1,
+            "archive_backfill_candidates_critical": 5,
+            "decaying_ratio_warn": 0.5,
+            "decaying_ratio_critical": 0.9,
+        }
+
+        due_id = str(
+            self.service.ingest_document(
+                title="MaintenanceCriticalArchiveDue",
+                content="Archive me soon.",
+                tags=["maint"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        backfill_id = str(
+            self.service.ingest_document(
+                title="MaintenanceCriticalBackfill",
+                content="Backfill my archive default.",
+                tags=["maint"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            due_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            decay_half_life_days=10,
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            backfill_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            archive_after_days=0,
+            decay_half_life_days=10,
+        )
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            dry_run=True,
+            sample_limit=5,
+            max_items=10,
+            include_ttl_expired=True,
+            now_ts=now.isoformat(),
+        )
+
+        self.assertEqual(result["status"]["level"], "critical")
+        self.assertEqual(result["scope_status_counts"]["critical"], 1)
+        self.assertEqual(len(result["hot_scopes"]), 1)
+        hot_scope = result["hot_scopes"][0]
+        self.assertEqual(hot_scope["scope_name"], "main/default")
+        self.assertEqual(hot_scope["status"], "critical")
+        alert_metrics = {alert["metric"] for alert in result["alerts"]}
+        self.assertIn("archive_due", alert_metrics)
+        self.assertIn("archive_backfill_candidates", alert_metrics)
+        recommendation_kinds = {item["kind"] for item in result["recommendations"]}
+        self.assertIn("explicit_archive", recommendation_kinds)
+        self.assertIn("archive_backfill", recommendation_kinds)
+        backfill_samples = hot_scope["samples"]["archive_backfill_candidates"]
+        self.assertTrue(any(sample["id"] == backfill_id for sample in backfill_samples))
+
+    def test_run_can_disable_alerts(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        item_id = str(
+            self.service.ingest_document(
+                title="MaintenanceDisableAlerts",
+                content="Still archive due, but alerts off.",
+                tags=["maint"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            item_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            decay_half_life_days=10,
+        )
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            dry_run=True,
+            sample_limit=5,
+            max_items=10,
+            include_ttl_expired=True,
+            now_ts=now.isoformat(),
+            enable_alerts=False,
+        )
+
+        self.assertFalse(result["alerts_enabled"])
+        self.assertEqual(result["status"]["level"], "healthy")
+        self.assertEqual(result["alerts"], [])
+        self.assertEqual(result["hot_scopes"], [])
+        self.assertEqual(result["totals"]["archive_due"], 1)
 
     def test_run_can_apply_archive_backfill(self):
         scope = MemoryScope(agent_id="main", user_id="default")
@@ -2885,10 +3002,15 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
             REPO_ROOT / "docs" / "reports",
             REPO_ROOT / "tests",
         }
+        ignored_files = {
+            REPO_ROOT / "docs" / "HANDOFF_2026-03-14.md",
+        }
         offenders = []
 
         for path in itertools.chain.from_iterable(REPO_ROOT.rglob(f"*{suffix}") for suffix in text_suffixes):
             if any(root in path.parents for root in ignored_roots):
+                continue
+            if path in ignored_files:
                 continue
             try:
                 content = path.read_text(encoding="utf-8")

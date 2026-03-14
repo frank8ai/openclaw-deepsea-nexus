@@ -2,13 +2,15 @@
 
 Last updated: 2026-03-14
 
-This file is the documentation entrypoint for the current `v5.0.0` release
+This file is the documentation entrypoint for the current `v5.0.1` release
 pack.
 
 Current release state:
 
-- `v5.0.0` official release baseline
+- `v5.0.1` patch release baseline
 - release note:
+  - `releases/V5_0_1_PATCH_2026-03-14.md`
+- official baseline:
   - `releases/V5_0_0_OFFICIAL_2026-03-14.md`
 
 ## Document Model

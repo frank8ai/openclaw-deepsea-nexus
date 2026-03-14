@@ -2,13 +2,14 @@
 
 Last updated: 2026-03-14
 
-本目录是当前 `v5.0.0` release pack 的产品层真源。
+本目录是当前 `v5.0.1` release pack 的产品层真源。
 
 当前发布状态：
 
-- `v5.0.0` 正式版
+- `v5.0.1` patch release
 - 发布说明：
-  - `../releases/V5_0_0_OFFICIAL_2026-03-14.md`
+  - `../releases/V5_0_1_PATCH_2026-03-14.md`
+  - `../releases/V5_0_0_OFFICIAL_2026-03-14.md`（official baseline）
 
 它只回答四个问题：
 

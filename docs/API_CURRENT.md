@@ -3,7 +3,7 @@
 Last updated: 2026-03-14
 
 This document describes the supported public API surface for the current
-`v5.0.0` release pack.
+`v5.0.1` release pack.
 
 ## Import Rules
 
@@ -123,13 +123,29 @@ Current contract:
   - default config remains unchanged unless these overrides are set
 - current operator entrypoint:
   - `python3 scripts/memory_v5_maintenance.py --dry-run`
+  - default output now includes:
+    - overall `status.level`
+    - flattened `alerts[]`
+    - `hot_scopes[]`
+    - `recommendations[]`
   - add `--exclude-ttl-expired` if the maintenance pass should only consider age-based archive candidates
   - add `--apply-archive-backfill` to explicitly write resolved archive defaults into zero-valued rows
+  - add `--no-alerts` to keep the run in pure report mode without threshold classification
   - backfill does not silently archive those rows in the same pass; rerun audit/archive if needed
   - optional report outputs:
     - `--json-out <path>`
     - `--md-out <path>`
     - or `--write-report` to emit both into the default repo report directory
+  - optional threshold config:
+    - `memory_v5.lifecycle_alerts.enabled`
+    - `memory_v5.lifecycle_alerts.archive_due_warn`
+    - `memory_v5.lifecycle_alerts.archive_due_critical`
+    - `memory_v5.lifecycle_alerts.ttl_expired_warn`
+    - `memory_v5.lifecycle_alerts.ttl_expired_critical`
+    - `memory_v5.lifecycle_alerts.archive_backfill_candidates_warn`
+    - `memory_v5.lifecycle_alerts.archive_backfill_candidates_critical`
+    - `memory_v5.lifecycle_alerts.decaying_ratio_warn`
+    - `memory_v5.lifecycle_alerts.decaying_ratio_critical`
 
 ### 4. CLI
 

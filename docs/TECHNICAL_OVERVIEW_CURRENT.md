@@ -2,12 +2,12 @@
 
 Last updated: 2026-03-14
 
-This document is the technical entrypoint for the current `v5.0.0` release
+This document is the technical entrypoint for the current `v5.0.1` release
 pack.
 
 ## Release Context
 
-- Package release: `5.0.0`
+- Package release: `5.0.1`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 - Primary rule source:
@@ -115,6 +115,7 @@ Current entrypoints:
 - `scripts/memory_v5_maintenance.py`
   - current operator entrypoint for lifecycle audit and explicit archive maintenance
   - can also write JSON / Markdown reports for handoff and audit trails
+  - report output now also includes thresholded `status / alerts / hot_scopes / recommendations`
   - `--write-report` defaults those artifacts into `docs/reports/`
 - `scripts/context_recall_scorecard.py`
   - current default pack covers 22 repo-local recall/inject golden cases
