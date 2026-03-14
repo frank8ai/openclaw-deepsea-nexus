@@ -18,6 +18,7 @@ import warnings
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import List
 from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -954,6 +955,112 @@ class TestMemoryV5MaintenanceScript(unittest.TestCase):
             self.assertTrue(Path(artifacts["json"]).exists())
             self.assertTrue(Path(artifacts["markdown"]).exists())
             self.assertIn("memory_v5_lifecycle_", Path(artifacts["json"]).name)
+
+
+class TestMemoryV5BackfillBatchesScript(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config = {
+            "paths": {"base": self.temp_dir},
+            "memory_v5": {
+                "enabled": True,
+                "root": "memory/95_MemoryV5",
+                "async_ingest": False,
+                "graph_enabled": False,
+                "fts_enabled": True,
+                "archive_after_days": 30,
+                "scope": {"agent_id": "default", "user_id": "default"},
+            },
+        }
+        self.service = MemoryV5Service(self.config)
+        self.script = _load_script_module("memory_v5_backfill_batches")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _set_item_lifecycle_fields(self, scope: MemoryScope, item_id: str, **fields):
+        _, index = self.service._ensure_scope_storage(scope)
+        conn = index._ensure_connection()
+        assignments = ", ".join(f"{key}=?" for key in fields)
+        conn.execute(
+            f"UPDATE items SET {assignments} WHERE id=?",
+            (*fields.values(), item_id),
+        )
+        conn.commit()
+
+    def _seed_backfill_candidates(self, scope: MemoryScope, now: datetime, count: int) -> List[str]:
+        item_ids: List[str] = []
+        for idx in range(count):
+            item_id = str(
+                self.service.ingest_document(
+                    title=f"BackfillCandidate{idx}",
+                    content="Needs archive default backfill.",
+                    tags=["maint"],
+                    scope=scope,
+                ).get("item_id", "")
+            )
+            self._set_item_lifecycle_fields(
+                scope,
+                item_id,
+                updated_at=(now - timedelta(days=120 + idx)).isoformat(),
+                archive_after_days=0,
+            )
+            item_ids.append(item_id)
+        return item_ids
+
+    def test_run_preview_mode_only_reports_first_batch(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        item_ids = self._seed_backfill_candidates(scope, now, count=3)
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            apply=False,
+            batch_size=2,
+            max_batches=5,
+            now_ts=now.isoformat(),
+        )
+
+        self.assertFalse(result["apply"])
+        self.assertEqual(result["totals"]["matched"], 3)
+        self.assertEqual(result["totals"]["selected"], 2)
+        self.assertEqual(result["totals"]["updated"], 0)
+        self.assertEqual(result["totals"]["remaining"], 3)
+        self.assertEqual(result["totals"]["batches_run"], 1)
+        self.assertEqual(result["scopes"][0]["batches"][0]["mode"], "preview")
+        rows = self.service.list_items(scope=scope, include_archived=True)
+        values = {row.get("id"): int(row.get("archive_after_days", 0)) for row in rows}
+        for item_id in item_ids:
+            self.assertEqual(values[item_id], 0)
+
+    def test_run_apply_mode_updates_candidates_in_multiple_batches(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        item_ids = self._seed_backfill_candidates(scope, now, count=3)
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            apply=True,
+            batch_size=2,
+            max_batches=5,
+            now_ts=now.isoformat(),
+        )
+
+        self.assertTrue(result["apply"])
+        self.assertEqual(result["totals"]["updated"], 3)
+        self.assertEqual(result["totals"]["failed"], 0)
+        self.assertEqual(result["totals"]["remaining"], 0)
+        self.assertEqual(result["totals"]["batches_run"], 2)
+        rows = self.service.list_items(scope=scope, include_archived=True)
+        values = {row.get("id"): int(row.get("archive_after_days", 0)) for row in rows}
+        for item_id in item_ids:
+            self.assertEqual(values[item_id], 30)
 
 
 class TestPackageRootExports(unittest.TestCase):
@@ -2831,6 +2938,14 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
         self.assertIn("infer_workspace_dir()", contents)
         self.assertIn('OPENCLAW_WORKSPACE_DIR="$(infer_workspace_dir)"', contents)
         self.assertIn('export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE_DIR}"', contents)
+        self.assertNotIn("/Users/yizhi", contents)
+
+    def test_memory_v5_backfill_batches_script_is_env_neutral(self):
+        script_path = REPO_ROOT / "scripts" / "memory_v5_backfill_batches.py"
+        contents = script_path.read_text(encoding="utf-8")
+
+        self.assertIn('parser.add_argument("--apply", action="store_true")', contents)
+        self.assertIn("scripts/memory_v5_backfill_batches.py", (REPO_ROOT / "docs" / "LOCAL_DEPLOY.md").read_text(encoding="utf-8"))
         self.assertNotIn("/Users/yizhi", contents)
 
     def test_min_loop_subagent_template_uses_placeholder_repo_path(self):

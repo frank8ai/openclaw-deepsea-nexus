@@ -113,6 +113,39 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
 - JSON 报告：`docs/reports/memory_v5_lifecycle_<timestamp>.json`
 - Markdown 报告：`docs/reports/memory_v5_lifecycle_<timestamp>.md`
 
+## Memory v5 archive-default backfill（分批执行）
+用于仅回填 `archive_after_days=0` 的历史行，不执行 archive move。
+
+```bash
+# 先预览首批（不写入）
+${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3} \
+  scripts/memory_v5_backfill_batches.py --batch-size 100 --max-batches 5 --write-report
+```
+
+```bash
+# 显式执行分批回填（只回填，不归档）
+${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3} \
+  scripts/memory_v5_backfill_batches.py --apply --batch-size 100 --max-batches 5 --write-report
+```
+
+说明：
+- 默认是 preview 模式，仅输出当前首批候选
+- 只有加 `--apply` 才会写入回填
+- 该脚本不会执行 archive move；即使存在 `archive_due` 也不会在这里归档
+- `--batch-size` 控制每批最多处理条数
+- `--max-batches` 控制单次运行最多处理多少批
+- 遇到失败默认停止；如需继续批次可加 `--continue-on-failure`
+- 默认报告前缀：`docs/reports/memory_v5_backfill_<timestamp>.{json,md}`
+
+推荐执行顺序：
+1. 先跑 lifecycle dry-run，确认 `archive_backfill_candidates` 规模
+2. 先跑 backfill preview，核对首批 candidate ids
+3. 再跑 `--apply` 分批回填
+4. 回填完成后再跑 lifecycle dry-run，确认 `archive_backfill_candidates` 下降或归零
+
+详细步骤见：
+- `docs/sop/MemoryV5_Archive_Backfill_Runbook.md`
+
 ## 计数口径说明（避免误判）
 主库条数不是常量。以下动作会导致 `deepsea_nexus_restored` 的 count 小幅变化：
 

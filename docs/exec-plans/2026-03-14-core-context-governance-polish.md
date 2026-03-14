@@ -245,6 +245,14 @@
      - `docs/LOCAL_DEPLOY.md`、产品能力与路线图已同步到当前 operator path
    - 已补回归覆盖:
        - deploy entrypoint advertises optional lifecycle audit path
+   - 当前已落第八个 slice:
+     - 新增 `scripts/memory_v5_backfill_batches.py`，用于 bounded batch 的 archive-default backfill 执行
+     - 该入口默认 preview，只有 `--apply` 才写入，并且不会执行 archive move
+     - 新增 `docs/sop/MemoryV5_Archive_Backfill_Runbook.md`，固化 backfill 的批次/验收/失败处理
+     - `docs/LOCAL_DEPLOY.md` 已补上 backfill batch operator path
+   - 已补回归覆盖:
+       - backfill batch script preview/apply behavior
+       - backfill batch script entrypath remains env-neutral
 
 ## 8. Validation Plan
 
