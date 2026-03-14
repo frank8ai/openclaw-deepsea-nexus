@@ -99,6 +99,8 @@ service.ingest_document(
     scope=scope,
 )
 hits = service.recall("control plane", scope=scope)
+report = service.audit_lifecycle(scope=scope)
+archive_plan = service.archive_due_items(scope=scope, dry_run=True)
 ```
 
 Current contract:
@@ -106,6 +108,28 @@ Current contract:
 - `MemoryScope` is the current isolation unit
 - `agent_id / user_id` define scoped durable storage
 - Memory v5 is part of the current release, not an experimental side path
+- lifecycle governance is report-first
+  - `audit_lifecycle()` reports TTL / decay / archive state
+  - `audit_lifecycle()` also surfaces zero-valued archive-default backfill candidates for older rows
+  - `archive_due_items(dry_run=True)` previews explicit archive work
+  - `archive_due_items(dry_run=False)` applies the archive move only when explicitly requested
+- lifecycle defaults can be narrowed per item kind when needed
+  - optional config:
+    - `memory_v5.item_kind_defaults.<kind>.ttl_days`
+    - `memory_v5.item_kind_defaults.<kind>.decay_half_life_days`
+    - `memory_v5.item_kind_defaults.<kind>.archive_after_days`
+  - resolved lifecycle defaults are persisted on write for new items
+  - later config changes do not silently reclassify already-written items
+  - default config remains unchanged unless these overrides are set
+- current operator entrypoint:
+  - `python3 scripts/memory_v5_maintenance.py --dry-run`
+  - add `--exclude-ttl-expired` if the maintenance pass should only consider age-based archive candidates
+  - add `--apply-archive-backfill` to explicitly write resolved archive defaults into zero-valued rows
+  - backfill does not silently archive those rows in the same pass; rerun audit/archive if needed
+  - optional report outputs:
+    - `--json-out <path>`
+    - `--md-out <path>`
+    - or `--write-report` to emit both into the default repo report directory
 
 ### 4. CLI
 

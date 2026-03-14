@@ -1,0 +1,1043 @@
+{
+  "schema_version": "1.0",
+  "cases": [
+    {
+      "id": "decision-relay-audit",
+      "query": "What did we decide for relay audit?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.6,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Relay audit summary",
+          "source": "docs/relay.md",
+          "relevance": 0.93,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "Keep FastAPI for relay audit.",
+          "source": "v5 decision note",
+          "relevance": 0.82,
+          "kind": "decision",
+          "evidence": [
+            "tests/test_relay.py"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "decision",
+        "top_matched_intent": "decision",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "decision",
+        "prompt_contains": "Keep FastAPI",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "evidence-relay-audit",
+      "query": "Where is the evidence file for relay audit?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.6,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Relay audit overview",
+          "source": "docs/relay.md",
+          "relevance": 0.9,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "tests/test_relay.py",
+          "source": "v5 evidence note",
+          "relevance": 0.74,
+          "kind": "evidence",
+          "evidence": [
+            "tests/test_relay.py"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "evidence",
+        "top_matched_intent": "evidence",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "evidence",
+        "prompt_contains": "Evidence: tests/test_relay.py",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "coding-continuation",
+      "query": "继续修 relay audit 测试",
+      "reason": "context_starved",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Loose reminder to check notes later.",
+          "source": "scratch/note",
+          "relevance": 0.88,
+          "kind": "note",
+          "metadata": {
+            "origin": "lexical"
+          }
+        },
+        {
+          "content": "Summary: stabilize relay audit.\nNext: add tests for provider metrics.",
+          "source": "v5 summary note",
+          "relevance": 0.74,
+          "kind": "summary",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "summary",
+        "top_matched_intent": "summary",
+        "inject_contains_kind": "summary",
+        "prompt_contains": "Next: add tests",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "blocker-recovery",
+      "query": "What is blocking relay audit right now?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.58,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Relay audit summary",
+          "source": "docs/relay.md",
+          "relevance": 0.9,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "Provider metrics missing for relay audit.",
+          "source": "v5 blocker note",
+          "relevance": 0.77,
+          "kind": "blocker",
+          "evidence": [
+            "logs/provider-metrics.log"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "blocker",
+        "top_matched_intent": "blocker",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "blocker",
+        "prompt_contains": "Provider metrics missing",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "decision-reversal",
+      "query": "Did we reverse the framework decision for relay audit?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.58,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Old planning summary",
+          "source": "docs/relay.md",
+          "relevance": 0.89,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "Keep FastAPI unless provider constraints force reversal.",
+          "source": "v5 reversal note",
+          "relevance": 0.79,
+          "kind": "decision",
+          "evidence": [
+            "tests/test_relay.py"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "decision",
+        "top_matched_intent": "decision",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "decision",
+        "prompt_contains": "reversal",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "technical-term-topic",
+      "query": "relay runtime provider metrics",
+      "reason": "technical_term",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Relay audit summary",
+          "source": "docs/relay.md",
+          "relevance": 0.84,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "Relay runtime topic for provider metrics investigation.",
+          "source": "topic note",
+          "relevance": 0.76,
+          "kind": "topic",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-runtime"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "topic",
+        "top_matched_intent": "topic",
+        "top_scope_match": "relay-runtime",
+        "inject_contains_kind": "topic",
+        "prompt_contains": "Relay runtime",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "topic-switch-payment-reconciliation",
+      "query": "payment reconciliation failures",
+      "reason": "keyword",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Relay runtime summary",
+          "source": "docs/relay.md",
+          "relevance": 0.86,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "Payment reconciliation topic with failure codes and follow-up.",
+          "source": "topic note",
+          "relevance": 0.75,
+          "kind": "topic",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "payment-reconciliation"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "topic",
+        "top_matched_intent": "topic",
+        "top_scope_match": "payment-reconciliation",
+        "inject_contains_kind": "topic",
+        "prompt_contains": "Payment reconciliation",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "research-thread-continuation",
+      "query": "继续研究 provider timeout mitigation",
+      "reason": "context_starved",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Random note about UI polish.",
+          "source": "scratch/note",
+          "relevance": 0.86,
+          "kind": "note",
+          "metadata": {
+            "origin": "lexical"
+          }
+        },
+        {
+          "content": "Summary: investigate provider timeout mitigation.\nNext: compare retry windows and warmup policy.",
+          "source": "v5 research summary",
+          "relevance": 0.73,
+          "kind": "summary",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "provider-timeout-research"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "summary",
+        "top_matched_intent": "summary",
+        "top_scope_match": "provider-timeout-research",
+        "inject_contains_kind": "summary",
+        "prompt_contains": "warmup policy",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "constraint-resumption",
+      "query": "what constraints still apply to relay audit?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Relay audit summary",
+          "source": "docs/relay.md",
+          "relevance": 0.91,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "Do not break FastAPI compatibility during relay audit.",
+          "source": "v5 constraint note",
+          "relevance": 0.75,
+          "kind": "constraint",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "constraint",
+        "top_matched_intent": "constraint",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "constraint",
+        "prompt_contains": "compatibility",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "rescue-replay-continuity",
+      "query": "How do we replay the relay audit blocker after compression?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Relay blocker summary.",
+          "source": "docs/relay.md",
+          "relevance": 0.89,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "pytest -q tests/test_relay.py -k provider_metrics",
+          "source": "v5 replay note",
+          "relevance": 0.72,
+          "kind": "replay",
+          "evidence": [
+            "tests/test_relay.py"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "replay",
+        "top_matched_intent": "replay",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "replay",
+        "prompt_contains": "pytest -q tests/test_relay.py",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "branch-switch-relay-audit",
+      "query": "switch back to relay audit branch",
+      "reason": "keyword",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Payment reconciliation summary",
+          "source": "docs/payment.md",
+          "relevance": 0.88,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "Relay audit branch topic with provider metrics follow-up.",
+          "source": "topic note",
+          "relevance": 0.74,
+          "kind": "topic",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit-branch"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "topic",
+        "top_matched_intent": "topic",
+        "top_scope_match": "relay-audit-branch",
+        "inject_contains_kind": "topic",
+        "prompt_contains": "Relay audit branch",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "multi-reversal-current-decision",
+      "query": "What is the current framework decision for relay audit after the latest reversal?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.58,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Old summary says migrate away from FastAPI.",
+          "source": "docs/relay-history.md",
+          "relevance": 0.92,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "Keep FastAPI after reviewing the reversal conditions.",
+          "source": "v5 latest decision",
+          "relevance": 0.78,
+          "kind": "decision",
+          "evidence": [
+            "tests/test_relay.py"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "decision",
+        "top_matched_intent": "decision",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "decision",
+        "prompt_contains": "Keep FastAPI",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "rescue-after-topic-switch",
+      "query": "After switching back from payment work, how do we resume relay audit?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Payment reconciliation branch summary.",
+          "source": "docs/payment.md",
+          "relevance": 0.9,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "pytest -q tests/test_relay.py -k provider_metrics",
+          "source": "v5 replay note",
+          "relevance": 0.71,
+          "kind": "replay",
+          "evidence": [
+            "tests/test_relay.py"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "replay",
+        "top_matched_intent": "replay",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "replay",
+        "prompt_contains": "pytest -q tests/test_relay.py",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "stale-summary-conflict",
+      "query": "What did we finally decide for relay audit?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.58,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Summary: maybe replace FastAPI later.",
+          "source": "docs/relay-old-summary.md",
+          "relevance": 0.94,
+          "kind": "summary",
+          "metadata": {
+            "origin": "vector"
+          }
+        },
+        {
+          "content": "Keep FastAPI as the final relay audit decision.",
+          "source": "v5 final decision",
+          "relevance": 0.79,
+          "kind": "decision",
+          "evidence": [
+            "tests/test_relay.py"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "decision",
+        "top_matched_intent": "decision",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "decision",
+        "prompt_contains": "final relay audit decision",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "cross-session-continuity",
+      "query": "continue yesterday's provider timeout mitigation work",
+      "reason": "context_starved",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Random note about landing page polish.",
+          "source": "scratch/note",
+          "relevance": 0.87,
+          "kind": "note",
+          "metadata": {
+            "origin": "lexical"
+          }
+        },
+        {
+          "content": "Summary: continue provider timeout mitigation from yesterday.\nNext: compare retry windows.",
+          "source": "v5 session summary",
+          "relevance": 0.72,
+          "kind": "summary",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "provider-timeout-research"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "summary",
+        "top_matched_intent": "summary",
+        "top_scope_match": "provider-timeout-research",
+        "inject_contains_kind": "summary",
+        "prompt_contains": "compare retry windows",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "stale-evidence-conflict",
+      "query": "What is the current evidence file for relay audit blocker?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "logs/provider-metrics-2025.log",
+          "source": "old evidence note",
+          "relevance": 0.86,
+          "kind": "evidence",
+          "evidence": [
+            "logs/provider-metrics-2025.log"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-legacy"
+          }
+        },
+        {
+          "content": "logs/provider-metrics.log",
+          "source": "current evidence note",
+          "relevance": 0.73,
+          "kind": "evidence",
+          "evidence": [
+            "logs/provider-metrics.log"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "evidence",
+        "top_matched_intent": "evidence",
+        "top_scope_match": "relay-audit",
+        "top_source_contains": "current",
+        "inject_contains_kind": "evidence",
+        "prompt_contains": "logs/provider-metrics.log",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "contradictory-blockers",
+      "query": "What is still blocking relay audit right now?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Legacy blocker from archived relay migration.",
+          "source": "archived blocker",
+          "relevance": 0.86,
+          "kind": "blocker",
+          "evidence": [
+            "logs/archived-relay.log"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-archive"
+          }
+        },
+        {
+          "content": "Provider metrics are still missing for relay audit.",
+          "source": "current blocker",
+          "relevance": 0.74,
+          "kind": "blocker",
+          "evidence": [
+            "logs/provider-metrics.log"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "blocker",
+        "top_matched_intent": "blocker",
+        "top_scope_match": "relay-audit",
+        "top_source_contains": "current",
+        "inject_contains_kind": "blocker",
+        "prompt_contains": "Provider metrics are still missing",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "resume-without-replay-fallback",
+      "query": "How do we resume relay audit if there is no replay command?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Loose reminder to check archived notes.",
+          "source": "scratch/note",
+          "relevance": 0.84,
+          "kind": "note",
+          "metadata": {
+            "origin": "lexical"
+          }
+        },
+        {
+          "content": "Summary: relay audit remains on FastAPI.\nNext: inspect provider metrics manually.",
+          "source": "v5 summary note",
+          "relevance": 0.72,
+          "kind": "summary",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "summary",
+        "top_scope_match": "relay-audit",
+        "inject_contains_kind": "summary",
+        "prompt_contains": "inspect provider metrics manually",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "cross-session-continuity-drift",
+      "query": "continue yesterday's provider timeout mitigation thread",
+      "reason": "context_starved",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Summary: continue consumer retry audit.\nNext: compare webhook retries.",
+          "source": "v5 other summary",
+          "relevance": 0.89,
+          "kind": "summary",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "consumer-retry-audit"
+          }
+        },
+        {
+          "content": "Summary: continue provider timeout mitigation from yesterday.\nNext: compare retry windows.",
+          "source": "v5 session summary",
+          "relevance": 0.72,
+          "kind": "summary",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "provider-timeout-research"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "summary",
+        "top_matched_intent": "summary",
+        "top_scope_match": "provider-timeout-research",
+        "top_source_contains": "session",
+        "inject_contains_kind": "summary",
+        "prompt_contains": "compare retry windows",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "evidence-vs-replay-conflict",
+      "query": "What is the current replay command for relay audit blocker?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "logs/provider-metrics.log",
+          "source": "current evidence note",
+          "relevance": 0.84,
+          "kind": "evidence",
+          "evidence": [
+            "logs/provider-metrics.log"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        },
+        {
+          "content": "pytest -q tests/test_relay.py -k provider_metrics",
+          "source": "current replay note",
+          "relevance": 0.73,
+          "kind": "replay",
+          "evidence": [
+            "tests/test_relay.py"
+          ],
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "replay",
+        "top_matched_intent": "replay",
+        "top_scope_match": "relay-audit",
+        "top_source_contains": "current",
+        "inject_contains_kind": "replay",
+        "prompt_contains": "pytest -q tests/test_relay.py",
+        "require_evidence": true,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "contradictory-constraints",
+      "query": "What constraints still apply to relay audit right now?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Legacy constraint from archived relay migration.",
+          "source": "archived constraint",
+          "relevance": 0.86,
+          "kind": "constraint",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-archive"
+          }
+        },
+        {
+          "content": "Do not break FastAPI compatibility during relay audit.",
+          "source": "current constraint",
+          "relevance": 0.74,
+          "kind": "constraint",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "constraint",
+        "top_matched_intent": "constraint",
+        "top_scope_match": "relay-audit",
+        "top_source_contains": "current",
+        "inject_contains_kind": "constraint",
+        "prompt_contains": "compatibility",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    },
+    {
+      "id": "no-scope-recovery-fallback",
+      "query": "How do we resume the previous task if there is no replay command?",
+      "reason": "question",
+      "inject": {
+        "threshold": 0.55,
+        "max_items": 2,
+        "max_chars_per_item": 180,
+        "max_lines_per_item": 6,
+        "max_lines_total": 18,
+        "budget_tokens": 220,
+        "prompt_max_lines": 18
+      },
+      "candidates": [
+        {
+          "content": "Loose reminder to clean the inbox.",
+          "source": "scratch/note",
+          "relevance": 0.91,
+          "kind": "note",
+          "metadata": {
+            "origin": "lexical"
+          }
+        },
+        {
+          "content": "Summary: relay audit remains on FastAPI.\nNext: inspect provider metrics manually.",
+          "source": "v5 summary note",
+          "relevance": 0.72,
+          "kind": "summary",
+          "metadata": {
+            "origin": "memory_v5",
+            "category": "relay-audit"
+          }
+        }
+      ],
+      "expect": {
+        "top_kind": "summary",
+        "inject_contains_kind": "summary",
+        "prompt_contains": "inspect provider metrics manually",
+        "require_evidence": false,
+        "max_budget_ratio": 1.0,
+        "max_line_ratio": 1.0
+      }
+    }
+  ]
+}

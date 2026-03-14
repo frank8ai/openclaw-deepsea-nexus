@@ -104,7 +104,9 @@ Recommended local verification order:
 
 ```bash
 python3 -m unittest tests.test_memory_v5 -v
+python3 scripts/context_recall_scorecard.py --golden docs/evals/context_recall_golden_cases.json
 python3 run_tests.py
 bash scripts/nexus_doctor_local.sh --check --skip-deploy
 python3 scripts/memory_v5_smoke.py
+python3 scripts/memory_v5_maintenance.py --dry-run --write-report
 ```

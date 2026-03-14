@@ -5,16 +5,22 @@ Shared turn-summary helpers for SmartContext.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List
+from typing import Any, Dict, Iterable, List
 
 from . import smart_context_rescue
 from . import smart_context_text
+
+try:
+    from ..context_contract import normalize_typed_context
+except ImportError:
+    from context_contract import normalize_typed_context
 
 
 @dataclass(frozen=True)
 class TurnSummaryBuildResult:
     summary_result: smart_context_text.SummaryResult
     text: str
+    typed_context: Dict[str, Any]
 
 
 def _merge_items(primary: List[str], secondary: List[str], *, limit: int, prefixes: tuple[str, ...] = ()) -> List[str]:
@@ -29,6 +35,18 @@ def _merge_items(primary: List[str], secondary: List[str], *, limit: int, prefix
         if len(merged) >= max(1, int(limit)):
             break
     return merged
+
+
+def _is_explicit_evidence_pointer(item: str) -> bool:
+    cleaned = (item or "").strip()
+    if not cleaned:
+        return False
+    if "/" in cleaned or "\\" in cleaned:
+        return True
+    if "#L" in cleaned or ":" in cleaned:
+        return True
+    lowered = cleaned.lower()
+    return any(token in lowered for token in (".log", "artifact", "hash", "report"))
 
 
 def build_turn_summary(
@@ -54,7 +72,11 @@ def build_turn_summary(
         fallback_max_chars=200,
     )
     if not summary_template_enabled:
-        return TurnSummaryBuildResult(summary_result=summary_result, text=summary_result.summary)
+        return TurnSummaryBuildResult(
+            summary_result=summary_result,
+            text=summary_result.summary,
+            typed_context=normalize_typed_context({"summary": summary_result.summary}),
+        )
 
     rescue_updates = smart_context_rescue.collect_rescue_updates(
         combined_text,
@@ -93,7 +115,11 @@ def build_turn_summary(
 
     constraints = rescue_updates.get("constraints", [])[:3]
     blockers = rescue_updates.get("blockers", [])[:3]
-    evidence = rescue_updates.get("evidence_pointers", [])[:3]
+    evidence = [
+        item
+        for item in (rescue_updates.get("evidence_pointers", []) or [])
+        if _is_explicit_evidence_pointer(item)
+    ][:3]
     replay_commands = rescue_updates.get("replay_commands", [])[:1]
     has_decision_evidence = bool(evidence or replay_commands)
     decision_items = _merge_items(decisions, rescue_updates.get("decisions", []), limit=3) if has_decision_evidence else []
@@ -129,7 +155,26 @@ def build_turn_summary(
     if "keywords" in fields and keywords:
         lines.append(f"Keywords: {', '.join(keywords[:6])}")
 
+    typed_context = normalize_typed_context(
+        {
+            "summary": summary_result.summary,
+            "goal": goal,
+            "status": status,
+            "decisions": decision_items,
+            "constraints": constraints,
+            "blockers": blockers,
+            "next_actions": actions,
+            "questions": questions,
+            "evidence": evidence,
+            "replay": replay_commands,
+            "topics": topics,
+            "keywords": keywords,
+            "entities": entities,
+        }
+    )
+
     return TurnSummaryBuildResult(
         summary_result=summary_result,
         text="\n".join(lines).strip(),
+        typed_context=typed_context,
     )

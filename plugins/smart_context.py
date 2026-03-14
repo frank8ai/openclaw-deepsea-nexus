@@ -914,9 +914,15 @@ class SmartContextPlugin(NexusPlugin):
                 )
             items = smart_context_recall.build_inject_candidates(
                 results,
+                reason=reason,
                 signature_fn=self._content_signature,
                 normalize_tags_fn=self._normalize_tags,
                 score_fn=self._score_injected_item,
+            )
+            items = smart_context_recall.rerank_recall_candidates(
+                items,
+                query=user_message,
+                reason=reason,
             )
 
             max_items, threshold = self._dynamic_inject_params(reason, items)

@@ -18,6 +18,11 @@ try:
 except ImportError:
     from ..runtime_paths import resolve_memory_root
 
+try:
+    from context_contract import normalize_typed_context, sanitize_typed_context_for_durable_write
+except ImportError:
+    from ..context_contract import normalize_typed_context, sanitize_typed_context_for_durable_write
+
 
 def _uuid(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
@@ -39,6 +44,13 @@ def _clean_list(items: Optional[List[str]]) -> List[str]:
 
 def _safe_str(value: Any) -> str:
     return "" if value is None else str(value).strip()
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _default_scope(config: Dict[str, Any]) -> MemoryScope:
@@ -85,6 +97,7 @@ class MemoryV5Service:
         self.decay_half_life_days_default = int(mem_cfg.get("decay_half_life_days", 30))
         self.archive_after_days = int(mem_cfg.get("archive_after_days", 180))
         self.usage_boost = float(mem_cfg.get("usage_boost", 0.08))
+        self.item_kind_defaults = self._normalize_item_kind_defaults(mem_cfg.get("item_kind_defaults"))
         self.root = _resolve_root(self.config)
         self.scope = _default_scope(self.config)
         self._storage_lock = threading.Lock()
@@ -102,6 +115,31 @@ class MemoryV5Service:
             return
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker.start()
+
+    def _normalize_item_kind_defaults(self, payload: Any) -> Dict[str, Dict[str, int]]:
+        if not isinstance(payload, dict):
+            return {}
+        normalized: Dict[str, Dict[str, int]] = {}
+        for kind, raw in payload.items():
+            key = _safe_str(kind).lower()
+            if not key or not isinstance(raw, dict):
+                continue
+            entry: Dict[str, int] = {}
+            if "ttl_days" in raw:
+                entry["ttl_days"] = max(0, _safe_int(raw.get("ttl_days"), self.ttl_days_default))
+            if "decay_half_life_days" in raw:
+                entry["decay_half_life_days"] = max(
+                    0,
+                    _safe_int(raw.get("decay_half_life_days"), self.decay_half_life_days_default),
+                )
+            if "archive_after_days" in raw:
+                entry["archive_after_days"] = max(
+                    0,
+                    _safe_int(raw.get("archive_after_days"), self.archive_after_days),
+                )
+            if entry:
+                normalized[key] = entry
+        return normalized
 
     def _worker_loop(self) -> None:
         while True:
@@ -139,6 +177,182 @@ class MemoryV5Service:
                 index = MemoryIndex(layout.index_path(), fts_enabled=self.fts_enabled)
                 self._indexes[key] = index
         return layout, index
+
+    def _resolve_item_lifecycle_defaults(self, kind: str) -> Dict[str, int]:
+        resolved = {
+            "ttl_days": max(0, _safe_int(self.ttl_days_default, 0)),
+            "decay_half_life_days": max(0, _safe_int(self.decay_half_life_days_default, 0)),
+            "archive_after_days": max(0, _safe_int(self.archive_after_days, 0)),
+        }
+        for key in ("default", _safe_str(kind).lower()):
+            override = self.item_kind_defaults.get(key)
+            if not override:
+                continue
+            if "ttl_days" in override:
+                resolved["ttl_days"] = max(0, _safe_int(override.get("ttl_days"), resolved["ttl_days"]))
+            if "decay_half_life_days" in override:
+                resolved["decay_half_life_days"] = max(
+                    0,
+                    _safe_int(override.get("decay_half_life_days"), resolved["decay_half_life_days"]),
+                )
+            if "archive_after_days" in override:
+                resolved["archive_after_days"] = max(
+                    0,
+                    _safe_int(override.get("archive_after_days"), resolved["archive_after_days"]),
+                )
+        return resolved
+
+    def _resolve_now(self, now_ts: Optional[Any] = None) -> datetime:
+        if isinstance(now_ts, datetime):
+            current = now_ts
+        else:
+            raw = _safe_str(now_ts)
+            if not raw:
+                return datetime.now(timezone.utc)
+            try:
+                current = datetime.fromisoformat(raw)
+            except Exception:
+                return datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        return current
+
+    def _item_age_days(self, row: Dict[str, Any], now_ts: Optional[Any] = None) -> float:
+        now = self._resolve_now(now_ts)
+        updated_at = row.get("updated_at") or row.get("created_at")
+        if not updated_at:
+            return 0.0
+        try:
+            ts = datetime.fromisoformat(str(updated_at))
+        except Exception:
+            return 0.0
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        return max(0.0, (now - ts).total_seconds() / 86400.0)
+
+    def _item_lifecycle_state(self, row: Dict[str, Any], now_ts: Optional[Any] = None) -> Dict[str, Any]:
+        age_days = self._item_age_days(row, now_ts)
+        archived = bool(_safe_int(row.get("archived"), 0))
+        ttl_days = _safe_int(row.get("ttl_days"), 0)
+        half_life = _safe_int(
+            row.get("decay_half_life_days"),
+            _safe_int(self.decay_half_life_days_default, 0),
+        )
+        archive_after_days = _safe_int(
+            row.get("archive_after_days"),
+            _safe_int(self.archive_after_days, 0),
+        )
+        decay_multiplier = 1.0
+        if half_life > 0 and age_days > 0:
+            decay_multiplier = 0.5 ** (age_days / float(half_life))
+        ttl_expired = ttl_days > 0 and age_days > float(ttl_days)
+        archive_due = (not archived) and archive_after_days > 0 and age_days > float(archive_after_days)
+        return {
+            "age_days": age_days,
+            "archived": archived,
+            "ttl_days": ttl_days,
+            "ttl_expired": ttl_expired,
+            "decay_half_life_days": half_life,
+            "decay_multiplier": decay_multiplier,
+            "archive_after_days": archive_after_days,
+            "archive_due": archive_due,
+        }
+
+    def _lifecycle_scope_payload(self, scope: MemoryScope) -> Dict[str, str]:
+        return {
+            "agent_id": scope.agent_id,
+            "user_id": scope.user_id,
+            "app_id": scope.app_id,
+            "run_id": scope.run_id,
+            "workspace": scope.workspace,
+        }
+
+    def _lifecycle_sample_payload(self, row: Dict[str, Any], lifecycle: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "id": str(row.get("id", "")),
+            "title": str(row.get("title", "")),
+            "kind": str(row.get("kind", "note")),
+            "category": str(row.get("category", "")),
+            "source_id": str(row.get("source_id", "")),
+            "age_days": round(float(lifecycle.get("age_days", 0.0)), 3),
+            "ttl_days": _safe_int(lifecycle.get("ttl_days"), 0),
+            "decay_half_life_days": _safe_int(lifecycle.get("decay_half_life_days"), 0),
+            "archive_after_days": _safe_int(lifecycle.get("archive_after_days"), 0),
+            "decay_multiplier": round(float(lifecycle.get("decay_multiplier", 1.0)), 6),
+            "archived": bool(lifecycle.get("archived", False)),
+            "ttl_expired": bool(lifecycle.get("ttl_expired", False)),
+            "archive_due": bool(lifecycle.get("archive_due", False)),
+        }
+
+    def _archive_backfill_candidate_payload(
+        self,
+        row: Dict[str, Any],
+        lifecycle: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        if lifecycle.get("archived"):
+            return None
+        current_archive_after_days = _safe_int(row.get("archive_after_days"), 0)
+        if current_archive_after_days > 0:
+            return None
+        resolved_archive_after_days = _safe_int(
+            self._resolve_item_lifecycle_defaults(str(row.get("kind", "note"))).get("archive_after_days"),
+            0,
+        )
+        if resolved_archive_after_days <= 0:
+            return None
+        return {
+            "id": str(row.get("id", "")),
+            "title": str(row.get("title", "")),
+            "kind": str(row.get("kind", "note")),
+            "category": str(row.get("category", "")),
+            "source_id": str(row.get("source_id", "")),
+            "age_days": round(float(lifecycle.get("age_days", 0.0)), 3),
+            "current_archive_after_days": current_archive_after_days,
+            "resolved_archive_after_days": resolved_archive_after_days,
+        }
+
+    def _load_lifecycle_rows(
+        self,
+        scope: MemoryScope,
+        now_ts: Optional[Any] = None,
+    ) -> List[Tuple[Dict[str, Any], Dict[str, Any]]]:
+        _, index = self._ensure_scope_storage(scope)
+        rows = index.list_all_items(scope, include_archived=True)
+        return [(row, self._item_lifecycle_state(row, now_ts)) for row in rows]
+
+    def _build_item(
+        self,
+        *,
+        kind: str,
+        title: str,
+        content: str,
+        tags: Optional[List[str]],
+        keywords: Optional[List[str]],
+        entities: Optional[List[str]],
+        project: str,
+        category: str,
+        source_id: str,
+        confidence: str,
+        scope: MemoryScope,
+    ) -> MemoryItem:
+        lifecycle = self._resolve_item_lifecycle_defaults(kind)
+        return MemoryItem(
+            id=_uuid("item"),
+            title=_safe_str(title) or "Untitled",
+            content=_safe_str(content),
+            kind=kind,
+            tags=_clean_list(tags),
+            keywords=_clean_list(keywords),
+            entities=_clean_list(entities),
+            project=project,
+            category=category,
+            source_id=source_id,
+            confidence=_safe_str(confidence) or "medium",
+            ttl_days=lifecycle["ttl_days"],
+            decay_half_life_days=lifecycle["decay_half_life_days"],
+            archive_after_days=lifecycle["archive_after_days"],
+            scope=scope,
+        )
 
     def ingest_summary(
         self,
@@ -181,11 +395,10 @@ class MemoryV5Service:
         scope = self._normalize_scope(scope)
         layout, index = self._ensure_scope_storage(scope)
         tags = _clean_list(tags)
-        item = MemoryItem(
-            id=_uuid("item"),
-            title=_safe_str(title) or "Untitled",
-            content=_safe_str(content),
+        item = self._build_item(
             kind="document",
+            title=title,
+            content=content,
             tags=tags,
             keywords=tags,
             entities=[],
@@ -193,8 +406,6 @@ class MemoryV5Service:
             category="general",
             source_id=source_id,
             confidence="medium",
-            ttl_days=self.ttl_days_default,
-            decay_half_life_days=self.decay_half_life_days_default,
             scope=scope,
         )
         item.path = layout.item_path(item.id)
@@ -234,11 +445,10 @@ class MemoryV5Service:
             items.extend(self._items_from_summary(summary, resource, scope))
         if user_query:
             items.append(
-                MemoryItem(
-                    id=_uuid("item"),
+                self._build_item(
+                    kind="query",
                     title=f"User Query {conversation_id}",
                     content=_safe_str(user_query),
-                    kind="query",
                     tags=["query"],
                     keywords=[],
                     entities=[],
@@ -246,8 +456,6 @@ class MemoryV5Service:
                     category=self._infer_category(summary),
                     source_id=resource.id,
                     confidence="medium",
-                    ttl_days=self.ttl_days_default,
-                    decay_half_life_days=self.decay_half_life_days_default,
                     scope=scope,
                 )
             )
@@ -267,22 +475,16 @@ class MemoryV5Service:
         return {"enabled": True, "stored": stored, "resource_id": resource.id}
 
     def _infer_project(self, summary: Optional[Dict[str, Any]]) -> str:
-        if not summary:
-            return ""
-        for key in ["项目关联", "project", "project_name", "project关联"]:
-            val = summary.get(key) if isinstance(summary, dict) else ""
-            if val:
-                return str(val).strip()
-        return ""
+        return str(normalize_typed_context(summary).get("project", "")).strip()
 
     def _infer_category(self, summary: Optional[Dict[str, Any]]) -> str:
-        project = self._infer_project(summary)
+        normalized = sanitize_typed_context_for_durable_write(summary)
+        project = str(normalized.get("project", "")).strip()
         if project:
             return project
-        if summary and isinstance(summary, dict):
-            val = summary.get("主题") or summary.get("topic")
-            if val:
-                return str(val).strip()
+        topics = list(normalized.get("topics", []) or [])
+        if topics:
+            return str(topics[0]).strip()
         return "general"
 
     def _items_from_summary(
@@ -292,11 +494,12 @@ class MemoryV5Service:
         scope: MemoryScope,
     ) -> List[MemoryItem]:
         items: List[MemoryItem] = []
-        project = self._infer_project(summary)
-        category = self._infer_category(summary)
-        keywords = _clean_list(summary.get("搜索关键词") or summary.get("keywords") or [])
-        entities = _clean_list(summary.get("实体") or summary.get("entities") or [])
-        confidence = _safe_str(summary.get("置信度") or summary.get("confidence") or "medium")
+        normalized = sanitize_typed_context_for_durable_write(summary)
+        project = self._infer_project(normalized)
+        category = self._infer_category(normalized)
+        keywords = _clean_list(normalized.get("keywords") or [])
+        entities = _clean_list(normalized.get("entities") or [])
+        confidence = _safe_str(normalized.get("confidence") or "medium")
 
         def _add(kind: str, title: str, content: str, extra_tags: Optional[List[str]] = None) -> None:
             content = _safe_str(content)
@@ -304,35 +507,45 @@ class MemoryV5Service:
                 return
             tags = [kind] + (extra_tags or []) + keywords
             items.append(
-                MemoryItem(
-                    id=_uuid("item"),
+                self._build_item(
+                    kind=kind,
                     title=title,
                     content=content,
-                    kind=kind,
-                    tags=_clean_list(tags),
+                    tags=tags,
                     keywords=keywords,
                     entities=entities,
                     project=project,
                     category=category,
                     source_id=resource.id,
                     confidence=confidence,
-                    ttl_days=self.ttl_days_default,
-                    decay_half_life_days=self.decay_half_life_days_default,
                     scope=scope,
                 )
             )
 
-        _add("core_output", "核心产出", summary.get("本次核心产出") or summary.get("core_output"))
-        tech_points = summary.get("技术要点") or summary.get("tech_points") or []
-        if isinstance(tech_points, list):
-            for tp in tech_points:
-                _add("tech_point", "技术要点", tp)
-        _add("code_pattern", "代码模式", summary.get("代码模式") or summary.get("code_pattern"))
-        _add("decision", "决策上下文", summary.get("决策上下文") or summary.get("decision_context"))
-        _add("pitfall", "避坑记录", summary.get("避坑记录") or summary.get("pitfall_record"))
-        _add("scene", "适用场景", summary.get("适用场景") or summary.get("applicable_scene"))
-        _add("next", "下一步", summary.get("下一步") or summary.get("next_actions"))
-        _add("questions", "待澄清问题", summary.get("问题") or summary.get("questions"))
+        _add("summary", "摘要", normalized.get("summary"))
+        _add("goal", "目标", normalized.get("goal"))
+        _add("status", "状态", normalized.get("status"))
+        for decision in normalized.get("decisions") or []:
+            _add("decision", "决策上下文", decision)
+        for constraint in normalized.get("constraints") or []:
+            _add("constraint", "约束", constraint)
+        for blocker in normalized.get("blockers") or []:
+            _add("blocker", "阻塞与风险", blocker)
+        for action in normalized.get("next_actions") or []:
+            _add("next", "下一步", action)
+        for question in normalized.get("questions") or []:
+            _add("questions", "待澄清问题", question)
+        for evidence in normalized.get("evidence") or []:
+            _add("evidence", "证据指针", evidence)
+        for replay in normalized.get("replay") or []:
+            _add("replay", "复现命令", replay)
+        for topic in normalized.get("topics") or []:
+            _add("topic", "主题", topic)
+        for tp in normalized.get("tech_points") or []:
+            _add("tech_point", "技术要点", tp)
+        _add("code_pattern", "代码模式", normalized.get("code_pattern"))
+        _add("pitfall", "避坑记录", normalized.get("pitfall_record"))
+        _add("scene", "适用场景", normalized.get("applicable_scene"))
         return items
 
     def _item_payload(self, item: MemoryItem) -> Dict[str, Any]:
@@ -355,6 +568,7 @@ class MemoryV5Service:
             "last_used": item.last_used,
             "ttl_days": item.ttl_days,
             "decay_half_life_days": item.decay_half_life_days,
+            "archive_after_days": item.archive_after_days,
             "scope_agent": item.scope.agent_id,
             "scope_user": item.scope.user_id,
             "scope_app": item.scope.app_id,
@@ -516,18 +730,8 @@ class MemoryV5Service:
         hits: List[MemoryHit] = []
         now = datetime.now(timezone.utc)
         for row in items:
-            ttl_days = int(row.get("ttl_days") or 0)
-            updated_at = row.get("updated_at") or row.get("created_at")
-            age_days = 0.0
-            if updated_at:
-                try:
-                    ts = datetime.fromisoformat(str(updated_at))
-                    if ts.tzinfo is None:
-                        ts = ts.replace(tzinfo=timezone.utc)
-                    age_days = max(0.0, (now - ts).total_seconds() / 86400.0)
-                except Exception:
-                    age_days = 0.0
-            if ttl_days > 0 and age_days > ttl_days:
+            lifecycle = self._item_lifecycle_state(row, now)
+            if lifecycle["archived"] or lifecycle["ttl_expired"]:
                 continue
             score = row.get("score")
             relevance = 0.45
@@ -536,10 +740,8 @@ class MemoryV5Service:
                     relevance = 1.0 / (1.0 + float(score))
                 except Exception:
                     relevance = 0.45
-            half_life = int(row.get("decay_half_life_days") or self.decay_half_life_days_default or 0)
-            if half_life > 0 and age_days > 0:
-                relevance *= 0.5 ** (age_days / float(half_life))
-            usage = int(row.get("usage_count") or 0)
+            relevance *= float(lifecycle["decay_multiplier"])
+            usage = _safe_int(row.get("usage_count"), 0)
             if usage > 0 and self.usage_boost > 0:
                 relevance *= 1.0 + min(0.35, log1p(usage) * self.usage_boost)
             hits.append(
@@ -636,3 +838,214 @@ class MemoryV5Service:
             return True
         except Exception:
             return False
+
+    def audit_lifecycle(
+        self,
+        scope: Optional[MemoryScope] = None,
+        now_ts: Optional[Any] = None,
+        sample_limit: int = 10,
+    ) -> Dict[str, Any]:
+        scope = self._normalize_scope(scope)
+        if not self.enabled:
+            return {
+                "enabled": False,
+                "generated_at": self._resolve_now(now_ts).isoformat(),
+                "scope": self._lifecycle_scope_payload(scope),
+                "defaults": {
+                    "ttl_days_default": self.ttl_days_default,
+                    "decay_half_life_days_default": self.decay_half_life_days_default,
+                    "archive_after_days": self.archive_after_days,
+                },
+                "counts": {
+                    "total": 0,
+                    "active": 0,
+                    "archived": 0,
+                    "ttl_expired": 0,
+                    "archive_due": 0,
+                    "decaying": 0,
+                    "archive_backfill_candidates": 0,
+                },
+                "samples": {},
+            }
+
+        sample_limit = max(1, _safe_int(sample_limit, 10))
+        now = self._resolve_now(now_ts)
+        rows = self._load_lifecycle_rows(scope, now)
+        counts = {
+            "total": 0,
+            "active": 0,
+            "archived": 0,
+            "ttl_expired": 0,
+            "archive_due": 0,
+            "decaying": 0,
+            "archive_backfill_candidates": 0,
+        }
+        sample_buckets: Dict[str, List[Dict[str, Any]]] = {
+            "archived": [],
+            "ttl_expired": [],
+            "archive_due": [],
+            "decaying": [],
+            "archive_backfill_candidates": [],
+        }
+
+        for row, lifecycle in rows:
+            counts["total"] += 1
+            sample = self._lifecycle_sample_payload(row, lifecycle)
+            if lifecycle["archived"]:
+                counts["archived"] += 1
+                sample_buckets["archived"].append(sample)
+            if lifecycle["ttl_expired"]:
+                counts["ttl_expired"] += 1
+                sample_buckets["ttl_expired"].append(sample)
+            if lifecycle["archive_due"]:
+                counts["archive_due"] += 1
+                sample_buckets["archive_due"].append(sample)
+            if (not lifecycle["archived"]) and float(lifecycle["decay_multiplier"]) < 0.999999:
+                counts["decaying"] += 1
+                sample_buckets["decaying"].append(sample)
+            if not lifecycle["archived"] and not lifecycle["ttl_expired"] and not lifecycle["archive_due"]:
+                counts["active"] += 1
+            backfill_candidate = self._archive_backfill_candidate_payload(row, lifecycle)
+            if backfill_candidate:
+                counts["archive_backfill_candidates"] += 1
+                sample_buckets["archive_backfill_candidates"].append(backfill_candidate)
+
+        samples = {
+            name: sorted(bucket, key=lambda item: float(item["age_days"]), reverse=True)[:sample_limit]
+            for name, bucket in sample_buckets.items()
+            if bucket
+        }
+        return {
+            "enabled": True,
+            "generated_at": now.isoformat(),
+            "scope": self._lifecycle_scope_payload(scope),
+            "defaults": {
+                "ttl_days_default": self.ttl_days_default,
+                "decay_half_life_days_default": self.decay_half_life_days_default,
+                "archive_after_days": self.archive_after_days,
+            },
+            "counts": counts,
+            "samples": samples,
+        }
+
+    def backfill_archive_defaults(
+        self,
+        scope: Optional[MemoryScope] = None,
+        now_ts: Optional[Any] = None,
+        max_items: int = 100,
+        dry_run: bool = True,
+    ) -> Dict[str, Any]:
+        scope = self._normalize_scope(scope)
+        now = self._resolve_now(now_ts)
+        if not self.enabled:
+            return {
+                "enabled": False,
+                "generated_at": now.isoformat(),
+                "scope": self._lifecycle_scope_payload(scope),
+                "dry_run": bool(dry_run),
+                "matched": 0,
+                "selected": 0,
+                "updated": 0,
+                "failed": 0,
+                "candidate_ids": [],
+                "updated_ids": [],
+                "failed_ids": [],
+                "candidates": [],
+            }
+
+        max_items = max(1, _safe_int(max_items, 100))
+        candidates: List[Dict[str, Any]] = []
+        for row, lifecycle in self._load_lifecycle_rows(scope, now):
+            candidate = self._archive_backfill_candidate_payload(row, lifecycle)
+            if candidate:
+                candidates.append(candidate)
+        candidates.sort(key=lambda item: float(item.get("age_days", 0.0)), reverse=True)
+        selected = candidates[:max_items]
+        candidate_ids = [str(item.get("id", "")) for item in selected if str(item.get("id", ""))]
+        updated_ids: List[str] = []
+        failed_ids: List[str] = []
+        _, index = self._ensure_scope_storage(scope)
+        if not dry_run:
+            for candidate in selected:
+                item_id = str(candidate.get("id", ""))
+                archive_after_days = _safe_int(candidate.get("resolved_archive_after_days"), 0)
+                if item_id and archive_after_days > 0 and index.set_item_archive_after_days(
+                    item_id,
+                    archive_after_days,
+                    scope=scope,
+                ):
+                    updated_ids.append(item_id)
+                elif item_id:
+                    failed_ids.append(item_id)
+        return {
+            "enabled": True,
+            "generated_at": now.isoformat(),
+            "scope": self._lifecycle_scope_payload(scope),
+            "dry_run": bool(dry_run),
+            "matched": len(candidates),
+            "selected": len(selected),
+            "updated": len(updated_ids),
+            "failed": len(failed_ids),
+            "candidate_ids": candidate_ids,
+            "updated_ids": updated_ids,
+            "failed_ids": failed_ids,
+            "candidates": selected,
+        }
+
+    def archive_due_items(
+        self,
+        scope: Optional[MemoryScope] = None,
+        now_ts: Optional[Any] = None,
+        max_items: int = 100,
+        dry_run: bool = True,
+        include_ttl_expired: bool = False,
+    ) -> Dict[str, Any]:
+        scope = self._normalize_scope(scope)
+        now = self._resolve_now(now_ts)
+        if not self.enabled:
+            return {
+                "enabled": False,
+                "generated_at": now.isoformat(),
+                "scope": self._lifecycle_scope_payload(scope),
+                "dry_run": bool(dry_run),
+                "include_ttl_expired": bool(include_ttl_expired),
+                "matched": 0,
+                "selected": 0,
+                "archived": 0,
+                "failed": 0,
+                "candidate_ids": [],
+                "archived_ids": [],
+                "failed_ids": [],
+            }
+
+        max_items = max(1, _safe_int(max_items, 100))
+        due_rows = [
+            (row, lifecycle)
+            for row, lifecycle in self._load_lifecycle_rows(scope, now)
+            if lifecycle["archive_due"] or (include_ttl_expired and lifecycle["ttl_expired"] and not lifecycle["archived"])
+        ]
+        due_rows.sort(key=lambda item: float(item[1]["age_days"]), reverse=True)
+        selected = due_rows[:max_items]
+        candidate_ids = [str(row.get("id", "")) for row, _ in selected if str(row.get("id", ""))]
+        archived_ids: List[str] = []
+        failed_ids: List[str] = []
+        if not dry_run:
+            for item_id in candidate_ids:
+                if self.archive_item(item_id, scope=scope):
+                    archived_ids.append(item_id)
+                else:
+                    failed_ids.append(item_id)
+        return {
+            "enabled": True,
+            "generated_at": now.isoformat(),
+            "scope": self._lifecycle_scope_payload(scope),
+            "dry_run": bool(dry_run),
+            "include_ttl_expired": bool(include_ttl_expired),
+            "matched": len(due_rows),
+            "selected": len(candidate_ids),
+            "archived": len(archived_ids),
+            "failed": len(failed_ids),
+            "candidate_ids": candidate_ids,
+            "archived_ids": archived_ids,
+            "failed_ids": failed_ids,
+        }

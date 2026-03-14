@@ -81,6 +81,11 @@ except ImportError:
     # Fall back to absolute import (when run directly)
     from utils.triggers import detect_trigger, extract_keywords, smart_parse
 
+try:
+    from .context_contract import export_typed_context, sanitize_typed_context_for_durable_write, typed_context_to_searchable_text
+except ImportError:
+    from context_contract import export_typed_context, sanitize_typed_context_for_durable_write, typed_context_to_searchable_text
+
 
 # ===================== 自动预热 =====================
 # 模块加载时自动启动后台预热
@@ -701,7 +706,9 @@ def nexus_add_structured_summary(
     search_keywords: List[str] = None,
     project关联: str = "",
     confidence: str = "medium",
-    source: str = ""
+    source: str = "",
+    evidence_pointers: List[str] = None,
+    replay_commands: List[str] = None,
 ) -> Dict[str, Any]:
     """
     添加结构化摘要（让第二大脑越来越聪明）
@@ -723,18 +730,24 @@ def nexus_add_structured_summary(
     """
     nexus = _get_nexus()
     
-    # 构建可搜索的文本
-    parts = [
-        core_output,
-        " ".join(tech_points or []),
-        code_pattern,
-        decision_context,
-        pitfall_record,
-        applicable_scene,
-        " ".join(search_keywords or []),
-        project关联,
-    ]
-    searchable_text = " ".join(p for p in parts if p)
+    durable_payload = export_typed_context(
+        sanitize_typed_context_for_durable_write(
+            {
+                "summary": core_output,
+                "decisions": decision_context,
+                "keywords": search_keywords or [],
+                "project": project关联,
+                "confidence": confidence,
+                "tech_points": tech_points or [],
+                "code_pattern": code_pattern,
+                "pitfall_record": pitfall_record,
+                "applicable_scene": applicable_scene,
+                "evidence": evidence_pointers or [],
+                "replay": replay_commands or [],
+            }
+        )
+    )
+    searchable_text = typed_context_to_searchable_text(durable_payload)
     
     # 构建标签
     tags_list = ["type:structured_summary", f"confidence:{confidence}"]
@@ -747,17 +760,7 @@ def nexus_add_structured_summary(
     results = {
         "stored_count": 0,
         "doc_ids": [],
-        "summary_data": {
-            "core_output": core_output,
-            "tech_points": tech_points,
-            "code_pattern": code_pattern,
-            "decision_context": decision_context,
-            "pitfall_record": pitfall_record,
-            "applicable_scene": applicable_scene,
-            "search_keywords": search_keywords,
-            "project关联": project关联,
-            "confidence": confidence,
-        }
+        "summary_data": durable_payload,
     }
     
     try:

@@ -90,6 +90,8 @@ Main responsibility:
 - `agent_id / user_id` isolation
 - resource / item / category organization
 - SQLite-backed scoped retrieval
+- report-first lifecycle audit for TTL / decay / archive state
+- explicit archive maintenance for overdue items
 
 Current implementation center:
 
@@ -110,6 +112,13 @@ Current entrypoints:
 - `scripts/nexus_doctor_local.sh`
 - `scripts/memory_v5_smoke.py`
 - `scripts/memory_v5_benchmark.py`
+- `scripts/memory_v5_maintenance.py`
+  - current operator entrypoint for lifecycle audit and explicit archive maintenance
+  - can also write JSON / Markdown reports for handoff and audit trails
+  - `--write-report` defaults those artifacts into `docs/reports/`
+- `scripts/context_recall_scorecard.py`
+  - current default pack covers 22 repo-local recall/inject golden cases
+  - scorecard also reports prompt token/line budget utilization
 
 ## Main Data / Control Flows
 
@@ -127,6 +136,10 @@ Current entrypoints:
 1. Query enters sync API, async runtime, or context assembly path.
 2. Memory core returns hybrid recall candidates.
 3. SmartContext / ContextEngine decide whether and how much to inject.
+   - recalled items should carry stable `why / source / evidence` traces before
+     prompt assembly
+   - current inject-side reranking is typed-query, evidence-aware, and
+     scope-aware
 4. Final prompt receives only budgeted, trimmed, current-context-safe material.
    - compatibility helpers should still end up on this budgeted path
 
@@ -142,9 +155,33 @@ Current entrypoints:
 
 - durable decision storage is evidence-gated
   - no evidence pointer or replay hint -> do not write the decision as L2 durable memory
+- Memory v5 lifecycle governance is explicit, not silent background mutation
+  - recall applies TTL expiry and decay weighting through the same lifecycle rules
+  - lifecycle audit is report-first
+  - archive moves require an explicit maintenance call
+  - item kinds can optionally override global TTL / decay / archive defaults
+    without changing the baseline config for all memory
+  - resolved lifecycle defaults are persisted on new writes, so later config
+    changes do not silently reclassify existing items
+  - zero-valued archive-default rows can be audited as backfill candidates and
+    only change through an explicit operator backfill step
 - runtime tuning is report-first by default
   - current default config does not silently auto-tune SmartContext or ContextEngine
   - tuning must be explicitly enabled
+- current recall evaluation is repo-local and repeatable
+  - default golden pack covers decision, evidence, constraint, replay,
+    continuation, blocker, reversal, stale-summary conflict, stale-evidence conflict,
+    contradictory blockers/constraints, evidence-vs-replay conflict,
+    cross-session continuity drift, no-scope recovery fallback, and
+    branch/topic-switch cases
+  - context-starved continuation queries can bias toward scope-matched summaries
+    before looser semantic candidates
+    - `context_starved_scope`
+  - rerank traces can now surface freshness and fallback hints
+    - `fresh=current`
+    - `fresh=stale`
+    - `fallback=summary`
+  - scorecard tracks both ranking quality and prompt budget consumption
 
 ## Integration Boundaries
 

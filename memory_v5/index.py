@@ -157,6 +157,7 @@ class MemoryIndex:
             "last_used": "TEXT",
             "ttl_days": "INTEGER DEFAULT 0",
             "decay_half_life_days": "INTEGER DEFAULT 0",
+            "archive_after_days": "INTEGER DEFAULT 0",
         }
         for col, ddl in wanted.items():
             if col in existing:
@@ -265,9 +266,9 @@ class MemoryIndex:
                 """
                 INSERT INTO items (
                     id, title, content, kind, tags, keywords, entities, project, category,
-                    source_id, created_at, updated_at, confidence, archived, usage_count, last_used, ttl_days, decay_half_life_days,
+                    source_id, created_at, updated_at, confidence, archived, usage_count, last_used, ttl_days, decay_half_life_days, archive_after_days,
                     scope_agent, scope_user, scope_app, scope_run, scope_workspace
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     title=excluded.title,
                     content=excluded.content,
@@ -284,7 +285,8 @@ class MemoryIndex:
                     usage_count=excluded.usage_count,
                     last_used=excluded.last_used,
                     ttl_days=excluded.ttl_days,
-                    decay_half_life_days=excluded.decay_half_life_days
+                    decay_half_life_days=excluded.decay_half_life_days,
+                    archive_after_days=excluded.archive_after_days
                 """,
                 (
                     payload.get("id"),
@@ -305,6 +307,7 @@ class MemoryIndex:
                     payload.get("last_used", ""),
                     payload.get("ttl_days", 0),
                     payload.get("decay_half_life_days", 0),
+                    payload.get("archive_after_days", 0),
                     payload.get("scope_agent"),
                     payload.get("scope_user"),
                     payload.get("scope_app"),
@@ -628,6 +631,30 @@ class MemoryIndex:
                 (int(archived), item_id),
             )
             conn.commit()
+
+    def set_item_archive_after_days(
+        self,
+        item_id: str,
+        archive_after_days: int,
+        scope: Optional[MemoryScope] = None,
+    ) -> bool:
+        if not item_id:
+            return False
+        conn = self._ensure_connection()
+        with self._lock:
+            if scope is None:
+                cur = conn.execute(
+                    "UPDATE items SET archive_after_days=? WHERE id=?",
+                    (int(archive_after_days), item_id),
+                )
+            else:
+                clause, params = self._scope_where(scope)
+                cur = conn.execute(
+                    f"UPDATE items SET archive_after_days=? WHERE id=? AND {clause}",
+                    (int(archive_after_days), item_id, *params),
+                )
+            conn.commit()
+            return int(cur.rowcount or 0) > 0
 
     def bump_usage(self, item_ids: List[str], ts_iso: Optional[str] = None) -> None:
         if not item_ids:

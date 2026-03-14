@@ -30,7 +30,17 @@ from enum import Enum
 
 from .session_manager import SessionManagerPlugin
 from . import smart_context_now
+from . import smart_context_prompt
+from . import smart_context_recall
 from .context_engine_runtime import ContextBudget, ContextEngineRuntimeState
+try:
+    from ..auto_summary import StructuredSummary
+except ImportError:
+    from auto_summary import StructuredSummary
+try:
+    from ..context_contract import durable_decision_evidence
+except ImportError:
+    from context_contract import durable_decision_evidence
 from ..core.config_manager import get_config_manager
 from ..core.plugin_system import NexusPlugin, PluginMetadata, PluginState, get_plugin_registry
 from ..core.event_bus import EventTypes
@@ -71,60 +81,6 @@ class MemoryTier(Enum):
     HOT = "hot"
     WARM = "warm"
     COLD = "cold"
-
-
-@dataclass
-class StructuredSummary:
-    """
-    结构化摘要
-    
-    9 字段设计，让第二大脑越来越聪明
-    """
-    core_output: str = ""
-    tech_points: List[str] = None
-    code_pattern: str = ""
-    decision_context: str = ""
-    pitfall_record: str = ""
-    applicable_scene: str = ""
-    search_keywords: List[str] = None
-    project关联: str = ""
-    confidence: str = "medium"
-    
-    def __post_init__(self):
-        if self.tech_points is None:
-            self.tech_points = []
-        if self.search_keywords is None:
-            self.search_keywords = []
-    
-    def to_dict(self) -> Dict:
-        return asdict(self)
-    
-    @classmethod
-    def from_dict(cls, data: Dict) -> 'StructuredSummary':
-        return cls(
-            core_output=data.get("本次核心产出", ""),
-            tech_points=data.get("技术要点", []),
-            code_pattern=data.get("代码模式", ""),
-            decision_context=data.get("决策上下文", ""),
-            pitfall_record=data.get("避坑记录", ""),
-            applicable_scene=data.get("适用场景", ""),
-            search_keywords=data.get("搜索关键词", []),
-            project关联=data.get("项目关联", ""),
-            confidence=data.get("置信度", "medium")
-        )
-    
-    def to_searchable_text(self) -> str:
-        parts = [
-            self.core_output,
-            " ".join(self.tech_points),
-            self.code_pattern,
-            self.decision_context,
-            self.pitfall_record,
-            self.applicable_scene,
-            " ".join(self.search_keywords),
-            self.project关联,
-        ]
-        return " ".join(p for p in parts if p)
 
 
 @dataclass
@@ -299,8 +255,20 @@ class ContextEngine:
         query = self._extract_query(user_message)
         
         # 执行检索
-        results = self._search_vector_store(query, n)
-        
+        raw_results = self._search_vector_store(query, n)
+        results = [
+            smart_context_recall.normalize_recall_candidate(
+                item,
+                reason=reason,
+            )
+            for item in (raw_results or [])
+        ]
+        results = smart_context_recall.rerank_recall_candidates(
+            results,
+            query=query,
+            reason=reason,
+        )
+
         # 生成上下文
         context_text = self._build_context(results, query)
         
@@ -481,10 +449,12 @@ class ContextEngine:
             
             # 存储摘要
             if summary:
-                searchable = summary.to_searchable_text()
+                searchable = summary.to_durable_searchable_text()
                 tags = f"type:structured_summary,confidence:{summary.confidence}"
                 if summary.search_keywords:
                     tags += "," + ",".join(summary.search_keywords)
+                durable_payload = summary.to_durable_dict()
+                gate = durable_decision_evidence(summary.typed_context)
                 
                 self._call_nexus(
                     "add_document",
@@ -497,13 +467,14 @@ class ContextEngine:
                 # 元数据
                 self._call_nexus(
                     "add_document",
-                    content=json.dumps(summary.to_dict(), ensure_ascii=False),
+                    content=json.dumps(durable_payload, ensure_ascii=False),
                     title=f"对话 {conversation_id} - 元数据",
                     tags=f"type:metadata,source:{conversation_id}"
                 )
                 results["stored_count"] += 1
                 
-                results["summary_data"] = summary.to_dict()
+                results["summary_data"] = durable_payload
+                results["decision_gate"] = gate
                 
         except Exception as e:
             results["error"] = str(e)
@@ -722,7 +693,12 @@ class ContextEngine:
             if not content:
                 continue
             content = self._trim_lines(content, max_chars)
-            line_count = max(1, content.count("\n") + 1)
+            trace_lines = smart_context_prompt.build_trace_lines(
+                item,
+                max_evidence_items=2,
+                max_evidence_chars=80,
+            )
+            line_count = max(1, content.count("\n") + 1) + len(trace_lines)
             if used_lines + line_count > max_lines_total:
                 break
             used_lines += line_count
@@ -730,6 +706,7 @@ class ContextEngine:
             relevance = item.get("relevance", 0)
             lines.append(f"[{idx}] ({source} · {relevance:.2f})")
             lines.append(content)
+            lines.extend(trace_lines)
         return lines
 
     def _trim_lines(self, text: str, max_chars: int) -> str:
@@ -754,14 +731,20 @@ class ContextEngine:
 
 ```json
 {
-  "本次核心产出": "一句话说明解决了什么问题",
-  "技术要点": ["要点1", "要点2"],
-  "代码模式": "可复用代码片段",
-  "决策上下文": "为什么选择这个方案",
-  "避坑记录": "应避免的错误",
-  "适用场景": "适用的场景",
-  "搜索关键词": ["标签1", "标签2"],
-  "置信度": "high/medium/low"
+  "summary": "一句话说明这轮实际完成了什么",
+  "goal": "当前目标",
+  "status": "当前状态/阶段",
+  "decisions": ["已确认决策"],
+  "constraints": ["硬约束"],
+  "blockers": ["阻塞/风险"],
+  "next_actions": ["下一步"],
+  "questions": ["待澄清问题"],
+  "evidence": ["文件/日志/artifact 指针"],
+  "replay": ["最小复现命令"],
+  "keywords": ["标签1", "标签2"],
+  "entities": ["关键人/系统/模块"],
+  "project": "所属项目（可选）",
+  "confidence": "high/medium/low"
 }
 ```
 """

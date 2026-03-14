@@ -42,12 +42,16 @@ Last updated: 2026-03-14
 
 - `agent_id / user_id` scope
 - `resource / item / category` 结构
-- 后续 TTL / decay / archive 的基础
+- TTL / decay / archive 的当前治理基础
+- lifecycle audit 与显式 archive 维护
 
 当前对应能力：
 
 - Memory v5 scoped layout
 - SQLite-backed index
+- Memory v5 lifecycle audit / explicit archive maintenance
+- optional per-kind lifecycle defaults for narrower retention tuning
+- explicit archive-default backfill for older zero-valued rows
 
 ### 4. Context Governance
 

@@ -5,7 +5,22 @@ set -o pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OPENCLAW_HOME_DIR="${OPENCLAW_HOME:-${HOME}/.openclaw}"
-OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-${OPENCLAW_HOME_DIR}/workspace}"
+infer_workspace_dir() {
+  if [[ -n "${OPENCLAW_WORKSPACE:-}" ]]; then
+    printf '%s\n' "${OPENCLAW_WORKSPACE}"
+    return
+  fi
+
+  if [[ "$(basename "${ROOT_DIR}")" == "deepsea-nexus" ]] && [[ "$(basename "$(dirname "${ROOT_DIR}")")" == "skills" ]]; then
+    printf '%s\n' "$(dirname "$(dirname "${ROOT_DIR}")")"
+    return
+  fi
+
+  printf '%s\n' "${OPENCLAW_HOME_DIR}/workspace"
+}
+
+OPENCLAW_WORKSPACE_DIR="$(infer_workspace_dir)"
+export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE_DIR}"
 MODE="repair"
 RUN_QUICK_DEPLOY=1
 

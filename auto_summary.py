@@ -19,6 +19,21 @@ import os
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, asdict
 
+try:
+    from .context_contract import (
+        export_typed_context,
+        normalize_typed_context,
+        sanitize_typed_context_for_durable_write,
+        typed_context_to_searchable_text,
+    )
+except ImportError:
+    from context_contract import (
+        export_typed_context,
+        normalize_typed_context,
+        sanitize_typed_context_for_durable_write,
+        typed_context_to_searchable_text,
+    )
+
 
 @dataclass
 class StructuredSummary:
@@ -60,6 +75,9 @@ class StructuredSummary:
     
     # 置信度 - 质量自检
     confidence: str = "medium"       # 置信度：high/medium/low
+
+    # Canonical typed context payload (current source of truth)
+    typed_context: Dict[str, Any] = None
     
     def __post_init__(self):
         if self.tech_points is None:
@@ -68,45 +86,57 @@ class StructuredSummary:
             self.search_keywords = []
         if self.entities is None:
             self.entities = []
+        normalized = normalize_typed_context(
+            self.typed_context
+            or {
+                "summary": self.core_output,
+                "decisions": self.decision_context,
+                "next_actions": self.next_actions,
+                "questions": self.questions,
+                "keywords": self.search_keywords,
+                "entities": self.entities,
+                "project": self.project关联,
+                "confidence": self.confidence,
+                "tech_points": self.tech_points,
+                "code_pattern": self.code_pattern,
+                "pitfall_record": self.pitfall_record,
+                "applicable_scene": self.applicable_scene,
+            }
+        )
+        self.typed_context = normalized
+        self.core_output = normalized["summary"]
+        self.tech_points = list(normalized["tech_points"])
+        self.code_pattern = normalized["code_pattern"]
+        self.decision_context = "; ".join(normalized["decisions"])
+        self.pitfall_record = normalized["pitfall_record"]
+        self.applicable_scene = normalized["applicable_scene"]
+        self.search_keywords = list(normalized["keywords"])
+        self.project关联 = normalized["project"]
+        self.next_actions = "; ".join(normalized["next_actions"])
+        self.questions = "; ".join(normalized["questions"])
+        self.entities = list(normalized["entities"])
+        self.confidence = normalized["confidence"]
     
     def to_dict(self) -> Dict:
         """转换为字典"""
-        return asdict(self)
+        return export_typed_context(self.typed_context)
     
     @classmethod
     def from_dict(cls, data: Dict) -> 'StructuredSummary':
         """从字典创建"""
-        return cls(
-            core_output=data.get("本次核心产出", ""),
-            tech_points=data.get("技术要点", []),
-            code_pattern=data.get("代码模式", ""),
-            decision_context=data.get("决策上下文", ""),
-            pitfall_record=data.get("避坑记录", ""),
-            applicable_scene=data.get("适用场景", ""),
-            search_keywords=data.get("搜索关键词", []),
-            project关联=data.get("项目关联", ""),
-            next_actions=data.get("下一步", data.get("next_actions", "")),
-            questions=data.get("问题", data.get("questions", "")),
-            entities=data.get("实体", data.get("entities", [])),
-            confidence=data.get("置信度", "medium")
-        )
+        return cls(typed_context=normalize_typed_context(data))
     
     def to_searchable_text(self) -> str:
         """转换为可搜索的文本"""
-        parts = [
-            self.core_output,
-            " ".join(self.tech_points),
-            self.code_pattern,
-            self.decision_context,
-            self.pitfall_record,
-            self.applicable_scene,
-            " ".join(self.search_keywords),
-            self.project关联,
-            self.next_actions,
-            self.questions,
-            " ".join(self.entities),
-        ]
-        return " ".join(p for p in parts if p)
+        return typed_context_to_searchable_text(self.typed_context)
+
+    def to_durable_dict(self) -> Dict[str, Any]:
+        """Export sanitized payload for durable storage."""
+        return export_typed_context(sanitize_typed_context_for_durable_write(self.typed_context))
+
+    def to_durable_searchable_text(self) -> str:
+        """Export sanitized searchable text for durable storage."""
+        return typed_context_to_searchable_text(sanitize_typed_context_for_durable_write(self.typed_context))
     
     def to_tags(self) -> str:
         """转换为标签字符串"""
@@ -195,18 +225,20 @@ class SummaryParser:
 
 ```json
 {{
-  "本次核心产出": "一句话说明这次解决了什么问题",
-  "技术要点": ["关键点1", "关键点2"],
-  "代码模式": "提取的可复用代码片段（如果有）",
-  "决策上下文": "为什么选择这个方案",
-  "避坑记录": "应避免的错误/弯路",
-  "适用场景": "这个方案适用的场景",
-  "下一步": "后续行动/下一步",
-  "问题": "仍待澄清的问题",
-  "实体": ["关键人/系统/组件"],
-  "搜索关键词": ["标签1", "标签2"],
-  "项目关联": "所属项目（可选）",
-  "置信度": "high/medium/low"
+  "summary": "一句话说明这轮实际完成了什么",
+  "goal": "当前目标",
+  "status": "当前状态/阶段",
+  "decisions": ["已确认决策"],
+  "constraints": ["硬约束"],
+  "blockers": ["阻塞/风险"],
+  "next_actions": ["下一步"],
+  "questions": ["仍待澄清的问题"],
+  "evidence": ["文件/日志/artifact 指针"],
+  "replay": ["最小复现命令"],
+  "entities": ["关键人/系统/组件"],
+  "keywords": ["标签1", "标签2"],
+  "project": "所属项目（可选）",
+  "confidence": "high/medium/low"
 }}
 ```
 
@@ -282,8 +314,9 @@ class HybridStorage:
         if summary:
             if isinstance(summary, StructuredSummary):
                 # 结构化摘要 - 存储所有字段
-                summary_text = summary.to_searchable_text()
+                summary_text = summary.to_durable_searchable_text()
                 summary_tags = f"type:structured_summary,source:{conversation_id},confidence:{summary.confidence}"
+                durable_payload = summary.to_durable_dict()
                 
                 # 主存储：合并所有字段为可搜索文本
                 self.vector_store.add(
@@ -295,7 +328,7 @@ class HybridStorage:
                 
                 # 元数据存储：保留原始结构
                 self.vector_store.add(
-                    content=json.dumps(summary.to_dict(), ensure_ascii=False),
+                    content=json.dumps(durable_payload, ensure_ascii=False),
                     title=f"对话 {conversation_id} - 摘要元数据",
                     tags=f"type:summary_metadata,source:{conversation_id}"
                 )
@@ -311,7 +344,7 @@ class HybridStorage:
                     )
                     results["stored_count"] += 1
                 
-                results["summary_data"] = summary.to_dict()
+                results["summary_data"] = durable_payload
                 
             else:
                 # 旧格式摘要（向后兼容）
@@ -328,7 +361,7 @@ class HybridStorage:
             try:
                 summary_payload = None
                 if isinstance(summary, StructuredSummary):
-                    summary_payload = summary.to_dict()
+                    summary_payload = summary.to_durable_dict()
                 elif summary is not None:
                     summary_payload = {"本次核心产出": getattr(summary, "core_output", str(summary))}
                 self._mem_v5.ingest_summary(

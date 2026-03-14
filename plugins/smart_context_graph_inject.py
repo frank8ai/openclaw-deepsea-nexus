@@ -40,11 +40,27 @@ def build_graph_injected_items(
             content = f"{edge.get('subj')} {edge.get('rel')} {edge.get('obj')}"
             if evidence_text:
                 content = f"{content} | 证据: {evidence_text}"
+            why = "reason=graph_association | signal=graph | origin=graph"
+            if evidence_text:
+                why += " | evidence=1"
             out.append(
                 {
                     "content": content,
                     "source": "graph",
                     "relevance": edge.get("weight", 1.0),
+                    "score": edge.get("weight", 1.0),
+                    "origin": "graph",
+                    "kind": "graph_edge",
+                    "evidence": [evidence_text] if evidence_text else [],
+                    "why": why,
+                    "trace": {
+                        "reason": "graph_association",
+                        "signal": "graph",
+                        "origin": "graph",
+                        "kind": "graph_edge",
+                        "source": "graph",
+                        "evidence": [evidence_text] if evidence_text else [],
+                    },
                 }
             )
     return out[:max_items]

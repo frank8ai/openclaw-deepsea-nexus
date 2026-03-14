@@ -7,6 +7,89 @@ from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 
 
+def _clean_text_list(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw_items = list(value)
+    else:
+        raw_items = [value]
+    out: List[str] = []
+    for item in raw_items:
+        text = str(item or "").strip()
+        if text:
+            out.append(text)
+    return out
+
+
+def _infer_trace_signal(item: Dict[str, Any], source: str, tags: List[str], kind: str) -> str:
+    if kind == "graph_edge" or source == "graph":
+        return "graph"
+    if kind == "decision" or "type:decision_block" in tags:
+        return "decision"
+    if kind == "topic" or "type:topic_block" in tags:
+        return "topic"
+    if kind == "summary" or "type:summary" in tags:
+        return "summary"
+    return "semantic"
+
+
+def _ensure_trace_fields(item: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(item or {})
+    source = str(normalized.get("source", "") or "")
+    tags = [str(tag).strip() for tag in (normalized.get("tags") or []) if str(tag).strip()]
+    trace = normalized.get("trace", {})
+    if not isinstance(trace, dict):
+        trace = {}
+
+    kind = str(normalized.get("kind", "") or trace.get("kind", "") or "").strip()
+    if not kind and source == "graph":
+        kind = "graph_edge"
+
+    origin = str(normalized.get("origin", "") or trace.get("origin", "") or "").strip()
+    if not origin and source == "graph":
+        origin = "graph"
+
+    evidence = _clean_text_list(normalized.get("evidence", []) or trace.get("evidence", []))
+    signal = str(trace.get("signal", "") or "").strip() or _infer_trace_signal(normalized, source, tags, kind)
+
+    if signal and "signal" not in trace:
+        trace["signal"] = signal
+    if origin and "origin" not in trace:
+        trace["origin"] = origin
+    if kind and "kind" not in trace:
+        trace["kind"] = kind
+    if source and "source" not in trace:
+        trace["source"] = source
+    if evidence and "evidence" not in trace:
+        trace["evidence"] = list(evidence)
+
+    why = str(normalized.get("why", "") or "").strip()
+    if not why:
+        reason = str(trace.get("reason", "") or "").strip()
+        parts: List[str] = []
+        if reason:
+            parts.append(f"reason={reason}")
+        if signal:
+            parts.append(f"signal={signal}")
+        if origin:
+            parts.append(f"origin={origin}")
+        if evidence:
+            parts.append(f"evidence={len(evidence)}")
+        why = " | ".join(parts)
+
+    if kind:
+        normalized["kind"] = kind
+    if origin:
+        normalized["origin"] = origin
+    if evidence:
+        normalized["evidence"] = evidence
+    if why:
+        normalized["why"] = why
+    normalized["trace"] = trace
+    return normalized
+
+
 def finalize_injected_items(
     filtered: List[Dict[str, Any]],
     graph_items: List[Dict[str, Any]],
@@ -17,7 +100,7 @@ def finalize_injected_items(
     max_lines_per_item: int,
     max_lines_total: int,
 ) -> List[Dict[str, Any]]:
-    final = list(filtered or []) + list(graph_items or [])
+    final = [_ensure_trace_fields(item) for item in list(filtered or []) + list(graph_items or [])]
     if topk_only:
         final = sorted(
             final,

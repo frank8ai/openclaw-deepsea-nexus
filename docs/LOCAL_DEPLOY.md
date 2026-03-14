@@ -4,7 +4,12 @@
 将当前仓库版本部署到本地 OpenClaw 工作区，并确保门禁与运行态可用。
 
 ## 前置条件
-- 路径：`~/.openclaw/workspace/skills/deepsea-nexus`
+- 路径：当前仓库根目录
+- workspace 解析优先级：
+  - `OPENCLAW_WORKSPACE`
+  - 当前仓库位置（若仓库位于 `<workspace>/skills/deepsea-nexus`，deploy/doctor 会自动推断这个 `<workspace>`）
+  - 回退 `OPENCLAW_HOME/workspace`
+- 当前本机 gemini agent 常用工作区：`~/.openclaw/workspace-gemini`
 - Python：`3.8+`
 - 可选依赖：`chromadb`、`sentence-transformers`（缺失时自动降级，不阻塞启动）
 
@@ -18,8 +23,11 @@ bash scripts/deploy_local_v5.sh --full
 说明：
 - `--full`：执行 `run_tests.py` 全量门禁 + 运行态 smoke 检查
 - `--quick`：仅执行 `tests/test_memory_v5.py` + 运行态 smoke + v5 benchmark
-- 脚本会优先使用 `NEXUS_PYTHON_PATH`，失败时自动回退到 `python3`，并默认主库：
-  - `NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored`
+- `--with-lifecycle-audit`：在 deploy gate 之后追加一次 `memory_v5_maintenance.py --dry-run --write-report`
+- `--lifecycle-all-agents`：把上面的 lifecycle audit 扩到所有已发现的 Memory v5 scope
+- 脚本会优先使用 `NEXUS_PYTHON_PATH`，失败时自动回退到 `python3`，并自动导出解析后的 `OPENCLAW_WORKSPACE`
+- 默认主库目标：
+  - `NEXUS_VECTOR_DB=<resolved workspace>/memory/.vector_db_restored`
   - `NEXUS_COLLECTION=deepsea_nexus_restored`
 - 当前运行时默认路径优先跟随：
   - `OPENCLAW_WORKSPACE`
@@ -28,10 +36,11 @@ bash scripts/deploy_local_v5.sh --full
 如需显式指定：
 
 ```bash
+OPENCLAW_WORKSPACE=~/.openclaw/workspace-gemini \
 NEXUS_PYTHON_PATH=~/miniconda3/envs/openclaw-nexus/bin/python \
-NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored \
+NEXUS_VECTOR_DB=~/.openclaw/workspace-gemini/memory/.vector_db_restored \
 NEXUS_COLLECTION=deepsea_nexus_restored \
-bash scripts/deploy_local_v5.sh --full
+bash scripts/deploy_local_v5.sh --full --with-lifecycle-audit
 ```
 
 ## 一键巡检 + 自动修复（推荐日常）
@@ -62,7 +71,7 @@ bash scripts/nexus_doctor_local.sh --repair
 
 - 必须存在：`NEXUS_VECTOR_DB`、`NEXUS_COLLECTION`
 - 默认主库目标：
-  - `NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored`
+  - `NEXUS_VECTOR_DB=<resolved workspace>/memory/.vector_db_restored`
   - `NEXUS_COLLECTION=deepsea_nexus_restored`
 
 违规会被阻断并记录到：
@@ -84,6 +93,25 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
 - JSON 报告：`docs/reports/summary_audit_<timestamp>.json`
 - Markdown 报告：`docs/reports/summary_audit_<timestamp>.md`
 - 若发生迁移，会生成回滚脚本：`docs/reports/summary_audit_<timestamp>_rollback.sh`
+
+## Memory v5 生命周期巡检
+用于审计当前 scope 的 `TTL / decay / archive` 状态，并显式执行 overdue archive：
+
+```bash
+${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3} \
+  scripts/memory_v5_maintenance.py --dry-run --write-report
+```
+
+说明：
+- `--dry-run` 只输出候选，不实际归档
+- 去掉 `--dry-run` 才会执行显式 archive move
+- `--exclude-ttl-expired` 可把本轮维护限定为纯 age-based archive candidate
+- `--apply-archive-backfill` 会显式把 older zero-valued `archive_after_days` rows 回填为当前解析后的 archive defaults
+- backfill 不会在同一次 maintenance 中自动继续 archive 这些 rows；如需归档，需下一次显式 audit/apply
+
+默认输出：
+- JSON 报告：`docs/reports/memory_v5_lifecycle_<timestamp>.json`
+- Markdown 报告：`docs/reports/memory_v5_lifecycle_<timestamp>.md`
 
 ## 计数口径说明（避免误判）
 主库条数不是常量。以下动作会导致 `deepsea_nexus_restored` 的 count 小幅变化：
@@ -184,7 +212,8 @@ PY
 
 并建议在 Gateway 进程环境固定以下变量（防止重启后写错库）：
 - `NEXUS_PYTHON_PATH=~/miniconda3/envs/openclaw-nexus/bin/python`
-- `NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored`
+- `OPENCLAW_WORKSPACE=~/.openclaw/workspace-gemini`（若当前 agent workspace 在 gemini）
+- `NEXUS_VECTOR_DB=$OPENCLAW_WORKSPACE/memory/.vector_db_restored`
 - `NEXUS_COLLECTION=deepsea_nexus_restored`
 
 可选 compaction 建议：

@@ -78,6 +78,7 @@ class MemoryItem:
     last_used: str = ""
     ttl_days: int = 0
     decay_half_life_days: int = 0
+    archive_after_days: int = 0
     metadata: Dict[str, str] = field(default_factory=dict)
     scope: MemoryScope = field(default_factory=MemoryScope)
     path: str = ""

@@ -124,11 +124,20 @@ Its role is to provide:
 - `agent_id / user_id` isolation
 - resource / item / category organization
 - scoped retrieval and maintenance
+- shared lifecycle classification for TTL / decay / archive state
+- explicit archive maintenance without silent background mutation
 
 Main concepts:
 
 - `MemoryScope`
 - `MemoryV5Service`
+- optional `item_kind_defaults`
+  - lets specific memory kinds override global TTL / decay / archive defaults
+    without changing the overall runtime baseline
+  - resolved lifecycle defaults are persisted per item on new writes, so
+    later config changes do not silently rewrite prior archive boundaries
+  - zero-valued archive rows remain explicit operator backfill candidates instead
+    of being silently reinterpreted at runtime
 
 ### 6. Operational layer
 
@@ -139,7 +148,19 @@ Operational entrypoints include:
 - `scripts/nexus_doctor_local.sh`
 - `scripts/memory_v5_smoke.py`
 - `scripts/memory_v5_benchmark.py`
+- `scripts/memory_v5_maintenance.py`
+  - operator-facing lifecycle audit / explicit archive entrypoint
+  - can emit JSON / Markdown artifacts for bounded operator review
+  - default report drop location is repo-local `docs/reports/` when `--write-report` is used
+  - can also explicitly backfill zero-valued archive defaults without auto-archiving in the same pass
 - maintenance and compatibility scripts under `scripts/`
+- `scripts/context_recall_scorecard.py`
+  - evaluates repo-local recall/inject golden cases and prompt budget ratios
+  - current baseline covers 22 repo-local cases across
+    decision/evidence/constraint/replay, continuation/blocker/reversal,
+    stale-summary/stale-evidence, contradictory blocker/constraint,
+    cross-session drift, evidence-vs-replay conflict, no-scope recovery
+    fallback, and topic-switch slices
 
 This layer is part of the current release because the product promise includes
 local verification and operability, not just library APIs.
@@ -219,9 +240,28 @@ Key subtrees include:
 1. Query enters sync API, async runtime, or context assembly path.
 2. Memory core resolves hybrid recall candidates.
 3. SmartContext / ContextEngine decide whether to inject.
+   - recalled and graph-injected items should carry stable
+     `why / source / evidence` traces
+   - current reranking uses typed-query intent plus evidence/scope hints before
+     final budget trimming
+   - repo-local scorecard coverage now includes research continuation,
+     constraint/replay resumption, blocker recovery, multi-reversal,
+     stale-summary/evidence conflict, contradictory blocker/constraint,
+     cross-session continuity drift, evidence-vs-replay conflict,
+     no-scope recovery fallback, and branch/topic switch slices
+   - context-starved continuation queries can award an extra scope-matched
+     summary bonus before looser lexical fallback
+     - `context_starved_scope`
+   - freshness hints and resume-without-replay fallback now influence rerank when
+     the query explicitly asks for current state or a resume path
+     - traces can surface `fresh=current|stale` and `fallback=summary`
 4. Budgeting and trimming happen before final prompt assembly.
    - compatibility helpers must reuse this path instead of formatting their own
      unmanaged recall block
+5. Memory v5 recall applies the same lifecycle classification before final hits
+   are returned.
+   - TTL-expired items are filtered
+   - older items can decay instead of being hard-dropped
 
 ### Compression / rescue flow
 
@@ -233,6 +273,9 @@ Key subtrees include:
    - `>35`: compressed mode with stronger archive posture
 3. Before compression, typed state is rescued.
 4. Output keeps evidence pointers and replay hints, not raw logs.
+5. Lifecycle maintenance stays explicit.
+   - `audit_lifecycle()` reports TTL / decay / archive posture
+   - `archive_due_items()` only archives when explicitly invoked
 
 ## OpenClaw Integration Boundary
 

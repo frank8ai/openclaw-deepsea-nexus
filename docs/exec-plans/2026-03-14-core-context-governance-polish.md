@@ -1,0 +1,442 @@
+# Execution Plan - Core Context Governance Polish
+
+- Date: 2026-03-14
+- Slug: `core-context-governance-polish`
+- Status: `completed`
+- Plan Type: `core capability hardening`
+
+## 1. Objective
+
+- Primary goal:
+  - 把 Deep-Sea Nexus 的核心能力收束成一条清晰主链: `capture -> typed preserve -> evidence-gated durable write -> recall -> inject -> compress -> rescue -> replay`。
+- This round deliverable:
+  - 产出一份后续连续迭代可直接执行的核心能力打磨计划，明确优先级、落点模块、验收标准、非目标和阶段切分。
+
+## 2. Source Of Truth
+
+- Product / technical docs:
+  - `docs/product/README.md`
+  - `docs/product/capabilities.md`
+  - `docs/product/roadmap.md`
+  - `docs/TECHNICAL_OVERVIEW_CURRENT.md`
+  - `docs/ARCHITECTURE_CURRENT.md`
+  - `docs/sop/Context_Policy_v2_EventDriven.md`
+- Code modules:
+  - `plugins/smart_context.py`
+  - `plugins/smart_context_summary.py`
+  - `plugins/smart_context_rescue.py`
+  - `plugins/context_engine.py`
+  - `plugins/context_engine_runtime.py`
+  - `memory_v5/service.py`
+  - `scripts/sync_openclaw_context_optimizer.py`
+  - `tests/test_memory_v5.py`
+  - `tests/test_integration.py`
+- External references:
+  - Anthropic long-context guidance
+  - OpenAI prompt caching guidance
+  - MemGPT paper
+
+## 3. Scope
+
+- In scope:
+  - 统一“压缩前必须保留什么”的 typed context contract
+  - 统一 durable decision 的 evidence gate
+  - 统一 recall / inject / rescue / replay 的数据契约与评测口径
+  - 把长期记忆写入严格收束到上下文治理主链
+  - 给 Memory v5 的 TTL / decay / archive 补上当前产品级闭环
+  - 对旧摘要模型、旧兼容入口、历史方案代码做 current / compat / archive 分层
+- Out of scope:
+  - 调整 `8 / 20 / 35` 轮次规则
+  - 新做云服务、SaaS、多租户产品面
+  - 大改 public API 命名
+  - 追求一次性删除全部 compat 路径
+- Non-goals:
+  - 不做“随便总结一下就算压缩”
+  - 不让自动调参绕过文档约束默默改配置
+  - 不把 raw logs / transcript 直接塞回 durable summary
+
+## 4. Constraints
+
+- Architecture / naming / style constraints:
+  - canonical context policy 保持 `8 / 20 / 35`
+  - 所有 durable memory 都必须先经过 context governance
+  - L2 durable decision 必须带 evidence pointer 或 replay command
+  - raw evidence 只留在 L3，L1/L2 只保留指针
+  - 兼容层可以保留，但必须是 adapter，不得继续主导当前设计
+- Validation constraints:
+  - 先补 focused tests，再做实现
+  - 默认走 report-first，不允许 silent runtime drift
+  - 必须保留对 OpenClaw sync/single-source 对齐的验证
+- Time / environment constraints:
+  - 采用多 slice 渐进推进，每个 slice 可独立验证和回滚
+  - 优先改 current runtime 与 contract，不先做大范围清仓
+
+## 5. Success Contract
+
+- Done means:
+  - SmartContext、ContextEngine、Memory v5 使用同一套 canonical typed context 字段
+  - pre-compression preserve whitelist 在 emit 和 ingest 两侧都被代码和测试强约束
+  - evidence-gated durable decision 不再只停留在部分路径
+  - recall / inject 行为有明确 scorecard，而不是只看“感觉像在工作”
+  - 生命周期治理可回答: 保留什么、衰减什么、归档什么、为何如此
+- Required evidence:
+  - source-of-truth docs 已同步
+  - 关键模块测试通过
+  - 至少一套 long-session eval / scorecard 可重复运行
+  - 关键路径 metrics/report 能证明 rescue / inject / evidence gate 在生效
+- Acceptance checks:
+  - `tests/test_memory_v5.py` 覆盖 typed preserve / evidence gate / compat adapter
+  - `tests/test_integration.py` 覆盖 recall / inject / compression 主链
+  - 新增或升级的 eval 脚本可输出可比对结果
+  - 当前 docs 明确 current / compat / archive 边界
+
+## 6. Risks And Unknowns
+
+- Open questions:
+  - canonical typed context envelope 是否直接取 `Goal / Status / Decisions / Constraints / Blockers / Next / Questions / Evidence / Replay` 作为唯一内部格式，还是保留 legacy 9 字段做 ingest adapter
+  - recall ranking 的主信号应以 scope / recency / evidence / decision 命中为主，还是保留更多关键词启发式
+  - TTL / decay / archive 的默认策略是否按 item kind 分类，而不是统一天数
+- Likely failure points:
+  - `plugins/context_engine.py` 的 legacy `StructuredSummary` 与当前 policy 漂移
+  - `memory_v5/service.py` 仍消费旧摘要键名，导致 canonical contract 只在 SmartContext 侧成立
+  - inject / auto-tune / budget 逻辑分散在两个 runtime state 中，后续容易与“report-first”原则冲突
+  - 兼容入口过多，容易出现绕过主链的直接写入
+- Decisions that should stay flexible:
+  - Recall ranking 的具体加权公式
+  - TTL / decay / archive 的数值
+  - scorecard 指标阈值
+
+## 7. Plan
+
+1. [x] Phase 1: Contract consolidation
+   - 定义 canonical typed context envelope，并标注 legacy summary 为 compat-only
+   - 在 `SmartContext -> ContextEngine -> MemoryV5` 三段建立同一字段映射表
+   - 给 emit / ingest 两侧都补 contract tests
+2. [x] Phase 2: Durable write hardening
+   - 收紧所有 durable decision 写入路径
+   - 新增统一 validator: 无 evidence / replay 的 decision 只能留在 L1，不可落 L2
+   - 清点并修复绕过 context governance 的直接写入入口
+3. [x] Phase 3: Recall / inject quality loop
+  - 从“关键词命中就注入”提升到 typed-query + scope-aware + evidence-aware ranking
+  - 统一 SmartContext inject 与 ContextEngine budget contract
+  - 给 recall result / injected block 增加更稳定的 why / source / evidence traces
+  - 当前已落首个 slice:
+    - shared recall trace normalization 已接到 SmartContext / ContextEngine / graph inject / prompt formatting
+    - 先统一 explainability，再收紧 ranking
+  - 当前已落第二个 slice:
+    - SmartContext / ContextEngine inject-side rerank 已接入 typed-query intent、evidence hints、scope hints
+    - 暂未改动底层 `nexus_recall` 公共返回顺序，只收紧上下文注入面
+    - inject metrics 现在会带出 top item 的 `matched_intents / scope_matches / score_breakdown`
+4. [x] Phase 4: Evaluation and observability
+  - 建 long-session golden cases:
+    - coding continuation
+    - research thread continuation
+    - blocker recovery
+     - decision reversal
+     - topic switch / branch switch
+  - 输出 scorecard:
+    - rescue completeness
+    - evidence coverage
+    - durable decision precision
+    - recall usefulness
+    - inject hit ratio
+    - context budget utilization
+  - 当前已落首个 slice:
+    - 新增 `scripts/context_recall_scorecard.py`
+    - 新增默认 golden cases:
+      - `docs/evals/context_recall_golden_cases.json`
+    - 当前先覆盖 recall/inject rerank 主链，不假装已经覆盖完整 long-session 生命周期
+  - 当前已落第二个 slice:
+    - 默认 golden pack 已扩到 7 个 repo-local case:
+      - decision relay audit
+      - evidence relay audit
+      - coding continuation
+      - blocker recovery
+      - decision reversal
+      - technical-term topic
+      - topic switch / payment reconciliation
+    - scorecard 现在也会输出 prompt token/line budget utilization
+    - blocker query intent 词表已补齐 `blocking/blocked`，默认 golden pack 当前可跑到 `7/7`
+  - 当前已落第三个 slice:
+    - 默认 golden pack 已扩到 11 个 repo-local case，并补齐更多 typed preserve / continuation coverage:
+      - research thread continuation
+      - constraint resumption
+      - rescue replay continuity
+      - branch switch / relay audit
+    - scorecard 现已覆盖 summary / decision / constraint / blocker / topic / evidence / replay 七类主信号
+    - 默认 golden pack 当前可跑到 `11/11`
+  - 当前已落第四个 slice:
+    - 默认 golden pack 已扩到 14 个 repo-local case，并补齐冲突型 continuity coverage:
+      - multi-reversal current decision
+      - rescue after topic switch
+      - stale summary conflict
+    - `resume` / `恢复` / `接续` 已接入 replay intent 词表，topic-switch 后的 replay 恢复当前可稳定命中
+    - 默认 golden pack 当前可跑到 `14/14`
+  - 当前已落第五个 slice:
+    - 默认 golden pack 已扩到 18 个 repo-local case，并补齐 freshness/fallback coverage:
+      - cross-session continuity
+      - stale evidence conflict
+      - contradictory blockers
+      - resume without replay fallback
+    - `current/latest/final/still/right now` 已接入 freshness hints
+    - `resume` 但无 replay 项时，summary fallback 会显式带 `fallback=summary`
+    - 默认 golden pack 当前可跑到 `18/18`
+  - 当前已落第六个 slice:
+    - 默认 golden pack 已扩到 22 个 repo-local case，并补齐更复杂 continuity/conflict coverage:
+      - cross-session continuity drift
+      - evidence-vs-replay conflict
+      - contradictory constraints
+      - no-scope recovery fallback
+    - rerank 现已补齐更宽的 freshness 词表、`context_starved_scope` 额外加权，以及更强的 resume-without-replay summary fallback
+    - trace / why 现在会稳定带出:
+      - `fresh=current`
+      - `fresh=stale`
+      - `fallback=summary`
+    - 默认 golden pack 当前可跑到 `22/22`
+5. [x] Phase 5: Lifecycle and cleanup closure
+   - 给 Memory v5 的 TTL / decay / archive / audit 建当前产品承诺
+   - 将旧摘要模型、旧方案文档、兼容脚本做 current / compat / archive 边界化
+   - 文档、脚本、测试一起收口，避免“文档说一套、运行一套”
+   - 当前已落首个 slice:
+     - `MemoryV5Service` 已补 `audit_lifecycle()`，以 report-first 方式暴露 TTL / decay / archive 状态
+     - `MemoryV5Service` 已补 `archive_due_items()`，仅在显式调用且 `dry_run=False` 时执行 archive move
+     - recall 现复用同一 lifecycle classification，对 TTL expiry 与 decay 采用一致规则
+   - 已补回归覆盖:
+     - TTL expiry filters recall
+     - decay penalizes stale hits
+     - lifecycle audit classifies active / archived / ttl_expired / archive_due
+     - archive_due dry-run / apply path
+   - 当前已落第二个 slice:
+     - `memory_v5.item_kind_defaults` 已可按 item kind 覆盖 TTL / decay 默认值，默认配置不变
+     - `archive_due_items()` 已可选包含 TTL-expired candidates，供显式 maintenance 使用
+     - `scripts/memory_v5_maintenance.py` 已改为复用 lifecycle audit / archive API，不再重复计算旧逻辑
+   - 已补回归覆盖:
+       - kind lifecycle defaults override global defaults when configured
+       - lifecycle candidate plan can include TTL-expired items
+       - maintenance script returns audit + archive plan and apply result
+   - 当前已落第三个 slice:
+     - `scripts/memory_v5_maintenance.py` 已可选写出 JSON / Markdown lifecycle reports
+     - operator 入口现在既能 stdout 返回结构化结果，也能落地 handoff / audit artifact
+     - 已补回归覆盖:
+       - maintenance script writes JSON and Markdown reports
+   - 当前已落第四个 slice:
+     - `memory_v5_maintenance.py` 已接入 repo-local `docs/reports/` 默认落盘约定
+     - `--write-report` 现在可直接生成 `memory_v5_lifecycle_<timestamp>.json/.md`
+     - 默认 CLI 行为仍保持不写盘，只有显式要求时才会落地 artifact
+   - 当前已落第五个 slice:
+     - `memory_v5.item_kind_defaults` 现已同时支持 `archive_after_days`
+     - 新写入 item 会持久化解析后的 `ttl_days / decay_half_life_days / archive_after_days`
+     - lifecycle audit / archive_due classification 现优先读取 item-level archive 边界，而不是只看当前全局配置
+     - maintenance 仍保持 report-first / explicit apply，不做静默回写或批量重分类
+   - 已补回归覆盖:
+       - kind archive defaults drive archive_due classification
+       - changing global archive config no longer retroactively reclassifies already-written items
+   - 当前已落第六个 slice:
+     - lifecycle audit 现会显式暴露 zero-valued `archive_after_days` backfill candidates
+     - `MemoryV5Service.backfill_archive_defaults()` 已补上显式 operator backfill API
+     - `scripts/memory_v5_maintenance.py` 已支持 `--apply-archive-backfill`
+     - backfill 只写入解析后的 archive default，不会在同一次 maintenance 中静默触发后续 archive move
+   - 已补回归覆盖:
+       - audit surfaces archive-default backfill candidates
+       - maintenance script can preview and apply archive-default backfill
+   - 当前已落第七个 slice:
+     - `scripts/deploy_local_v5.sh` 已支持 `--with-lifecycle-audit` / `--lifecycle-all-agents`
+     - deploy gate 之后可直接追加 lifecycle dry-run report，不必再手工拼接运维命令
+     - `docs/LOCAL_DEPLOY.md`、产品能力与路线图已同步到当前 operator path
+   - 已补回归覆盖:
+       - deploy entrypoint advertises optional lifecycle audit path
+
+## 8. Validation Plan
+
+- Narrowest checks first:
+  - `python3 -m unittest tests.test_memory_v5 -v`
+  - 针对新增 contract / recall / rescue case 的定点单测
+  - `python3 -m py_compile` 覆盖改动的 Python 模块
+- Broader checks if needed:
+  - `python3 run_tests.py`
+  - 本地 smoke / benchmark / metrics export
+  - OpenClaw single-source sync 相关脚本定点验证
+- What may remain unverified:
+  - 真实长周期生产流量下的 recall usefulness 仍需持续观测
+  - TTL / decay 默认值需要多天样本，不应在单次会话内拍脑袋定死
+
+## 9. Evidence Log
+
+- Files touched:
+  - `README.md`
+  - `docs/README.md`
+  - `docs/API_CURRENT.md`
+  - `docs/exec-plans/2026-03-14-core-context-governance-polish.md`
+  - `docs/TECHNICAL_OVERVIEW_CURRENT.md`
+  - `docs/ARCHITECTURE_CURRENT.md`
+  - `docs/LOCAL_DEPLOY.md`
+  - `docs/product/capabilities.md`
+  - `docs/product/roadmap.md`
+  - `docs/evals/context_recall_golden_cases.json`
+  - `context_contract.py`
+  - `auto_summary.py`
+  - `memory_v5/index.py`
+  - `plugins/context_engine.py`
+  - `plugins/smart_context.py`
+  - `plugins/smart_context_recall.py`
+  - `plugins/smart_context_inject.py`
+  - `plugins/smart_context_graph_inject.py`
+  - `plugins/smart_context_prompt.py`
+  - `plugins/smart_context_text.py`
+  - `plugins/smart_context_summary.py`
+  - `memory_v5/service.py`
+  - `nexus_core.py`
+  - `scripts/context_recall_scorecard.py`
+  - `scripts/deploy_local_v5.sh`
+  - `scripts/memory_v5_maintenance.py`
+  - `tests/test_memory_v5.py`
+- Commands run:
+  - `sed -n '1,240p' docs/README.md`
+  - `sed -n '1,240p' docs/product/README.md`
+  - `sed -n '1,260p' docs/sop/Context_Policy_v2_EventDriven.md`
+  - `sed -n '1,260p' docs/TECHNICAL_OVERVIEW_CURRENT.md`
+  - `sed -n '1,260p' docs/ARCHITECTURE_CURRENT.md`
+  - `sed -n '1,240p' docs/product/roadmap.md`
+  - `sed -n '1,260p' plugins/smart_context.py`
+  - `sed -n '1,260p' plugins/context_engine.py`
+  - `sed -n '1,260p' memory_v5/service.py`
+  - `sed -n '1,240p' plugins/smart_context_summary.py`
+  - `sed -n '1,240p' plugins/smart_context_decision.py`
+  - `sed -n '1,260p' plugins/smart_context_rescue.py`
+- Test results:
+  - phase 4 scorecard slice:
+    - `python3 -m unittest tests.test_memory_v5.TestContextRecallScorecardScript tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_decision_with_evidence_for_decision_query tests.test_memory_v5.TestCurrentRuntimeFixes.test_context_engine_smart_retrieve_reranks_by_query_intent -v`
+    - `python3 scripts/context_recall_scorecard.py --golden docs/evals/context_recall_golden_cases.json`
+    - result: passed
+  - phase 4 scorecard expansion slice:
+    - `python3 -m unittest tests.test_memory_v5.TestContextRecallScorecardScript tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_blocker_for_blocking_query -v`
+    - `python3 scripts/context_recall_scorecard.py --golden docs/evals/context_recall_golden_cases.json`
+    - `python3 -m py_compile plugins/smart_context_recall.py scripts/context_recall_scorecard.py tests/test_memory_v5.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - phase 4 continuity expansion slice:
+    - `python3 -m unittest tests.test_memory_v5.TestContextRecallScorecardScript tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_constraint_for_constraint_query tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_replay_for_replay_query -v`
+    - `python3 scripts/context_recall_scorecard.py --golden docs/evals/context_recall_golden_cases.json`
+    - `python3 -m py_compile scripts/context_recall_scorecard.py tests/test_memory_v5.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - phase 4 conflict expansion slice:
+    - `python3 -m unittest tests.test_memory_v5.TestContextRecallScorecardScript tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_replay_for_resume_query tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_replay_for_replay_query -v`
+    - `python3 scripts/context_recall_scorecard.py --golden docs/evals/context_recall_golden_cases.json`
+    - `python3 -m py_compile plugins/smart_context_recall.py scripts/context_recall_scorecard.py tests/test_memory_v5.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - phase 4 freshness/fallback expansion slice:
+    - `python3 -m unittest tests.test_memory_v5.TestContextRecallScorecardScript tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_current_evidence_over_stale_evidence tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_current_blocker_over_archived_blocker tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_summary_when_resume_has_no_replay -v`
+    - `python3 scripts/context_recall_scorecard.py --golden docs/evals/context_recall_golden_cases.json`
+    - `python3 -m py_compile plugins/smart_context_recall.py scripts/context_recall_scorecard.py tests/test_memory_v5.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - phase 4 continuity/conflict expansion slice:
+    - `python3 scripts/context_recall_scorecard.py --golden docs/evals/context_recall_golden_cases.json`
+    - `python3 -m py_compile plugins/smart_context_recall.py scripts/context_recall_scorecard.py tests/test_memory_v5.py memory_v5/service.py plugins/context_engine.py plugins/smart_context.py plugins/smart_context_graph_inject.py plugins/smart_context_inject.py plugins/smart_context_prompt.py plugins/smart_context_summary.py plugins/smart_context_text.py auto_summary.py nexus_core.py context_contract.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+    - scorecard summary:
+      - `22/22`
+      - `avg_prompt_token_ratio=0.563`
+      - `avg_prompt_line_ratio=0.609`
+  - phase 5 lifecycle audit slice:
+    - `python3 -m unittest tests.test_memory_v5.TestMemoryV5Scopes.test_recall_skips_ttl_expired_items_and_decay_penalizes_stale_items tests.test_memory_v5.TestMemoryV5Scopes.test_audit_lifecycle_reports_ttl_archive_due_and_decay_candidates tests.test_memory_v5.TestMemoryV5Scopes.test_archive_due_items_respects_dry_run_and_scope -v`
+    - `python3 -m py_compile memory_v5/service.py tests/test_memory_v5.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - phase 5 lifecycle operator slice:
+    - `python3 -m unittest tests.test_memory_v5.TestMemoryV5Scopes.test_item_kind_defaults_override_global_lifecycle_defaults tests.test_memory_v5.TestMemoryV5Scopes.test_archive_due_items_can_include_ttl_expired_candidates tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_run_reports_audit_and_archive_plan tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_run_can_apply_archive_candidates -v`
+    - `python3 -m py_compile memory_v5/service.py scripts/memory_v5_maintenance.py tests/test_memory_v5.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - phase 5 lifecycle report slice:
+    - `python3 -m unittest tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_run_reports_audit_and_archive_plan tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_run_can_apply_archive_candidates tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_run_writes_json_and_markdown_reports -v`
+    - `python3 -m py_compile scripts/memory_v5_maintenance.py tests/test_memory_v5.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - phase 5 lifecycle report-dir slice:
+    - `python3 -m unittest tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_default_report_dir_targets_repo_reports tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_run_write_report_uses_default_repo_report_paths tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_run_writes_json_and_markdown_reports -v`
+    - `python3 -m py_compile scripts/memory_v5_maintenance.py tests/test_memory_v5.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - phase 5 lifecycle backfill slice:
+    - `python3 -m unittest tests.test_memory_v5.TestMemoryV5Scopes.test_audit_and_backfill_surface_zero_archive_default_candidates tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_run_reports_archive_backfill_candidates tests.test_memory_v5.TestMemoryV5MaintenanceScript.test_run_can_apply_archive_backfill -v`
+    - `python3 -m py_compile memory_v5/index.py memory_v5/service.py scripts/memory_v5_maintenance.py tests/test_memory_v5.py`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - phase 5 deploy/ops closeout slice:
+    - `python3 -m unittest tests.test_memory_v5.TestOperationalEntrypathCleanup.test_deploy_local_v5_can_optionally_run_lifecycle_audit tests.test_memory_v5.TestOperationalEntrypathCleanup.test_current_docs_use_env_neutral_workspace_examples tests.test_memory_v5.TestOperationalEntrypathCleanup.test_current_shell_entrypoints_have_valid_syntax -v`
+    - `bash -n scripts/deploy_local_v5.sh`
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `git diff --check`
+    - result: passed
+  - final closeout evidence:
+    - `python3 scripts/context_recall_scorecard.py --golden docs/evals/context_recall_golden_cases.json`
+    - summary:
+      - `22/22`
+      - `avg_prompt_token_ratio=0.563`
+      - `avg_prompt_line_ratio=0.609`
+    - `python3 scripts/memory_v5_maintenance.py --dry-run --write-report`
+    - lifecycle artifact:
+      - `docs/reports/memory_v5_lifecycle_20260314T125231_004095+0000.json`
+      - `docs/reports/memory_v5_lifecycle_20260314T125231_004095+0000.md`
+    - runtime note:
+      - current local default scope reported `377` zero-valued archive-default backfill candidates
+      - no `archive_due` items were auto-applied in this closeout pass
+  - phase 3 rerank slice:
+    - `python3 -m unittest tests.test_memory_v5.TestSmartContextRecallHelpers tests.test_memory_v5.TestCurrentRuntimeFixes.test_context_engine_smart_retrieve_reranks_by_query_intent tests.test_memory_v5.TestCurrentRuntimeFixes.test_context_engine_smart_retrieve_surfaces_trace_lines tests.test_memory_v5.TestSmartContextPluginOrchestration.test_inject_memory_merges_graph_items_and_records_metrics -v`
+    - result: passed
+  - phase 3 rerank metrics slice:
+    - `python3 -m unittest tests.test_memory_v5.TestSmartContextRecallHelpers.test_build_inject_metric_payload_reports_ratio_and_top_score tests.test_memory_v5.TestSmartContextRecallHelpers.test_rerank_recall_candidates_prefers_decision_with_evidence_for_decision_query tests.test_memory_v5.TestCurrentRuntimeFixes.test_context_engine_smart_retrieve_reranks_by_query_intent -v`
+    - result: passed
+  - phase 3 trace slice:
+    - `python3 -m unittest tests.test_memory_v5.TestCurrentRuntimeFixes.test_context_engine_smart_retrieve_surfaces_trace_lines tests.test_memory_v5.TestSmartContextPluginOrchestration.test_inject_memory_merges_graph_items_and_records_metrics tests.test_memory_v5.TestSmartContextPromptHelpers tests.test_memory_v5.TestSmartContextRecallHelpers tests.test_memory_v5.TestSmartContextGraphInjectHelpers -v`
+    - result: passed
+  - focused:
+    - `python3 -m unittest tests.test_memory_v5.TestTypedContextContract tests.test_memory_v5.TestSmartContextTextHelpers tests.test_memory_v5.TestSmartContextSummaryHelpers tests.test_memory_v5.TestMemoryV5Scopes.test_ingest_summary_accepts_canonical_typed_context tests.test_memory_v5.TestCurrentRuntimeFixes.test_context_engine_falls_back_to_sync_api_adapter -v`
+    - result: passed
+  - syntax:
+    - `python3 -m py_compile context_contract.py auto_summary.py plugins/context_engine.py plugins/smart_context.py plugins/smart_context_recall.py plugins/smart_context_inject.py plugins/smart_context_graph_inject.py plugins/smart_context_prompt.py plugins/smart_context_text.py plugins/smart_context_summary.py memory_v5/service.py tests/test_memory_v5.py`
+    - result: passed
+  - broader:
+    - `python3 -m unittest tests.test_memory_v5 -v`
+    - `python3 run_tests.py`
+    - `python3 tests/test_summary.py`
+    - `git diff --check`
+    - result: passed
+- Skipped checks and reasons:
+  - 未跑真实长会话线上样本；本 slice 先收 contract 与本地回归
+
+## 10. Handoff Notes
+
+- Current status:
+  - 本计划的核心工程收口已完成；产品/技术/治理真源已经稳定。
+  - canonical typed context、evidence-gated durable write、typed-query rerank、22-case scorecard、lifecycle audit/backfill/operator path 已连成一条 current 主链。
+  - deploy / doctor / scorecard / lifecycle maintenance 现在都有明确入口，不再需要靠零散脚本拼操作流程。
+- Recommended next step:
+  - 把 scorecard 与 lifecycle report 纳入日常巡检节奏，持续观察真实长会话样本，而不是继续改基础 contract。
+- Blockers / follow-ups:
+  - 当前本机 runtime store 仍有 `377` 个 zero-valued archive-default backfill candidates；这属于显式 operator 决策，不在本次 closeout 中自动改写。

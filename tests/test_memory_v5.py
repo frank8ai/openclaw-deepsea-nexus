@@ -15,6 +15,7 @@ import sys
 import tempfile
 import unittest
 import warnings
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest import mock
@@ -98,6 +99,9 @@ smart_context_prompt = importlib.import_module(
 )
 smart_context_summary = importlib.import_module(
     f"{deepsea_nexus.__name__}.plugins.smart_context_summary"
+)
+context_contract = importlib.import_module(
+    f"{deepsea_nexus.__name__}.context_contract"
 )
 
 
@@ -219,6 +223,737 @@ class TestMemoryV5Scopes(unittest.TestCase):
         self.assertTrue(self.service.archive_item(item_id, scope=scope))
         after_items = self.service.list_items(scope=scope, include_archived=False)
         self.assertFalse(any(row.get("id") == item_id for row in after_items))
+
+    def _set_item_lifecycle_fields(self, scope: MemoryScope, item_id: str, **fields):
+        _, index = self.service._ensure_scope_storage(scope)
+        conn = index._ensure_connection()
+        assignments = ", ".join(f"{key}=?" for key in fields)
+        conn.execute(
+            f"UPDATE items SET {assignments} WHERE id=?",
+            (*fields.values(), item_id),
+        )
+        conn.commit()
+
+    def test_recall_skips_ttl_expired_items_and_decay_penalizes_stale_items(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        current_id = str(
+            self.service.ingest_document(
+                title="CurrentLifecycleDoc",
+                content="Relay lifecycle policy stays current.",
+                tags=["lifecycle"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        stale_id = str(
+            self.service.ingest_document(
+                title="StaleLifecycleDoc",
+                content="Relay lifecycle policy from an older pass.",
+                tags=["lifecycle"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        expired_id = str(
+            self.service.ingest_document(
+                title="ExpiredLifecycleDoc",
+                content="Relay lifecycle policy that should expire.",
+                tags=["lifecycle"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+
+        self._set_item_lifecycle_fields(
+            scope,
+            stale_id,
+            updated_at=(now - timedelta(days=20)).isoformat(),
+            decay_half_life_days=5,
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            expired_id,
+            updated_at=(now - timedelta(days=10)).isoformat(),
+            ttl_days=3,
+            decay_half_life_days=5,
+        )
+
+        hits = self.service.recall("relay lifecycle policy", limit=5, scope=scope)
+        titles = [hit.title for hit in hits]
+
+        self.assertIn("CurrentLifecycleDoc", titles)
+        self.assertIn("StaleLifecycleDoc", titles)
+        self.assertNotIn("ExpiredLifecycleDoc", titles)
+        self.assertLess(titles.index("CurrentLifecycleDoc"), titles.index("StaleLifecycleDoc"))
+
+    def test_audit_lifecycle_reports_ttl_archive_due_and_decay_candidates(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        active_id = str(
+            self.service.ingest_document(
+                title="ActiveLifecycleDoc",
+                content="Fresh lifecycle state.",
+                tags=["lifecycle"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        due_id = str(
+            self.service.ingest_document(
+                title="ArchiveDueLifecycleDoc",
+                content="Old lifecycle state ready for archive.",
+                tags=["lifecycle"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        expired_id = str(
+            self.service.ingest_document(
+                title="TTLExpiredLifecycleDoc",
+                content="Expired lifecycle state.",
+                tags=["lifecycle"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        archived_id = str(
+            self.service.ingest_document(
+                title="ArchivedLifecycleDoc",
+                content="Archived lifecycle state.",
+                tags=["lifecycle"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+
+        self._set_item_lifecycle_fields(
+            scope,
+            active_id,
+            updated_at=(now - timedelta(days=1)).isoformat(),
+            decay_half_life_days=30,
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            due_id,
+            updated_at=(now - timedelta(days=45)).isoformat(),
+            decay_half_life_days=15,
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            expired_id,
+            updated_at=(now - timedelta(days=12)).isoformat(),
+            ttl_days=5,
+            decay_half_life_days=20,
+        )
+        self.assertTrue(self.service.archive_item(archived_id, scope=scope))
+
+        report = self.service.audit_lifecycle(scope=scope, now_ts=now.isoformat(), sample_limit=10)
+
+        self.assertTrue(report["enabled"])
+        self.assertEqual(report["defaults"]["archive_after_days"], 180)
+        self.assertEqual(report["counts"]["total"], 4)
+        self.assertEqual(report["counts"]["active"], 2)
+        self.assertEqual(report["counts"]["archived"], 1)
+        self.assertEqual(report["counts"]["ttl_expired"], 1)
+        self.assertEqual(report["counts"]["archive_due"], 0)
+        self.assertEqual(report["counts"]["decaying"], 3)
+
+        archived_ids = {row["id"] for row in report["samples"]["archived"]}
+        ttl_expired_ids = {row["id"] for row in report["samples"]["ttl_expired"]}
+        decaying_ids = {row["id"] for row in report["samples"]["decaying"]}
+        self.assertIn(archived_id, archived_ids)
+        self.assertIn(expired_id, ttl_expired_ids)
+        self.assertIn(due_id, decaying_ids)
+
+        self.service.archive_after_days = 30
+        self._set_item_lifecycle_fields(scope, due_id, archive_after_days=30)
+        report = self.service.audit_lifecycle(scope=scope, now_ts=now.isoformat(), sample_limit=10)
+        archive_due_ids = {row["id"] for row in report["samples"]["archive_due"]}
+        self.assertEqual(report["counts"]["archive_due"], 1)
+        self.assertIn(due_id, archive_due_ids)
+
+    def test_archive_due_items_respects_dry_run_and_scope(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        self.service.archive_after_days = 30
+
+        item_id = str(
+            self.service.ingest_document(
+                title="ArchiveDueDoc",
+                content="Old lifecycle note ready for explicit archiving.",
+                tags=["archive-due"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            item_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            decay_half_life_days=20,
+        )
+
+        dry_run = self.service.archive_due_items(scope=scope, now_ts=now.isoformat(), max_items=5, dry_run=True)
+        self.assertTrue(dry_run["dry_run"])
+        self.assertEqual(dry_run["matched"], 1)
+        self.assertEqual(dry_run["archived"], 0)
+        self.assertIn(item_id, dry_run["candidate_ids"])
+        self.assertTrue(any(row.get("id") == item_id for row in self.service.list_items(scope=scope)))
+
+        applied = self.service.archive_due_items(scope=scope, now_ts=now.isoformat(), max_items=5, dry_run=False)
+        self.assertFalse(applied["dry_run"])
+        self.assertEqual(applied["matched"], 1)
+        self.assertEqual(applied["archived"], 1)
+        self.assertIn(item_id, applied["archived_ids"])
+        self.assertFalse(any(row.get("id") == item_id for row in self.service.list_items(scope=scope)))
+
+    def test_archive_due_items_can_include_ttl_expired_candidates(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        self.service.archive_after_days = 30
+
+        archive_due_id = str(
+            self.service.ingest_document(
+                title="ArchiveDueLifecycleDoc",
+                content="Old lifecycle note ready for archive due handling.",
+                tags=["archive-due"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        ttl_expired_id = str(
+            self.service.ingest_document(
+                title="TTLExpiredLifecycleDoc",
+                content="Old lifecycle note ready for ttl-expired cleanup.",
+                tags=["ttl-expired"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            archive_due_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            decay_half_life_days=20,
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            ttl_expired_id,
+            updated_at=(now - timedelta(days=12)).isoformat(),
+            ttl_days=5,
+            decay_half_life_days=10,
+        )
+
+        report = self.service.archive_due_items(
+            scope=scope,
+            now_ts=now.isoformat(),
+            dry_run=True,
+            include_ttl_expired=True,
+        )
+
+        self.assertTrue(report["include_ttl_expired"])
+        self.assertEqual(report["matched"], 2)
+        self.assertCountEqual(report["candidate_ids"], [archive_due_id, ttl_expired_id])
+
+    def test_item_kind_defaults_override_global_lifecycle_defaults(self):
+        config = {
+            "paths": {"base": self.temp_dir},
+            "memory_v5": {
+                "enabled": True,
+                "root": "memory/95_MemoryV5",
+                "async_ingest": False,
+                "graph_enabled": False,
+                "fts_enabled": True,
+                "ttl_days_default": 90,
+                "decay_half_life_days": 30,
+                "archive_after_days": 180,
+                "item_kind_defaults": {
+                    "summary": {"ttl_days": 7, "decay_half_life_days": 5, "archive_after_days": 14},
+                    "query": {"ttl_days": 2},
+                    "document": {"decay_half_life_days": 120, "archive_after_days": 365},
+                },
+                "scope": {"agent_id": "default", "user_id": "default"},
+            },
+        }
+        service = MemoryV5Service(config)
+        scope = MemoryScope(agent_id="main", user_id="default")
+
+        doc_id = str(
+            service.ingest_document(
+                title="DocWithKindDefaults",
+                content="Document keeps long retention but slower decay.",
+                tags=["doc"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        service.ingest_summary(
+            conversation_id="conv-kind-defaults",
+            reply="完成 lifecycle 配置梳理。",
+            summary={
+                "summary": "稳定 lifecycle defaults",
+                "next_actions": ["补 operator script"],
+            },
+            user_query="继续 lifecycle defaults",
+            scope=scope,
+        )
+
+        rows = {str(row.get("id")): row for row in service.list_items(scope=scope)}
+        doc_row = rows[doc_id]
+        summary_row = next(row for row in rows.values() if row.get("kind") == "summary")
+        query_row = next(row for row in rows.values() if row.get("kind") == "query")
+        next_row = next(row for row in rows.values() if row.get("kind") == "next")
+
+        self.assertEqual(int(doc_row["ttl_days"]), 90)
+        self.assertEqual(int(doc_row["decay_half_life_days"]), 120)
+        self.assertEqual(int(doc_row["archive_after_days"]), 365)
+        self.assertEqual(int(summary_row["ttl_days"]), 7)
+        self.assertEqual(int(summary_row["decay_half_life_days"]), 5)
+        self.assertEqual(int(summary_row["archive_after_days"]), 14)
+        self.assertEqual(int(query_row["ttl_days"]), 2)
+        self.assertEqual(int(query_row["decay_half_life_days"]), 30)
+        self.assertEqual(int(query_row["archive_after_days"]), 180)
+        self.assertEqual(int(next_row["ttl_days"]), 90)
+        self.assertEqual(int(next_row["decay_half_life_days"]), 30)
+        self.assertEqual(int(next_row["archive_after_days"]), 180)
+
+    def test_item_kind_archive_defaults_drive_archive_due_classification(self):
+        config = {
+            "paths": {"base": self.temp_dir},
+            "memory_v5": {
+                "enabled": True,
+                "root": "memory/95_MemoryV5",
+                "async_ingest": False,
+                "graph_enabled": False,
+                "fts_enabled": True,
+                "archive_after_days": 180,
+                "item_kind_defaults": {
+                    "summary": {"archive_after_days": 14},
+                    "document": {"archive_after_days": 365},
+                },
+                "scope": {"agent_id": "default", "user_id": "default"},
+            },
+        }
+        service = MemoryV5Service(config)
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        service.ingest_summary(
+            conversation_id="conv-archive-kind-defaults",
+            reply="完成 lifecycle archive defaults 梳理。",
+            summary={
+                "summary": "稳定 archive defaults",
+                "next_actions": ["补 operator report"],
+            },
+            user_query="继续 lifecycle archive defaults",
+            scope=scope,
+        )
+        document_id = str(
+            service.ingest_document(
+                title="ArchiveKindDocument",
+                content="Document should keep a longer archive horizon.",
+                tags=["archive-kind"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+
+        rows = {str(row.get("id")): row for row in service.list_items(scope=scope)}
+        summary_id = next(str(row.get("id")) for row in rows.values() if row.get("kind") == "summary")
+        _, index = service._ensure_scope_storage(scope)
+        conn = index._ensure_connection()
+        conn.execute(
+            "UPDATE items SET updated_at=? WHERE id IN (?, ?)",
+            (
+                (now - timedelta(days=30)).isoformat(),
+                summary_id,
+                document_id,
+            ),
+        )
+        conn.commit()
+
+        report = service.audit_lifecycle(scope=scope, now_ts=now.isoformat(), sample_limit=10)
+
+        archive_due_ids = {row["id"] for row in report["samples"]["archive_due"]}
+        self.assertIn(summary_id, archive_due_ids)
+        self.assertNotIn(document_id, archive_due_ids)
+
+    def test_audit_and_backfill_surface_zero_archive_default_candidates(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        item_id = str(
+            self.service.ingest_document(
+                title="LegacyArchiveGapDoc",
+                content="Legacy row needs archive default backfill.",
+                tags=["lifecycle"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            item_id,
+            updated_at=(now - timedelta(days=200)).isoformat(),
+            archive_after_days=0,
+        )
+
+        audit_before = self.service.audit_lifecycle(scope=scope, now_ts=now.isoformat(), sample_limit=10)
+        self.assertEqual(audit_before["counts"]["archive_due"], 0)
+        self.assertEqual(audit_before["counts"]["archive_backfill_candidates"], 1)
+        candidate = audit_before["samples"]["archive_backfill_candidates"][0]
+        self.assertEqual(candidate["id"], item_id)
+        self.assertEqual(candidate["current_archive_after_days"], 0)
+        self.assertEqual(candidate["resolved_archive_after_days"], 180)
+
+        dry_run = self.service.backfill_archive_defaults(
+            scope=scope,
+            now_ts=now.isoformat(),
+            max_items=10,
+            dry_run=True,
+        )
+        self.assertTrue(dry_run["dry_run"])
+        self.assertEqual(dry_run["matched"], 1)
+        self.assertEqual(dry_run["updated"], 0)
+        self.assertIn(item_id, dry_run["candidate_ids"])
+
+        applied = self.service.backfill_archive_defaults(
+            scope=scope,
+            now_ts=now.isoformat(),
+            max_items=10,
+            dry_run=False,
+        )
+        self.assertFalse(applied["dry_run"])
+        self.assertEqual(applied["matched"], 1)
+        self.assertEqual(applied["updated"], 1)
+        self.assertIn(item_id, applied["updated_ids"])
+
+        rows = self.service.list_items(scope=scope, include_archived=True)
+        row = next(row for row in rows if row.get("id") == item_id)
+        self.assertEqual(int(row["archive_after_days"]), 180)
+
+        audit_after = self.service.audit_lifecycle(scope=scope, now_ts=now.isoformat(), sample_limit=10)
+        self.assertEqual(audit_after["counts"]["archive_backfill_candidates"], 0)
+        self.assertEqual(audit_after["counts"]["archive_due"], 1)
+
+    def test_ingest_summary_accepts_canonical_typed_context(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+
+        result = self.service.ingest_summary(
+            conversation_id="conv-canonical",
+            reply="完成 relay audit 收口。",
+            summary={
+                "summary": "稳定 relay audit",
+                "goal": "收口主链",
+                "status": "blocked",
+                "decisions": ["保留 FastAPI"],
+                "constraints": ["不能破坏兼容"],
+                "blockers": ["provider metrics missing"],
+                "next_actions": ["补测试"],
+                "questions": ["是否需要 smoke？"],
+                "evidence": ["tests/test_relay.py"],
+                "replay": ["pytest -q tests/test_relay.py"],
+                "topics": ["Relay Runtime"],
+                "keywords": ["relay", "fastapi"],
+                "entities": ["FastAPI"],
+                "project": "relay-audit",
+                "confidence": "high",
+            },
+            user_query="relay audit",
+            scope=scope,
+        )
+
+        self.assertGreaterEqual(result["stored"], 10)
+
+        items = self.service.list_items(scope=scope)
+        kinds = {row.get("kind") for row in items}
+        self.assertTrue(
+            {
+                "summary",
+                "goal",
+                "status",
+                "decision",
+                "constraint",
+                "blocker",
+                "next",
+                "questions",
+                "evidence",
+                "replay",
+                "topic",
+            }.issubset(kinds)
+        )
+
+        hits = self.service.recall("pytest -q tests/test_relay.py", limit=5, scope=scope)
+        self.assertTrue(any(hit.metadata.get("kind") == "replay" for hit in hits))
+
+    def test_ingest_summary_drops_decisions_without_evidence(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+
+        self.service.ingest_summary(
+            conversation_id="conv-no-evidence",
+            reply="完成 relay audit 收口。",
+            summary={
+                "summary": "稳定 relay audit",
+                "decisions": ["保留 FastAPI"],
+                "next_actions": ["补测试"],
+                "keywords": ["relay", "fastapi"],
+            },
+            user_query="relay audit",
+            scope=scope,
+        )
+
+        items = self.service.list_items(scope=scope)
+        decision_items = [row for row in items if row.get("kind") == "decision"]
+        self.assertEqual(decision_items, [])
+
+
+class TestMemoryV5MaintenanceScript(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config = {
+            "paths": {"base": self.temp_dir},
+            "memory_v5": {
+                "enabled": True,
+                "root": "memory/95_MemoryV5",
+                "async_ingest": False,
+                "graph_enabled": False,
+                "fts_enabled": True,
+                "archive_after_days": 30,
+                "scope": {"agent_id": "default", "user_id": "default"},
+            },
+        }
+        self.service = MemoryV5Service(self.config)
+        self.script = _load_script_module("memory_v5_maintenance")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _set_item_lifecycle_fields(self, scope: MemoryScope, item_id: str, **fields):
+        _, index = self.service._ensure_scope_storage(scope)
+        conn = index._ensure_connection()
+        assignments = ", ".join(f"{key}=?" for key in fields)
+        conn.execute(
+            f"UPDATE items SET {assignments} WHERE id=?",
+            (*fields.values(), item_id),
+        )
+        conn.commit()
+
+    def test_run_reports_audit_and_archive_plan(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        due_id = str(
+            self.service.ingest_document(
+                title="MaintenanceArchiveDue",
+                content="Archive due candidate",
+                tags=["maint"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        expired_id = str(
+            self.service.ingest_document(
+                title="MaintenanceTTLExpired",
+                content="TTL expired candidate",
+                tags=["maint"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            due_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            decay_half_life_days=10,
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            expired_id,
+            updated_at=(now - timedelta(days=12)).isoformat(),
+            ttl_days=5,
+            decay_half_life_days=10,
+        )
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            dry_run=True,
+            sample_limit=5,
+            max_items=10,
+            include_ttl_expired=True,
+            now_ts=now.isoformat(),
+        )
+
+        self.assertTrue(result["dry_run"])
+        self.assertEqual(result["scope_count"], 1)
+        self.assertEqual(result["checked"], 2)
+        self.assertEqual(result["archived"], 0)
+        self.assertEqual(result["totals"]["ttl_expired"], 1)
+        self.assertEqual(result["totals"]["archive_due"], 1)
+        self.assertEqual(result["totals"]["matched"], 2)
+        self.assertCountEqual(
+            result["scopes"][0]["archive"]["candidate_ids"],
+            [due_id, expired_id],
+        )
+
+    def test_run_can_apply_archive_candidates(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        item_id = str(
+            self.service.ingest_document(
+                title="MaintenanceApplyArchive",
+                content="Archive me",
+                tags=["maint"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            item_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            decay_half_life_days=10,
+        )
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            dry_run=False,
+            sample_limit=5,
+            max_items=10,
+            include_ttl_expired=True,
+            now_ts=now.isoformat(),
+        )
+
+        self.assertFalse(result["dry_run"])
+        self.assertEqual(result["archived"], 1)
+        self.assertIn(item_id, result["scopes"][0]["archive"]["archived_ids"])
+        self.assertFalse(any(row.get("id") == item_id for row in self.service.list_items(scope=scope)))
+
+    def test_run_writes_json_and_markdown_reports(self):
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        json_out = Path(self.temp_dir) / "reports" / "lifecycle.json"
+        md_out = Path(self.temp_dir) / "reports" / "lifecycle.md"
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            dry_run=True,
+            sample_limit=5,
+            max_items=10,
+            include_ttl_expired=True,
+            now_ts=now.isoformat(),
+            json_out=str(json_out),
+            md_out=str(md_out),
+        )
+
+        self.assertTrue(json_out.exists())
+        self.assertTrue(md_out.exists())
+
+        payload = json.loads(json_out.read_text(encoding="utf-8"))
+        markdown = md_out.read_text(encoding="utf-8")
+        self.assertEqual(payload["generated_at"], result["generated_at"])
+        self.assertIn("# Memory V5 Lifecycle Maintenance", markdown)
+        self.assertIn("## Totals", markdown)
+
+    def test_run_reports_archive_backfill_candidates(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        item_id = str(
+            self.service.ingest_document(
+                title="MaintenanceBackfillCandidate",
+                content="Needs archive default backfill.",
+                tags=["maint"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            item_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            archive_after_days=0,
+        )
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            dry_run=True,
+            sample_limit=5,
+            max_items=10,
+            include_ttl_expired=True,
+            now_ts=now.isoformat(),
+        )
+
+        self.assertEqual(result["totals"]["archive_backfill_candidates"], 1)
+        self.assertEqual(result["totals"]["backfill_matched"], 1)
+        self.assertEqual(result["totals"]["backfill_updated"], 0)
+        self.assertIn(item_id, result["scopes"][0]["backfill"]["candidate_ids"])
+
+    def test_run_can_apply_archive_backfill(self):
+        scope = MemoryScope(agent_id="main", user_id="default")
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        item_id = str(
+            self.service.ingest_document(
+                title="MaintenanceApplyBackfill",
+                content="Apply archive default backfill.",
+                tags=["maint"],
+                scope=scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            scope,
+            item_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            archive_after_days=0,
+        )
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            dry_run=False,
+            sample_limit=5,
+            max_items=10,
+            include_ttl_expired=True,
+            apply_archive_backfill=True,
+            now_ts=now.isoformat(),
+        )
+
+        self.assertTrue(result["apply_archive_backfill"])
+        self.assertEqual(result["totals"]["backfill_updated"], 1)
+        self.assertIn(item_id, result["scopes"][0]["backfill"]["updated_ids"])
+        rows = self.service.list_items(scope=scope, include_archived=True)
+        row = next(row for row in rows if row.get("id") == item_id)
+        self.assertEqual(int(row["archive_after_days"]), 30)
+
+    def test_default_report_dir_targets_repo_reports(self):
+        self.assertEqual(
+            self.script.default_report_dir(),
+            (REPO_ROOT / "docs" / "reports").resolve(),
+        )
+
+    def test_run_write_report_uses_default_repo_report_paths(self):
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            self.script,
+            "default_report_dir",
+            return_value=Path(temp_dir).resolve(),
+        ):
+            result = self.script.run(
+                config=self.config,
+                agent="main",
+                user="default",
+                dry_run=True,
+                sample_limit=5,
+                max_items=10,
+                include_ttl_expired=True,
+                now_ts=now.isoformat(),
+                write_report=True,
+            )
+
+            artifacts = result.get("artifacts", {})
+            self.assertIn("json", artifacts)
+            self.assertIn("markdown", artifacts)
+            self.assertTrue(Path(artifacts["json"]).exists())
+            self.assertTrue(Path(artifacts["markdown"]).exists())
+            self.assertIn("memory_v5_lifecycle_", Path(artifacts["json"]).name)
 
 
 class TestPackageRootExports(unittest.TestCase):
@@ -384,6 +1119,66 @@ class TestCurrentRuntimeFixes(unittest.TestCase):
         self.assertTrue(callable(getattr(adapter, "search_recall", None)))
         self.assertTrue(callable(getattr(adapter, "add_document", None)))
 
+    def test_context_engine_store_summary_drops_decisions_without_evidence(self):
+        context_engine_module = importlib.import_module(
+            f"{deepsea_nexus.__name__}.plugins.context_engine"
+        )
+        engine = context_engine_module.ContextEngine()
+        engine._call_nexus = mock.Mock()
+
+        result = engine.store_summary(
+            "conv-1",
+            '```json\n{"summary":"稳定 relay audit","decisions":["保留 FastAPI"],"next_actions":["补测试"]}\n```',
+        )
+
+        self.assertEqual(result["summary_data"]["decisions"], [])
+        calls = engine._call_nexus.call_args_list
+        self.assertGreaterEqual(len(calls), 3)
+        stored_contents = [call.kwargs["content"] for call in calls]
+        self.assertFalse(any("保留 FastAPI" in content for content in stored_contents[1:3]))
+
+    def test_nexus_add_structured_summary_drops_decisions_without_evidence(self):
+        nexus_core_module = _load_repo_file_module("nexus_core_flat", "nexus_core.py")
+        writes = []
+
+        class FakeNexus:
+            def add(self, content, title, tags=""):
+                writes.append({"content": content, "title": title, "tags": tags})
+                return f"doc_{len(writes)}"
+
+        with mock.patch.object(nexus_core_module, "_get_nexus", return_value=FakeNexus()):
+            result = nexus_core_module.nexus_add_structured_summary(
+                core_output="稳定 relay audit",
+                decision_context="保留 FastAPI",
+                search_keywords=["relay", "fastapi"],
+                source="conv-1",
+            )
+
+        self.assertEqual(result["summary_data"]["decisions"], [])
+        self.assertFalse(any("保留 FastAPI" in write["content"] for write in writes[:2]))
+
+    def test_nexus_add_structured_summary_keeps_decisions_with_evidence(self):
+        nexus_core_module = _load_repo_file_module("nexus_core_flat", "nexus_core.py")
+        writes = []
+
+        class FakeNexus:
+            def add(self, content, title, tags=""):
+                writes.append({"content": content, "title": title, "tags": tags})
+                return f"doc_{len(writes)}"
+
+        with mock.patch.object(nexus_core_module, "_get_nexus", return_value=FakeNexus()):
+            result = nexus_core_module.nexus_add_structured_summary(
+                core_output="稳定 relay audit",
+                decision_context="保留 FastAPI",
+                search_keywords=["relay", "fastapi"],
+                source="conv-1",
+                evidence_pointers=["tests/test_relay.py"],
+                replay_commands=["pytest -q tests/test_relay.py"],
+            )
+
+        self.assertEqual(result["summary_data"]["decisions"], ["保留 FastAPI"])
+        self.assertTrue(any("保留 FastAPI" in write["content"] for write in writes[:2]))
+
     def test_context_engine_smart_retrieve_uses_budgeted_context_block(self):
         context_engine_module = importlib.import_module(
             f"{deepsea_nexus.__name__}.plugins.context_engine"
@@ -429,6 +1224,100 @@ class TestCurrentRuntimeFixes(unittest.TestCase):
         self.assertNotIn("## NOW Rescue Context", result.context_text)
         self.assertIn("## RECALL (Top-K)", result.context_text)
         self.assertIn("[1] (docs/relay.md · 0.91)", result.context_text)
+
+    def test_context_engine_smart_retrieve_surfaces_trace_lines(self):
+        context_engine_module = importlib.import_module(
+            f"{deepsea_nexus.__name__}.plugins.context_engine"
+        )
+        engine = context_engine_module.ContextEngine()
+        engine.configure_runtime(
+            {
+                "paths": {"base": str(REPO_ROOT)},
+                "context_engine": {
+                    "max_tokens": 1000,
+                    "max_items": 2,
+                    "max_chars_per_item": 120,
+                    "max_lines_total": 16,
+                    "include_now": False,
+                    "include_recent_summary": False,
+                    "include_memory": True,
+                },
+            }
+        )
+        engine.should_retrieve = mock.Mock(return_value=(True, "question"))
+        engine._search_vector_store = mock.Mock(
+            return_value=[
+                {
+                    "content": "FastAPI keeps the relay control plane stable.",
+                    "source": "docs/relay.md",
+                    "relevance": 0.91,
+                    "metadata": {
+                        "origin": "memory_v5",
+                        "kind": "decision",
+                        "evidence": ["tests/test_relay.py"],
+                    },
+                }
+            ]
+        )
+
+        result = engine.smart_retrieve("relay audit", n=1)
+
+        self.assertIn(
+            "reason=question | signal=decision | origin=memory_v5 | evidence=1",
+            result.results[0]["why"],
+        )
+        self.assertEqual(result.results[0]["trace"]["kind"], "decision")
+        self.assertIn("Why: reason=question | signal=decision | origin=memory_v5 | evidence=1", result.context_text)
+        self.assertIn("Evidence: tests/test_relay.py", result.context_text)
+
+    def test_context_engine_smart_retrieve_reranks_by_query_intent(self):
+        context_engine_module = importlib.import_module(
+            f"{deepsea_nexus.__name__}.plugins.context_engine"
+        )
+        engine = context_engine_module.ContextEngine()
+        engine.configure_runtime(
+            {
+                "paths": {"base": str(REPO_ROOT)},
+                "context_engine": {
+                    "max_tokens": 1000,
+                    "max_items": 2,
+                    "max_chars_per_item": 120,
+                    "max_lines_total": 16,
+                    "include_now": False,
+                    "include_recent_summary": False,
+                    "include_memory": True,
+                },
+            }
+        )
+        engine.should_retrieve = mock.Mock(return_value=(True, "question"))
+        engine._search_vector_store = mock.Mock(
+            return_value=[
+                {
+                    "content": "Relay audit summary",
+                    "source": "docs/relay.md",
+                    "relevance": 0.94,
+                    "metadata": {"origin": "vector"},
+                },
+                {
+                    "content": "Keep FastAPI",
+                    "source": "🧠v5 决策上下文",
+                    "relevance": 0.83,
+                    "metadata": {
+                        "origin": "memory_v5",
+                        "kind": "decision",
+                        "category": "relay-audit",
+                        "evidence": ["tests/test_relay.py"],
+                    },
+                },
+            ]
+        )
+
+        result = engine.smart_retrieve("What did we decide for relay audit?", n=2)
+
+        self.assertEqual(result.results[0]["kind"], "decision")
+        self.assertIn("match=decision", result.results[0]["why"])
+        self.assertIn("scope=relay-audit", result.results[0]["why"])
+        self.assertIn("[1] (🧠v5 决策上下文 · 0.83)", result.context_text)
 
 
 class TestLegacyMaintenanceScripts(unittest.TestCase):
@@ -1920,6 +2809,28 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
         self.assertIn('TARGET_DIR="${NEXUS_SYSTEM_MAINTENANCE_TARGET:-${OPENCLAW_HOME_DIR}/workspace-codex-cli}"', contents)
         self.assertNotIn("/Users/yizhi", contents)
 
+    def test_deploy_local_v5_can_optionally_run_lifecycle_audit(self):
+        script_path = REPO_ROOT / "scripts" / "deploy_local_v5.sh"
+        contents = script_path.read_text(encoding="utf-8")
+
+        self.assertIn("infer_workspace_dir()", contents)
+        self.assertIn('OPENCLAW_WORKSPACE_DIR="$(infer_workspace_dir)"', contents)
+        self.assertIn('export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE_DIR}"', contents)
+        self.assertIn("--with-lifecycle-audit", contents)
+        self.assertIn("--lifecycle-all-agents", contents)
+        self.assertIn('MAINTENANCE_ARGS=("scripts/memory_v5_maintenance.py" "--dry-run" "--write-report")', contents)
+        self.assertIn('MAINTENANCE_ARGS+=("--all-agents")', contents)
+        self.assertNotIn("/Users/yizhi", contents)
+
+    def test_nexus_doctor_local_uses_repo_workspace_inference(self):
+        script_path = REPO_ROOT / "scripts" / "nexus_doctor_local.sh"
+        contents = script_path.read_text(encoding="utf-8")
+
+        self.assertIn("infer_workspace_dir()", contents)
+        self.assertIn('OPENCLAW_WORKSPACE_DIR="$(infer_workspace_dir)"', contents)
+        self.assertIn('export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE_DIR}"', contents)
+        self.assertNotIn("/Users/yizhi", contents)
+
     def test_min_loop_subagent_template_uses_placeholder_repo_path(self):
         template_path = REPO_ROOT / "docs" / "sop" / "min_loop_subagent_template.md"
         contents = template_path.read_text(encoding="utf-8")
@@ -1954,6 +2865,128 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, msg=f"{relative_path}: {result.stderr}")
 
+
+class TestContextRecallScorecardScript(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.scorecard_script = _load_script_module("context_recall_scorecard")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_default_golden_cases_file_exists_and_scores_cleanly(self):
+        golden_path = Path(self.scorecard_script.DEFAULT_GOLDEN_PATH)
+
+        self.assertTrue(golden_path.exists())
+        payload = self.scorecard_script.run(golden_path=golden_path)
+
+        self.assertEqual(payload["summary"]["cases"], 22)
+        self.assertEqual(payload["summary"]["passed"], 22)
+        self.assertEqual(payload["summary"]["pass_rate"], 1.0)
+        self.assertEqual(payload["summary"]["top_kind"]["rate"], 1.0)
+        self.assertEqual(payload["summary"]["top3_kind"]["rate"], 1.0)
+        self.assertEqual(payload["summary"]["top_matched_intent"]["rate"], 1.0)
+        self.assertEqual(payload["summary"]["top_scope_match"]["rate"], 1.0)
+        self.assertEqual(payload["summary"]["inject_contains_kind"]["rate"], 1.0)
+        self.assertEqual(payload["summary"]["prompt_contains"]["rate"], 1.0)
+        self.assertEqual(payload["summary"]["max_budget_ratio"]["rate"], 1.0)
+        self.assertEqual(payload["summary"]["max_line_ratio"]["rate"], 1.0)
+        self.assertGreater(payload["summary"]["avg_prompt_token_ratio"], 0.0)
+        self.assertGreater(payload["summary"]["avg_prompt_line_ratio"], 0.0)
+
+    def test_run_writes_json_and_markdown_scorecard(self):
+        golden_path = Path(self.temp_dir) / "golden.json"
+        golden_path.write_text(
+            json.dumps(
+                {
+                    "cases": [
+                        {
+                            "id": "decision-case",
+                            "query": "What did we decide?",
+                            "reason": "question",
+                            "candidates": [
+                                {
+                                    "content": "Summary",
+                                    "source": "docs/relay.md",
+                                    "relevance": 0.91,
+                                    "kind": "summary",
+                                    "metadata": {"origin": "vector"},
+                                },
+                                {
+                                    "content": "Keep FastAPI",
+                                    "source": "v5 decision",
+                                    "relevance": 0.8,
+                                    "kind": "decision",
+                                    "evidence": ["tests/test_relay.py"],
+                                    "metadata": {
+                                        "origin": "memory_v5",
+                                        "category": "relay-audit",
+                                    },
+                                },
+                            ],
+                            "expect": {
+                                "top_kind": "decision",
+                                "top_matched_intent": "decision",
+                                "require_evidence": True,
+                            },
+                        },
+                        {
+                            "id": "context-starved-case",
+                            "query": "continue",
+                            "reason": "context_starved",
+                            "candidates": [
+                                {
+                                    "content": "Loose note",
+                                    "source": "scratch",
+                                    "relevance": 0.86,
+                                    "kind": "note",
+                                    "metadata": {"origin": "lexical"},
+                                },
+                                {
+                                    "content": "Summary",
+                                    "source": "v5 summary",
+                                    "relevance": 0.72,
+                                    "kind": "summary",
+                                    "metadata": {"origin": "memory_v5"},
+                                },
+                            ],
+                            "expect": {
+                                "top_kind": "summary",
+                                "top_matched_intent": "summary",
+                            },
+                        },
+                    ]
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        json_out = Path(self.temp_dir) / "scorecard.json"
+        md_out = Path(self.temp_dir) / "scorecard.md"
+
+        payload = self.scorecard_script.run(
+            golden_path=golden_path,
+            json_out=json_out,
+            md_out=md_out,
+        )
+
+        self.assertTrue(json_out.exists())
+        self.assertTrue(md_out.exists())
+        written = json.loads(json_out.read_text(encoding="utf-8"))
+        markdown = md_out.read_text(encoding="utf-8")
+        self.assertEqual(written["summary"]["cases"], 2)
+        self.assertEqual(written["summary"]["passed"], 2)
+        self.assertEqual(written["summary"]["top_kind"]["rate"], 1.0)
+        self.assertEqual(written["summary"]["inject_contains_kind"]["rate"], 1.0)
+        self.assertGreaterEqual(written["summary"]["avg_prompt_token_ratio"], 0.0)
+        self.assertGreaterEqual(written["summary"]["avg_prompt_line_ratio"], 0.0)
+        self.assertIn("Context Recall Scorecard", markdown)
+        self.assertIn("decision-case", markdown)
+        self.assertIn("Avg prompt token ratio", markdown)
+        self.assertEqual(payload["summary"]["pass_rate"], 1.0)
 
 class TestContextEngineRuntimeState(unittest.TestCase):
     def test_budget_from_config_reads_context_engine_section(self):
@@ -2197,9 +3230,23 @@ class TestSmartContextPluginOrchestration(unittest.TestCase):
         metric_events = [call.args[0]["event"] for call in plugin._append_metrics.call_args_list]
         self.assertIn("inject", metric_events)
         self.assertIn("graph_inject", metric_events)
+        self.assertEqual(result[0]["trace"]["reason"], "question")
+        self.assertEqual(result[0]["trace"]["signal"], "summary")
+        self.assertEqual(result[1]["trace"]["origin"], "graph")
+        self.assertIn("signal=graph", result[1]["why"])
 
 
 class TestSmartContextTextHelpers(unittest.TestCase):
+    def test_extract_summary_accepts_canonical_json_summary(self):
+        result = smart_context_text.extract_summary(
+            '```json\n{"summary":"稳定 relay audit","goal":"收口主链"}\n```',
+            min_summary_length=20,
+            fallback_max_chars=120,
+        )
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.summary, "稳定 relay audit")
+
     def test_extract_summary_reports_fallback_and_keeps_entities(self):
         result = smart_context_text.extract_summary(
             "## 📋 总结\n好...\n\n更新了 server.py 并调用 run_task()。",
@@ -2225,6 +3272,18 @@ class TestSmartContextTextHelpers(unittest.TestCase):
         self.assertEqual(blocks[0], "决定保留 FastAPI")
         self.assertIn("采用 service layer", blocks)
         self.assertEqual(len(blocks), 2)
+
+    def test_extract_decision_blocks_reads_canonical_decisions(self):
+        text = (
+            "```json\n"
+            '{"summary":"稳定 relay audit","decisions":["保留 FastAPI","采用 service layer"]}\n'
+            "```\n"
+        )
+
+        blocks = smart_context_text.extract_decision_blocks(text, max_items=4)
+
+        self.assertEqual(blocks[:2], ["稳定 relay audit", "保留 FastAPI"])
+        self.assertIn("采用 service layer", blocks)
 
     def test_extract_topics_uses_heading_and_keyword_backfill(self):
         text = "## Relay Runtime\nrelay runtime provider metrics\nrouter health checks"
@@ -2409,6 +3468,15 @@ class TestSmartContextSummaryHelpers(unittest.TestCase):
         self.assertIn("Questions: 还缺什么？", result.text)
         self.assertIn("Evidence: tests/test_relay.py", result.text)
         self.assertIn("Replay: pytest -q tests/test_relay.py", result.text)
+        self.assertEqual(result.typed_context["goal"], "稳定 relay audit")
+        self.assertEqual(result.typed_context["status"], "blocked")
+        self.assertEqual(result.typed_context["decisions"], ["决定保留 FastAPI"])
+        self.assertEqual(result.typed_context["constraints"], ["不能破坏兼容"])
+        self.assertEqual(result.typed_context["blockers"], ["provider metrics missing"])
+        self.assertEqual(result.typed_context["next_actions"], ["add tests"])
+        self.assertEqual(result.typed_context["questions"], ["还缺什么？"])
+        self.assertEqual(result.typed_context["evidence"], ["tests/test_relay.py"])
+        self.assertEqual(result.typed_context["replay"], ["pytest -q tests/test_relay.py"])
 
     def test_build_turn_summary_drops_decisions_without_evidence(self):
         result = smart_context_summary.build_turn_summary(
@@ -2425,6 +3493,117 @@ class TestSmartContextSummaryHelpers(unittest.TestCase):
         self.assertIn("Summary:", result.text)
         self.assertIn("Next: add tests", result.text)
         self.assertNotIn("Decisions:", result.text)
+        self.assertEqual(result.typed_context["decisions"], [])
+
+
+class TestTypedContextContract(unittest.TestCase):
+    def test_normalize_typed_context_accepts_legacy_and_canonical_keys(self):
+        normalized = context_contract.normalize_typed_context(
+            {
+                "summary": "稳定 relay audit",
+                "goal": "收口主链",
+                "status": "blocked",
+                "decisions": ["保留 FastAPI"],
+                "constraints": ["不能破坏兼容"],
+                "blockers": ["provider metrics missing"],
+                "next_actions": ["补测试"],
+                "questions": ["是否需要 smoke？"],
+                "evidence": ["tests/test_relay.py"],
+                "replay": ["pytest -q tests/test_relay.py"],
+                "keywords": ["relay", "fastapi"],
+                "entities": ["FastAPI"],
+                "project": "relay-audit",
+                "confidence": "high",
+            }
+        )
+
+        self.assertEqual(normalized["summary"], "稳定 relay audit")
+        self.assertEqual(normalized["goal"], "收口主链")
+        self.assertEqual(normalized["decisions"], ["保留 FastAPI"])
+        self.assertEqual(normalized["evidence"], ["tests/test_relay.py"])
+
+        legacy = context_contract.normalize_typed_context(
+            {
+                "本次核心产出": "稳定 relay audit",
+                "决策上下文": "保留 FastAPI",
+                "下一步": "补测试",
+                "问题": "是否需要 smoke？",
+                "搜索关键词": ["relay", "fastapi"],
+                "实体": ["FastAPI"],
+                "项目关联": "relay-audit",
+                "置信度": "high",
+            }
+        )
+
+        self.assertEqual(legacy["summary"], "稳定 relay audit")
+        self.assertEqual(legacy["decisions"], ["保留 FastAPI"])
+        self.assertEqual(legacy["next_actions"], ["补测试"])
+        self.assertEqual(legacy["questions"], ["是否需要 smoke？"])
+        self.assertEqual(legacy["project"], "relay-audit")
+
+    def test_structured_summary_round_trips_canonical_payload(self):
+        summary = deepsea_nexus.StructuredSummary.from_dict(
+            {
+                "summary": "稳定 relay audit",
+                "goal": "收口主链",
+                "status": "blocked",
+                "decisions": ["保留 FastAPI"],
+                "constraints": ["不能破坏兼容"],
+                "blockers": ["provider metrics missing"],
+                "next_actions": ["补测试"],
+                "questions": ["是否需要 smoke？"],
+                "evidence": ["tests/test_relay.py"],
+                "replay": ["pytest -q tests/test_relay.py"],
+                "keywords": ["relay", "fastapi"],
+                "entities": ["FastAPI"],
+                "project": "relay-audit",
+                "confidence": "high",
+            }
+        )
+
+        self.assertEqual(summary.core_output, "稳定 relay audit")
+        self.assertEqual(summary.search_keywords, ["relay", "fastapi"])
+        self.assertEqual(summary.typed_context["goal"], "收口主链")
+        self.assertEqual(summary.typed_context["replay"], ["pytest -q tests/test_relay.py"])
+
+        exported = summary.to_dict()
+        self.assertEqual(exported["summary"], "稳定 relay audit")
+        self.assertEqual(exported["本次核心产出"], "稳定 relay audit")
+        self.assertEqual(exported["decisions"], ["保留 FastAPI"])
+        self.assertEqual(exported["project"], "relay-audit")
+
+    def test_sanitize_typed_context_for_durable_write_requires_evidence(self):
+        sanitized = context_contract.sanitize_typed_context_for_durable_write(
+            {
+                "summary": "稳定 relay audit",
+                "decisions": ["保留 FastAPI"],
+                "next_actions": ["补测试"],
+            }
+        )
+        self.assertEqual(sanitized["decisions"], [])
+
+        kept = context_contract.sanitize_typed_context_for_durable_write(
+            {
+                "summary": "稳定 relay audit",
+                "decisions": ["保留 FastAPI"],
+                "evidence": ["tests/test_relay.py"],
+                "replay": ["pytest -q tests/test_relay.py"],
+            }
+        )
+        self.assertEqual(kept["decisions"], ["保留 FastAPI"])
+
+    def test_structured_summary_durable_exports_drop_unsupported_decisions(self):
+        summary = deepsea_nexus.StructuredSummary.from_dict(
+            {
+                "summary": "稳定 relay audit",
+                "decisions": ["保留 FastAPI"],
+                "next_actions": ["补测试"],
+            }
+        )
+
+        self.assertIn("保留 FastAPI", summary.to_searchable_text())
+        self.assertNotIn("保留 FastAPI", summary.to_durable_searchable_text())
+        self.assertEqual(summary.to_durable_dict()["decisions"], [])
 
 
 class TestSmartContextPromptHelpers(unittest.TestCase):
@@ -2458,6 +3637,22 @@ class TestSmartContextPromptHelpers(unittest.TestCase):
 
         self.assertIn("【1】(doc-b - 0.40)", prompt)
         self.assertIn("Structured note", prompt)
+
+    def test_build_context_prompt_includes_trace_lines_when_present(self):
+        prompt = smart_context_prompt.build_context_prompt(
+            [
+                {
+                    "source": "doc-a",
+                    "relevance": 0.91,
+                    "content": "Alpha memory",
+                    "why": "reason=question | signal=decision | origin=memory_v5 | evidence=1",
+                    "evidence": ["tests/test_relay.py"],
+                }
+            ]
+        )
+
+        self.assertIn("Why: reason=question | signal=decision | origin=memory_v5 | evidence=1", prompt)
+        self.assertIn("Evidence: tests/test_relay.py", prompt)
 
 
 class TestSmartContextDecisionHelpers(unittest.TestCase):
@@ -2702,12 +3897,477 @@ class TestSmartContextRecallHelpers(unittest.TestCase):
         self.assertEqual(items[0]["source"], "doc-a")
         self.assertEqual(items[0]["tags"], ["type:summary"])
         self.assertAlmostEqual(items[0]["score"], 0.7, places=6)
+        self.assertEqual(items[0]["trace"]["signal"], "summary")
+        self.assertEqual(items[0]["why"], "signal=summary")
+
+    def test_build_inject_candidates_adds_reason_and_evidence_trace(self):
+        results = [
+            SimpleNamespace(
+                content="Keep FastAPI",
+                source="🧠v5 决策上下文",
+                relevance=0.92,
+                metadata={
+                    "origin": "memory_v5",
+                    "kind": "decision",
+                    "evidence": ["tests/test_relay.py"],
+                    "category": "relay-audit",
+                },
+            )
+        ]
+
+        items = smart_context_recall.build_inject_candidates(
+            results,
+            reason="question",
+            signature_fn=lambda text: text,
+            normalize_tags_fn=smart_context_inject.normalize_tags,
+            score_fn=lambda relevance, tags, source: relevance,
+        )
+
+        self.assertEqual(items[0]["evidence"], ["tests/test_relay.py"])
+        self.assertEqual(
+            items[0]["why"],
+            "reason=question | signal=decision | origin=memory_v5 | evidence=1",
+        )
+        self.assertEqual(items[0]["trace"]["kind"], "decision")
+        self.assertEqual(items[0]["trace"]["category"], "relay-audit")
+
+    def test_rerank_recall_candidates_prefers_decision_with_evidence_for_decision_query(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Relay audit summary",
+                    "source": "docs/relay.md",
+                    "relevance": 0.93,
+                    "score": 0.93,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "vector"},
+                    "metadata": {},
+                    "why": "signal=summary",
+                },
+                {
+                    "content": "Keep FastAPI",
+                    "source": "🧠v5 决策上下文",
+                    "relevance": 0.82,
+                    "score": 0.82,
+                    "kind": "decision",
+                    "evidence": ["tests/test_relay.py"],
+                    "trace": {"signal": "decision", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=decision | origin=memory_v5 | evidence=1",
+                },
+            ],
+            query="What did we decide for relay audit?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["kind"], "decision")
+        self.assertIn("decision", reranked[0]["trace"]["matched_intents"])
+        self.assertIn("relay-audit", reranked[0]["trace"]["scope_matches"])
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["intent_kind"],
+            0.0,
+        )
+        self.assertIn("match=decision", reranked[0]["why"])
+        self.assertIn("scope=relay-audit", reranked[0]["why"])
+
+    def test_rerank_recall_candidates_prefers_evidence_for_evidence_query(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Relay overview",
+                    "source": "docs/relay.md",
+                    "relevance": 0.9,
+                    "score": 0.9,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "vector"},
+                    "metadata": {},
+                    "why": "signal=summary",
+                },
+                {
+                    "content": "tests/test_relay.py",
+                    "source": "🧠v5 证据指针",
+                    "relevance": 0.74,
+                    "score": 0.74,
+                    "kind": "evidence",
+                    "evidence": ["tests/test_relay.py"],
+                    "trace": {"signal": "evidence", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=evidence | origin=memory_v5 | evidence=1",
+                },
+            ],
+            query="Where is the evidence file for relay audit?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["kind"], "evidence")
+        self.assertIn("evidence", reranked[0]["trace"]["matched_intents"])
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["evidence_match"],
+            0.0,
+        )
+
+    def test_rerank_recall_candidates_prefers_blocker_for_blocking_query(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Relay audit summary",
+                    "source": "docs/relay.md",
+                    "relevance": 0.9,
+                    "score": 0.9,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "vector"},
+                    "metadata": {},
+                    "why": "signal=summary",
+                },
+                {
+                    "content": "Provider metrics missing for relay audit.",
+                    "source": "🧠v5 阻塞上下文",
+                    "relevance": 0.77,
+                    "score": 0.77,
+                    "kind": "blocker",
+                    "evidence": ["logs/provider-metrics.log"],
+                    "trace": {"signal": "blocker", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=blocker | origin=memory_v5 | evidence=1",
+                },
+            ],
+            query="What is blocking relay audit right now?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["kind"], "blocker")
+        self.assertIn("blocker", reranked[0]["trace"]["matched_intents"])
+        self.assertIn("relay-audit", reranked[0]["trace"]["scope_matches"])
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["intent_kind"],
+            0.0,
+        )
+        self.assertIn("match=blocker", reranked[0]["why"])
+
+    def test_rerank_recall_candidates_prefers_constraint_for_constraint_query(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Relay audit summary",
+                    "source": "docs/relay.md",
+                    "relevance": 0.91,
+                    "score": 0.91,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "vector"},
+                    "metadata": {},
+                    "why": "signal=summary",
+                },
+                {
+                    "content": "Do not break FastAPI compatibility during relay audit.",
+                    "source": "🧠v5 约束上下文",
+                    "relevance": 0.75,
+                    "score": 0.75,
+                    "kind": "constraint",
+                    "evidence": [],
+                    "trace": {"signal": "constraint", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=constraint | origin=memory_v5",
+                },
+            ],
+            query="what constraints still apply to relay audit?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["kind"], "constraint")
+        self.assertIn("constraint", reranked[0]["trace"]["matched_intents"])
+        self.assertIn("relay-audit", reranked[0]["trace"]["scope_matches"])
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["intent_kind"],
+            0.0,
+        )
+        self.assertIn("match=constraint", reranked[0]["why"])
+
+    def test_rerank_recall_candidates_prefers_replay_for_replay_query(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Relay blocker summary",
+                    "source": "docs/relay.md",
+                    "relevance": 0.89,
+                    "score": 0.89,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "vector"},
+                    "metadata": {},
+                    "why": "signal=summary",
+                },
+                {
+                    "content": "pytest -q tests/test_relay.py -k provider_metrics",
+                    "source": "🧠v5 复现命令",
+                    "relevance": 0.72,
+                    "score": 0.72,
+                    "kind": "replay",
+                    "evidence": ["tests/test_relay.py"],
+                    "trace": {"signal": "replay", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=replay | origin=memory_v5 | evidence=1",
+                },
+            ],
+            query="How do we replay the relay audit blocker after compression?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["kind"], "replay")
+        self.assertIn("replay", reranked[0]["trace"]["matched_intents"])
+        self.assertIn("relay-audit", reranked[0]["trace"]["scope_matches"])
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["replay_match"],
+            0.0,
+        )
+        self.assertIn("match=replay", reranked[0]["why"])
+
+    def test_rerank_recall_candidates_prefers_replay_for_resume_query(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Payment reconciliation branch summary.",
+                    "source": "docs/payment.md",
+                    "relevance": 0.9,
+                    "score": 0.9,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "vector"},
+                    "metadata": {},
+                    "why": "signal=summary",
+                },
+                {
+                    "content": "pytest -q tests/test_relay.py -k provider_metrics",
+                    "source": "🧠v5 复现命令",
+                    "relevance": 0.71,
+                    "score": 0.71,
+                    "kind": "replay",
+                    "evidence": ["tests/test_relay.py"],
+                    "trace": {"signal": "replay", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=replay | origin=memory_v5 | evidence=1",
+                },
+            ],
+            query="After switching back from payment work, how do we resume relay audit?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["kind"], "replay")
+        self.assertIn("replay", reranked[0]["trace"]["matched_intents"])
+        self.assertIn("relay-audit", reranked[0]["trace"]["scope_matches"])
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["replay_match"],
+            0.0,
+        )
+        self.assertIn("match=replay", reranked[0]["why"])
+
+    def test_rerank_recall_candidates_prefers_current_evidence_over_stale_evidence(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "logs/provider-metrics-2025.log",
+                    "source": "old evidence note",
+                    "relevance": 0.86,
+                    "score": 0.86,
+                    "kind": "evidence",
+                    "evidence": ["logs/provider-metrics-2025.log"],
+                    "trace": {"signal": "evidence", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-legacy"},
+                    "why": "reason=question | signal=evidence | origin=memory_v5 | evidence=1",
+                },
+                {
+                    "content": "logs/provider-metrics.log",
+                    "source": "current evidence note",
+                    "relevance": 0.73,
+                    "score": 0.73,
+                    "kind": "evidence",
+                    "evidence": ["logs/provider-metrics.log"],
+                    "trace": {"signal": "evidence", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=evidence | origin=memory_v5 | evidence=1",
+                },
+            ],
+            query="What is the current evidence file for relay audit blocker?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["source"], "current evidence note")
+        self.assertIn("relay-audit", reranked[0]["trace"]["scope_matches"])
+        self.assertIn("current", reranked[0]["trace"]["freshness_matches"])
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["freshness_current"],
+            0.0,
+        )
+        self.assertIn("fresh=current", reranked[0]["why"])
+
+    def test_rerank_recall_candidates_prefers_current_blocker_over_archived_blocker(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Legacy blocker from archived relay migration.",
+                    "source": "archived blocker",
+                    "relevance": 0.86,
+                    "score": 0.86,
+                    "kind": "blocker",
+                    "evidence": ["logs/archived-relay.log"],
+                    "trace": {"signal": "blocker", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-archive"},
+                    "why": "reason=question | signal=blocker | origin=memory_v5 | evidence=1",
+                },
+                {
+                    "content": "Provider metrics are still missing for relay audit.",
+                    "source": "current blocker",
+                    "relevance": 0.74,
+                    "score": 0.74,
+                    "kind": "blocker",
+                    "evidence": ["logs/provider-metrics.log"],
+                    "trace": {"signal": "blocker", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=blocker | origin=memory_v5 | evidence=1",
+                },
+            ],
+            query="What is still blocking relay audit right now?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["source"], "current blocker")
+        self.assertIn("relay-audit", reranked[0]["trace"]["scope_matches"])
+        self.assertIn("current", reranked[0]["trace"]["freshness_matches"])
+        self.assertIn("fresh=current", reranked[0]["why"])
+
+    def test_rerank_recall_candidates_prefers_summary_when_resume_has_no_replay(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Loose reminder to check archived notes.",
+                    "source": "scratch/note",
+                    "relevance": 0.84,
+                    "score": 0.84,
+                    "kind": "note",
+                    "evidence": [],
+                    "trace": {"signal": "semantic", "origin": "lexical"},
+                    "metadata": {},
+                    "why": "signal=semantic",
+                },
+                {
+                    "content": "Summary: relay audit remains on FastAPI.\nNext: inspect provider metrics manually.",
+                    "source": "v5 summary note",
+                    "relevance": 0.72,
+                    "score": 0.72,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=summary | origin=memory_v5",
+                },
+            ],
+            query="How do we resume relay audit if there is no replay command?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["kind"], "summary")
+        self.assertIn("relay-audit", reranked[0]["trace"]["scope_matches"])
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["resume_without_replay_summary"],
+            0.0,
+        )
+        self.assertIn("fallback=summary", reranked[0]["why"])
+
+    def test_rerank_recall_candidates_prefers_scope_matched_summary_for_context_starved_query(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Summary: continue consumer retry audit.\nNext: compare webhook retries.",
+                    "source": "v5 other summary",
+                    "relevance": 0.89,
+                    "score": 0.89,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "memory_v5"},
+                    "metadata": {"category": "consumer-retry-audit"},
+                    "why": "reason=context_starved | signal=summary | origin=memory_v5",
+                },
+                {
+                    "content": "Summary: continue provider timeout mitigation from yesterday.\nNext: compare retry windows.",
+                    "source": "v5 session summary",
+                    "relevance": 0.72,
+                    "score": 0.72,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "memory_v5"},
+                    "metadata": {"category": "provider-timeout-research"},
+                    "why": "reason=context_starved | signal=summary | origin=memory_v5",
+                },
+            ],
+            query="continue yesterday's provider timeout mitigation thread",
+            reason="context_starved",
+        )
+
+        self.assertEqual(reranked[0]["source"], "v5 session summary")
+        self.assertIn("provider-timeout-research", reranked[0]["trace"]["scope_matches"])
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["context_starved_scope"],
+            0.0,
+        )
+
+    def test_rerank_recall_candidates_prefers_summary_when_resume_previous_task_has_no_scope(self):
+        reranked = smart_context_recall.rerank_recall_candidates(
+            [
+                {
+                    "content": "Loose reminder to clean the inbox.",
+                    "source": "scratch/note",
+                    "relevance": 0.91,
+                    "score": 0.91,
+                    "kind": "note",
+                    "evidence": [],
+                    "trace": {"signal": "semantic", "origin": "lexical"},
+                    "metadata": {},
+                    "why": "signal=semantic",
+                },
+                {
+                    "content": "Summary: relay audit remains on FastAPI.\nNext: inspect provider metrics manually.",
+                    "source": "v5 summary note",
+                    "relevance": 0.72,
+                    "score": 0.72,
+                    "kind": "summary",
+                    "evidence": [],
+                    "trace": {"signal": "summary", "origin": "memory_v5"},
+                    "metadata": {"category": "relay-audit"},
+                    "why": "reason=question | signal=summary | origin=memory_v5",
+                },
+            ],
+            query="How do we resume the previous task if there is no replay command?",
+            reason="question",
+        )
+
+        self.assertEqual(reranked[0]["kind"], "summary")
+        self.assertGreater(
+            reranked[0]["trace"]["score_breakdown"]["resume_without_replay_summary"],
+            0.0,
+        )
+        self.assertIn("fallback=summary", reranked[0]["why"])
 
     def test_build_inject_metric_payload_reports_ratio_and_top_score(self):
         payload = smart_context_recall.build_inject_metric_payload(
             reason="question",
             retrieved=4,
-            filtered=[{"score": 0.88}, {"score": 0.55}],
+            filtered=[
+                {
+                    "score": 0.88,
+                    "source": "🧠v5 决策上下文",
+                    "why": "reason=question | signal=decision | origin=memory_v5 | evidence=1 | match=decision",
+                    "evidence": ["tests/test_relay.py"],
+                    "trace": {
+                        "matched_intents": ["decision"],
+                        "scope_matches": ["relay-audit"],
+                        "score_breakdown": {"base": 0.7, "intent_kind": 0.18},
+                    },
+                },
+                {"score": 0.55},
+            ],
             threshold=0.6,
             max_items=3,
             fallback_used=False,
@@ -2720,6 +4380,11 @@ class TestSmartContextRecallHelpers(unittest.TestCase):
         self.assertEqual(payload["injected"], 2)
         self.assertAlmostEqual(payload["ratio"], 0.5, places=6)
         self.assertAlmostEqual(payload["top_score"], 0.88, places=6)
+        self.assertEqual(payload["top_source"], "🧠v5 决策上下文")
+        self.assertEqual(payload["top_evidence_count"], 1)
+        self.assertEqual(payload["top_matched_intents"], ["decision"])
+        self.assertEqual(payload["top_scope_matches"], ["relay-audit"])
+        self.assertEqual(payload["top_score_breakdown"]["intent_kind"], 0.18)
 
     def test_select_injected_items_falls_back_to_top1_when_threshold_filters_all(self):
         selected, fallback_used, fallback_reason = smart_context_recall.select_injected_items(
@@ -2776,6 +4441,9 @@ class TestSmartContextGraphInjectHelpers(unittest.TestCase):
         self.assertEqual(items[0]["source"], "graph")
         self.assertEqual(items[0]["relevance"], 0.8)
         self.assertEqual(items[0]["content"], "relay uses FastAPI | 证据: very")
+        self.assertEqual(items[0]["evidence"], ["very"])
+        self.assertEqual(items[0]["trace"]["reason"], "graph_association")
+        self.assertEqual(items[0]["trace"]["origin"], "graph")
 
 
 class TestSmartContextStorageHelpers(unittest.TestCase):

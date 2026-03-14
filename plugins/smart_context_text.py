@@ -9,6 +9,11 @@ import re
 from dataclasses import dataclass
 from typing import List
 
+try:
+    from ..context_contract import normalize_typed_context
+except ImportError:
+    from context_contract import normalize_typed_context
+
 
 STOP_WORDS = {
     "的",
@@ -120,9 +125,14 @@ def extract_summary(
     json_match = re.search(r"```json\s*\n([\s\S]*?)\n```", text or "")
     if json_match:
         try:
-            data = json.loads(json_match.group(1))
+            data = normalize_typed_context(json.loads(json_match.group(1)))
+            if data.get("summary"):
+                return SummaryResult(
+                    summary=append_entities(str(data.get("summary", "")), extract_key_entities(text)),
+                    status="ok",
+                )
             return sanitize_summary(
-                data.get("本次核心产出", data.get("核心产出", "")),
+                data.get("summary", ""),
                 text,
                 min_summary_length=min_summary_length,
                 fallback_max_chars=fallback_max_chars,
@@ -163,9 +173,10 @@ def extract_decision_blocks(text: str, max_items: int = 3) -> List[str]:
     json_match = re.search(r"```json\s*\n([\s\S]*?)\n```", text)
     if json_match:
         try:
-            data = json.loads(json_match.group(1))
-            for key in ("本次核心产出", "核心产出", "决策上下文"):
-                value = data.get(key)
+            data = normalize_typed_context(json.loads(json_match.group(1)))
+            if data.get("summary"):
+                blocks.append(str(data["summary"]).strip())
+            for value in data.get("decisions", []):
                 if isinstance(value, str) and value.strip():
                     blocks.append(value.strip())
         except json.JSONDecodeError:

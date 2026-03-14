@@ -3,7 +3,22 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OPENCLAW_HOME_DIR="${OPENCLAW_HOME:-${HOME}/.openclaw}"
-OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-${OPENCLAW_HOME_DIR}/workspace}"
+infer_workspace_dir() {
+  if [[ -n "${OPENCLAW_WORKSPACE:-}" ]]; then
+    printf '%s\n' "${OPENCLAW_WORKSPACE}"
+    return
+  fi
+
+  if [[ "$(basename "${ROOT_DIR}")" == "deepsea-nexus" ]] && [[ "$(basename "$(dirname "${ROOT_DIR}")")" == "skills" ]]; then
+    printf '%s\n' "$(dirname "$(dirname "${ROOT_DIR}")")"
+    return
+  fi
+
+  printf '%s\n' "${OPENCLAW_HOME_DIR}/workspace"
+}
+
+OPENCLAW_WORKSPACE_DIR="$(infer_workspace_dir)"
+export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE_DIR}"
 if [[ -n "${NEXUS_PYTHON_PATH:-}" && -x "${NEXUS_PYTHON_PATH}" ]]; then
   PYTHON_BIN="${NEXUS_PYTHON_PATH}"
 elif [[ -x "${ROOT_DIR}/.venv-3.13/bin/python" ]]; then
@@ -16,8 +31,59 @@ else
   PYTHON_BIN="${NEXUS_PYTHON_PATH:-python3}"
 fi
 
-MODE="${1:---full}"
-BENCH_CASES="${2:-${ROOT_DIR}/docs/memory_v5_benchmark_sample.json}"
+MODE="--full"
+BENCH_CASES="${ROOT_DIR}/docs/memory_v5_benchmark_sample.json"
+RUN_LIFECYCLE_AUDIT=0
+LIFECYCLE_ALL_AGENTS=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --full|--quick)
+      MODE="$1"
+      shift
+      ;;
+    --with-lifecycle-audit)
+      RUN_LIFECYCLE_AUDIT=1
+      shift
+      ;;
+    --lifecycle-all-agents)
+      RUN_LIFECYCLE_AUDIT=1
+      LIFECYCLE_ALL_AGENTS=1
+      shift
+      ;;
+    --benchmark-cases)
+      if [[ $# -lt 2 ]]; then
+        echo "[deploy] missing value for --benchmark-cases" >&2
+        exit 2
+      fi
+      BENCH_CASES="$2"
+      shift 2
+      ;;
+    --help|-h)
+      cat <<'EOF'
+Usage: bash scripts/deploy_local_v5.sh [--full|--quick] [benchmark_cases.json]
+       [--benchmark-cases <path>] [--with-lifecycle-audit] [--lifecycle-all-agents]
+
+Options:
+  --full                  Run full test gate before smoke/benchmark (default)
+  --quick                 Run memory_v5 focused tests before smoke/benchmark
+  --benchmark-cases PATH  Override benchmark case pack
+  --with-lifecycle-audit  Run memory_v5 lifecycle maintenance in dry-run report mode
+  --lifecycle-all-agents  Same as above, but audit all discovered Memory v5 scopes
+EOF
+      exit 0
+      ;;
+    *)
+      if [[ "$1" == --* ]]; then
+        echo "[deploy] unknown option: $1" >&2
+        exit 2
+      fi
+      BENCH_CASES="$1"
+      shift
+      ;;
+  esac
+done
+
 export NEXUS_VECTOR_DB="${NEXUS_VECTOR_DB:-${OPENCLAW_WORKSPACE_DIR}/memory/.vector_db_restored}"
 export NEXUS_COLLECTION="${NEXUS_COLLECTION:-deepsea_nexus_restored}"
 
@@ -27,6 +93,8 @@ echo "[deploy] python=${PYTHON_BIN}"
 echo "[deploy] vector_db=${NEXUS_VECTOR_DB}"
 echo "[deploy] collection=${NEXUS_COLLECTION}"
 echo "[deploy] benchmark_cases=${BENCH_CASES}"
+echo "[deploy] lifecycle_audit=${RUN_LIFECYCLE_AUDIT}"
+echo "[deploy] lifecycle_all_agents=${LIFECYCLE_ALL_AGENTS}"
 
 cd "${ROOT_DIR}"
 
@@ -118,5 +186,14 @@ any_hit = int(data.get("any_scope_hit", 0) or 0)
 if cases > 0 and any_hit <= 0:
     raise SystemExit("memory_v5 benchmark indicates zero global hit; deployment blocked")
 PY
+
+if [[ "${RUN_LIFECYCLE_AUDIT}" == "1" ]]; then
+  echo "[deploy] memory_v5 lifecycle audit"
+  MAINTENANCE_ARGS=("scripts/memory_v5_maintenance.py" "--dry-run" "--write-report")
+  if [[ "${LIFECYCLE_ALL_AGENTS}" == "1" ]]; then
+    MAINTENANCE_ARGS+=("--all-agents")
+  fi
+  run_py "${MAINTENANCE_ARGS[@]}"
+fi
 
 echo "[deploy] done"
