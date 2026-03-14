@@ -1,5 +1,13 @@
 # SOP: SmartContext 规则生效与底层路径 (2026-02-27, 2026-03-14 更新)
 
+> Historical ops reference: this note documents older OpenClaw hook wiring and
+> host-level verification commands. It is not the current source of truth for
+> the v5 runtime or context governance policy.
+> Current docs:
+> - `Context_Policy_v2_EventDriven.md`
+> - `../README.md`
+> - `../LOCAL_DEPLOY.md`
+
 > 当前推荐策略已升级到 `Context Policy v2`（事件触发摘要 + L1/L2/L3 + replay）；
 > 参考：`Context_Policy_v2_EventDriven.md`。
 

@@ -1,16 +1,51 @@
 #!/usr/bin/env python3
 """
-向量库恢复脚本
-从损坏的 deep_sea_nexus_notes 集合中恢复 2208 条数据
+Archived reference: one-off vector DB recovery helper for an older damaged
+collection layout. Keep for manual forensics/recovery only; it is not the
+current source of truth for normal v5 runtime operations.
 """
 
-import sqlite3
-import chromadb
-from chromadb.config import Settings
-import json
+from __future__ import annotations
 
-VECTOR_DB_PATH = "/Users/yizhi/.openclaw/workspace/memory/.vector_db"
-BACKUP_COLLECTION = "deepsea_nexus_backup"
+import os
+import sqlite3
+from pathlib import Path
+
+
+def resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def resolve_workspace_root() -> Path:
+    return Path(
+        os.environ.get("OPENCLAW_WORKSPACE", resolve_openclaw_home() / "workspace")
+    ).expanduser().resolve()
+
+
+def resolve_vector_db_path() -> Path:
+    override = os.environ.get("NEXUS_RECOVER_VECTOR_DB", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    primary = os.environ.get("NEXUS_VECTOR_DB", "").strip()
+    if primary:
+        return Path(primary).expanduser().resolve()
+    return (resolve_workspace_root() / "memory" / ".vector_db").resolve()
+
+
+def resolve_backup_collection() -> str:
+    return os.environ.get("NEXUS_RECOVER_COLLECTION", "deepsea_nexus_backup").strip() or "deepsea_nexus_backup"
+
+
+def resolve_segment_id() -> str:
+    return os.environ.get(
+        "NEXUS_RECOVER_SEGMENT_ID",
+        "7c02facf-8a51-4f32-a773-d1decdc2f27b",
+    ).strip()
+
+
+VECTOR_DB_PATH = str(resolve_vector_db_path())
+BACKUP_COLLECTION = resolve_backup_collection()
+SEGMENT_ID = resolve_segment_id()
 
 def extract_data(limit=None):
     """从 SQLite 提取数据"""
@@ -20,8 +55,8 @@ def extract_data(limit=None):
     cursor.execute("""
         SELECT DISTINCT e.embedding_id
         FROM embeddings e
-        WHERE e.segment_id = '7c02facf-8a51-4f32-a773-d1decdc2f27b'
-    """)
+        WHERE e.segment_id = ?
+    """, (SEGMENT_ID,))
     embedding_ids = [row[0] for row in cursor.fetchall()]
     print(f"找到 {len(embedding_ids)} 条记录")
     
@@ -59,6 +94,8 @@ def extract_data(limit=None):
 
 def recover_to_new_collection(batch_size=100):
     """恢复到新集合"""
+    import chromadb
+
     print("\n" + "=" * 50)
     print("开始恢复数据到新集合")
     print("=" * 50)
@@ -98,6 +135,8 @@ def recover_to_new_collection(batch_size=100):
 
 def test_search():
     """测试搜索"""
+    import chromadb
+
     client = chromadb.PersistentClient(path=VECTOR_DB_PATH)
     coll = client.get_collection(BACKUP_COLLECTION)
     

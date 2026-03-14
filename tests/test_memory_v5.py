@@ -1785,6 +1785,84 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
         self.assertIn('ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"', contents)
         self.assertNotIn("/Users/yizhi", contents)
 
+    def test_recover_vector_db_defaults_follow_workspace_and_env(self):
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {
+                "OPENCLAW_WORKSPACE": temp_dir,
+                "NEXUS_VECTOR_DB": "",
+                "NEXUS_RECOVER_VECTOR_DB": "",
+                "NEXUS_RECOVER_COLLECTION": "custom_backup",
+                "NEXUS_RECOVER_SEGMENT_ID": "segment-123",
+            },
+            clear=False,
+        ):
+            module = _load_script_module("recover_vector_db")
+
+            self.assertEqual(
+                module.resolve_vector_db_path(),
+                (Path(temp_dir).resolve() / "memory" / ".vector_db").resolve(),
+            )
+            self.assertEqual(module.resolve_backup_collection(), "custom_backup")
+            self.assertEqual(module.resolve_segment_id(), "segment-123")
+
+    def test_generate_internet_web3_sops_defaults_follow_workspace(self):
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {
+                "OPENCLAW_WORKSPACE": temp_dir,
+                "NEXUS_HQ_SEARCH_SOP": "",
+                "NEXUS_HQ_RESEARCH_SOP": "",
+            },
+            clear=False,
+        ):
+            module = _load_script_module("generate_internet_web3_sops")
+
+            self.assertEqual(module.resolve_workspace_root(), Path(temp_dir).resolve())
+            self.assertEqual(
+                module.resolve_search_sop_tool(),
+                (Path(temp_dir).resolve() / "SOP" / "SOP_HQ_Web_Research.md").resolve(),
+            )
+            self.assertEqual(
+                module.resolve_research_sop_tool(),
+                (Path(temp_dir).resolve() / "SOP" / "SOP_HQ_Deep_Research.md").resolve(),
+            )
+
+    def test_toolchain_iterate_all_sops_defaults_follow_workspace(self):
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {
+                "OPENCLAW_WORKSPACE": temp_dir,
+                "NEXUS_HQ_SEARCH_SOP": "",
+                "NEXUS_HQ_RESEARCH_SOP": "",
+            },
+            clear=False,
+        ):
+            module = _load_script_module("toolchain_iterate_all_sops")
+
+            self.assertEqual(module.resolve_workspace_root(), Path(temp_dir).resolve())
+            self.assertEqual(
+                module.resolve_search_sop_tool(),
+                (Path(temp_dir).resolve() / "SOP" / "SOP_HQ_Web_Research.md").resolve(),
+            )
+            self.assertEqual(
+                module.resolve_research_sop_tool(),
+                (Path(temp_dir).resolve() / "SOP" / "SOP_HQ_Deep_Research.md").resolve(),
+            )
+
+    def test_historical_smart_context_sops_are_clearly_marked(self):
+        effectiveness = (REPO_ROOT / "docs" / "sop" / "SmartContext_Effectiveness_Path.md").read_text(
+            encoding="utf-8"
+        )
+        tuning = (REPO_ROOT / "docs" / "sop" / "SmartContext_Daily_Tuning_and_RCA_2026-02-28.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Historical ops reference", effectiveness)
+        self.assertIn("Context_Policy_v2_EventDriven.md", effectiveness)
+        self.assertIn("Archived reference", tuning)
+        self.assertIn("2026-03-14-current-runtime-audit.md", tuning)
+
     def test_current_shell_entrypoints_have_valid_syntax(self):
         for relative_path in (
             "scripts/deploy_local_v5.sh",

@@ -1,5 +1,12 @@
 # SOP: SmartContext 每日调参与 RCA（2026-02-28）
 
+> Archived reference: this is a historical RCA/tuning note from 2026-02-28 and
+> not the current source of truth for v5 runtime defaults.
+> Current docs:
+> - `Context_Policy_v2_EventDriven.md`
+> - `../README.md`
+> - `../reports/2026-03-14-current-runtime-audit.md`
+
 ## 1. 目标
 - 保证上下文压缩稳定触发（不漏压缩）
 - 兼顾质量与成本（不影响工作流的前提下节省 tokens）

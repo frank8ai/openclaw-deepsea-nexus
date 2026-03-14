@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,8 +13,34 @@ DATE = "2026-02-17"
 MONTH = "2026-02"
 OWNER = "yizhi"
 TEAM = "deepsea-nexus"
-SEARCH_SOP_TOOL = "/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Web_Research.md"
-RESEARCH_SOP_TOOL = "/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Deep_Research.md"
+
+
+def resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def resolve_workspace_root() -> Path:
+    return Path(
+        os.environ.get("OPENCLAW_WORKSPACE", resolve_openclaw_home() / "workspace")
+    ).expanduser().resolve()
+
+
+def resolve_search_sop_tool() -> Path:
+    override = os.environ.get("NEXUS_HQ_SEARCH_SOP", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (resolve_workspace_root() / "SOP" / "SOP_HQ_Web_Research.md").resolve()
+
+
+def resolve_research_sop_tool() -> Path:
+    override = os.environ.get("NEXUS_HQ_RESEARCH_SOP", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (resolve_workspace_root() / "SOP" / "SOP_HQ_Deep_Research.md").resolve()
+
+
+SEARCH_SOP_TOOL = str(resolve_search_sop_tool())
+RESEARCH_SOP_TOOL = str(resolve_research_sop_tool())
 BASE_DIR = REPO_ROOT / "resources" / "sop" / MONTH
 RESEARCH_DIR = BASE_DIR / "research-toolchain"
 PACK_PATH_REL = f"resources/sop/{MONTH}/{DATE}-internet-web3-sop-toolchain-research-pack.md"
@@ -1227,4 +1254,3 @@ def generate() -> None:
 
 if __name__ == "__main__":
     generate()
-
