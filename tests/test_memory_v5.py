@@ -1533,6 +1533,31 @@ class TestContextEngineRuntimeState(unittest.TestCase):
 
 
 class TestSmartContextRuntimeState(unittest.TestCase):
+    def test_maybe_alert_inject_ratio_does_not_auto_tune_by_default(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.json"
+            config_path.write_text(json.dumps({"smart_context": {}}, ensure_ascii=False), encoding="utf-8")
+
+            runtime = smart_context_runtime.SmartContextRuntimeState(config_path=str(config_path))
+            runtime.prime({"paths": {"base": temp_dir}})
+            config = SimpleNamespace(
+                inject_ratio_alert_enabled=True,
+                inject_ratio_alert_threshold=0.2,
+                inject_ratio_alert_streak=1,
+                inject_persist_interval_sec=60,
+                inject_threshold=0.6,
+                inject_max_items=2,
+                adaptive_min_threshold=0.35,
+                inject_debug=False,
+            )
+
+            runtime.maybe_alert_inject_ratio(0.1, 12, config)
+
+            self.assertAlmostEqual(config.inject_threshold, 0.6, places=6)
+            self.assertEqual(config.inject_max_items, 2)
+            persisted = json.loads(config_path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted["smart_context"], {})
+
     def test_maybe_alert_inject_ratio_auto_tunes_and_persists_config(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.json"
@@ -1612,6 +1637,9 @@ class TestSmartContextPluginOrchestration(unittest.TestCase):
         plugin._store_topic_blocks = mock.Mock()
         plugin._call_nexus = mock.Mock()
         plugin._extract_decision_blocks = mock.Mock(return_value=["决定保留 FastAPI"])
+        plugin._extract_decision_supporting_refs = mock.Mock(
+            return_value=(["tests/test_relay.py"], ["pytest -q tests/test_relay.py"])
+        )
         plugin._extract_topics = mock.Mock(return_value=["Relay Runtime"])
         plugin._detect_topic_switch = mock.Mock(return_value=True)
         plugin._build_turn_summary = mock.Mock(return_value="Summary: keep FastAPI")
@@ -1631,8 +1659,30 @@ class TestSmartContextPluginOrchestration(unittest.TestCase):
         self.assertIn("摘要卡", first_call.kwargs["title"])
         self.assertIn("话题切换", second_call.kwargs["title"])
         plugin._store_context.assert_called_once()
-        plugin._store_decision_blocks.assert_called_once_with("conv-1", 1, ["决定保留 FastAPI"])
+        plugin._store_decision_blocks.assert_called_once_with(
+            "conv-1",
+            1,
+            ["决定保留 FastAPI"],
+            evidence_pointers=["tests/test_relay.py"],
+            replay_commands=["pytest -q tests/test_relay.py"],
+        )
         plugin._store_topic_blocks.assert_called_once_with("conv-1", 1, ["Relay Runtime"])
+
+    def test_store_decision_blocks_requires_supporting_refs(self):
+        plugin = smart_context_module.SmartContextPlugin()
+        plugin._append_metrics = mock.Mock()
+        plugin._call_nexus = mock.Mock()
+
+        plugin._store_decision_blocks("conv-1", 2, ["决定保留 FastAPI"])
+
+        plugin._call_nexus.assert_not_called()
+        plugin._append_metrics.assert_called_once_with(
+            {
+                "event": "decision_block_skip",
+                "reason": "missing_evidence",
+                "count": 1,
+            }
+        )
 
     def test_inject_memory_skips_when_nexus_core_missing(self):
         plugin = smart_context_module.SmartContextPlugin()
@@ -1906,6 +1956,22 @@ class TestSmartContextSummaryHelpers(unittest.TestCase):
         self.assertIn("Evidence: tests/test_relay.py", result.text)
         self.assertIn("Replay: pytest -q tests/test_relay.py", result.text)
 
+    def test_build_turn_summary_drops_decisions_without_evidence(self):
+        result = smart_context_summary.build_turn_summary(
+            "Goal: 稳定 relay audit\nStatus: blocked",
+            "决定保留 FastAPI\nNext: add tests",
+            ["决定保留 FastAPI"],
+            summary_template_enabled=True,
+            summary_template_fields=("summary", "decisions", "next_actions"),
+            summary_min_length=20,
+            topic_max=3,
+            topic_min_keywords=2,
+        )
+
+        self.assertIn("Summary:", result.text)
+        self.assertIn("Next: add tests", result.text)
+        self.assertNotIn("Decisions:", result.text)
+
 
 class TestSmartContextPromptHelpers(unittest.TestCase):
     def test_build_context_prompt_formats_dict_entries(self):
@@ -1997,6 +2063,8 @@ class TestSmartContextGraphHelpers(unittest.TestCase):
             "conv-1",
             3,
             ["采用 FastAPI"],
+            evidence_pointers=["tests/test_relay.py"],
+            replay_commands=["pytest -q tests/test_relay.py"],
             max_graph_edges=3,
         )
 
@@ -2005,6 +2073,9 @@ class TestSmartContextGraphHelpers(unittest.TestCase):
             operations[0]["document"]["tags"],
             "type:decision_block,round:3,conversation:conv-1",
         )
+        self.assertIn("Decision: 采用 FastAPI", operations[0]["document"]["content"])
+        self.assertIn("Evidence: tests/test_relay.py", operations[0]["document"]["content"])
+        self.assertIn("Replay: pytest -q tests/test_relay.py", operations[0]["document"]["content"])
         self.assertEqual(operations[0]["graph_edges"][0]["source"], "decision_block:conv-1")
         self.assertEqual(operations[0]["graph_edges"][0]["conversation_id"], "conv-1")
 

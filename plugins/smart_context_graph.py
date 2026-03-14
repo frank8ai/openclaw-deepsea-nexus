@@ -45,14 +45,23 @@ def build_decision_block_operations(
     round_num: int,
     blocks: List[str],
     *,
+    evidence_pointers: List[str] | None = None,
+    replay_commands: List[str] | None = None,
     max_graph_edges: int,
 ) -> List[Dict[str, Any]]:
     operations: List[Dict[str, Any]] = []
+    evidence_lines = [str(item).strip() for item in (evidence_pointers or []) if str(item).strip()]
+    replay_lines = [str(item).strip() for item in (replay_commands or []) if str(item).strip()]
     for index, block in enumerate(blocks or [], 1):
+        content_lines = [f"Decision: {block.strip()}"]
+        if evidence_lines:
+            content_lines.append(f"Evidence: {'; '.join(evidence_lines[:3])}")
+        if replay_lines:
+            content_lines.append(f"Replay: {replay_lines[0]}")
         operations.append(
             {
                 "document": {
-                    "content": block,
+                    "content": "\n".join(content_lines).strip(),
                     "title": f"决策块 {conversation_id} - 轮{round_num} ({index})",
                     "tags": f"type:decision_block,round:{round_num},conversation:{conversation_id}",
                 },

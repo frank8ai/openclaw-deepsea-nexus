@@ -91,11 +91,12 @@ def build_turn_summary(
         keyword_limit=max(1, int(keyword_limit)),
     )
 
-    decision_items = _merge_items(decisions, rescue_updates.get("decisions", []), limit=3)
     constraints = rescue_updates.get("constraints", [])[:3]
     blockers = rescue_updates.get("blockers", [])[:3]
     evidence = rescue_updates.get("evidence_pointers", [])[:3]
     replay_commands = rescue_updates.get("replay_commands", [])[:1]
+    has_decision_evidence = bool(evidence or replay_commands)
+    decision_items = _merge_items(decisions, rescue_updates.get("decisions", []), limit=3) if has_decision_evidence else []
     goal = str(rescue_updates.get("current_goal", "") or "").strip()
     status = str(rescue_updates.get("current_status", "") or "").strip()
 

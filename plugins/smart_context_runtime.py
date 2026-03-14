@@ -99,7 +99,7 @@ class SmartContextRuntimeState:
                     f"[SmartContext] ALERT inject ratio low avg={avg_ratio:.2f} "
                     f"threshold={threshold:.2f} window={window}"
                 )
-        if getattr(config, "inject_ratio_auto_tune", True):
+        if getattr(config, "inject_ratio_auto_tune", False):
             self.auto_tune_inject(avg_ratio, config)
         self.flush_pending_config_updates(config)
 

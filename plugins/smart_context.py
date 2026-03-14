@@ -35,6 +35,7 @@ from . import smart_context_now
 from . import smart_context_prompt
 from . import smart_context_recall
 from . import smart_context_round
+from . import smart_context_rescue
 from . import smart_context_storage
 from . import smart_context_summary
 from . import smart_context_text
@@ -125,7 +126,7 @@ class ContextCompressionConfig:
     inject_ratio_alert_enabled: bool = True
     inject_ratio_alert_threshold: float = 0.15
     inject_ratio_alert_streak: int = 2
-    inject_ratio_auto_tune: bool = True
+    inject_ratio_auto_tune: bool = False
     inject_ratio_auto_tune_step: float = 0.05
     inject_ratio_auto_tune_max_items: int = 6
     inject_persist_interval_sec: int = 60
@@ -301,7 +302,7 @@ class SmartContextPlugin(NexusPlugin):
                     inject_ratio_alert_enabled=smart_cfg.get("inject_ratio_alert_enabled", True),
                     inject_ratio_alert_threshold=smart_cfg.get("inject_ratio_alert_threshold", 0.15),
                     inject_ratio_alert_streak=smart_cfg.get("inject_ratio_alert_streak", 2),
-                    inject_ratio_auto_tune=smart_cfg.get("inject_ratio_auto_tune", True),
+                    inject_ratio_auto_tune=smart_cfg.get("inject_ratio_auto_tune", False),
                     inject_ratio_auto_tune_step=smart_cfg.get("inject_ratio_auto_tune_step", 0.05),
                     inject_ratio_auto_tune_max_items=smart_cfg.get("inject_ratio_auto_tune_max_items", 6),
                     inject_persist_interval_sec=smart_cfg.get("inject_persist_interval_sec", 60),
@@ -487,8 +488,12 @@ class SmartContextPlugin(NexusPlugin):
         )
         
         blocks: List[str] = []
+        evidence_pointers: List[str] = []
+        replay_commands: List[str] = []
         if self.config.decision_block_enabled:
             blocks = self._extract_decision_blocks(combined_text)
+            if blocks:
+                evidence_pointers, replay_commands = self._extract_decision_supporting_refs(combined_text)
         turn_summary_cache: Optional[str] = None
 
         def get_turn_summary() -> str:
@@ -530,7 +535,13 @@ class SmartContextPlugin(NexusPlugin):
         if self._nexus_core:
             self._store_context(conversation_id, round_num, result)
             if blocks:
-                self._store_decision_blocks(conversation_id, round_num, blocks)
+                self._store_decision_blocks(
+                    conversation_id,
+                    round_num,
+                    blocks,
+                    evidence_pointers=evidence_pointers,
+                    replay_commands=replay_commands,
+                )
             if self.config.topic_block_enabled:
                 topics = self._extract_topics(combined_text)
                 if topics:
@@ -633,6 +644,24 @@ class SmartContextPlugin(NexusPlugin):
             max_items=max(1, int(self.config.decision_block_max)),
         )
 
+    def _extract_decision_supporting_refs(self, text: str) -> Tuple[List[str], List[str]]:
+        updates = smart_context_rescue.collect_rescue_updates(
+            text,
+            rescue_gold=False,
+            rescue_decisions=False,
+            rescue_next_actions=False,
+            rescue_goal=False,
+            rescue_status=False,
+            rescue_constraints=False,
+            rescue_blockers=False,
+            rescue_evidence=True,
+            rescue_replay=True,
+        )
+        return (
+            list(updates.get("evidence_pointers", []) or []),
+            list(updates.get("replay_commands", []) or []),
+        )
+
     def _build_turn_summary(
         self,
         user_message: str,
@@ -708,17 +737,47 @@ class SmartContextPlugin(NexusPlugin):
             int(self.config.decision_block_max),
         )
 
-    def _store_decision_blocks(self, conversation_id: str, round_num: int, blocks: List[str]) -> None:
+    def _store_decision_blocks(
+        self,
+        conversation_id: str,
+        round_num: int,
+        blocks: List[str],
+        *,
+        evidence_pointers: Optional[List[str]] = None,
+        replay_commands: Optional[List[str]] = None,
+    ) -> None:
+        evidence_pointers = [str(item).strip() for item in (evidence_pointers or []) if str(item).strip()]
+        replay_commands = [str(item).strip() for item in (replay_commands or []) if str(item).strip()]
+        if not evidence_pointers and not replay_commands:
+            self._append_metrics(
+                {
+                    "event": "decision_block_skip",
+                    "reason": "missing_evidence",
+                    "count": len(blocks or []),
+                }
+            )
+            return
+
         for operation in smart_context_graph.build_decision_block_operations(
             conversation_id,
             round_num,
             blocks,
+            evidence_pointers=evidence_pointers,
+            replay_commands=replay_commands,
             max_graph_edges=int(self.config.decision_block_max),
         ):
             self._call_nexus("add_document", **operation["document"])
             if self._graph_enabled:
                 for edge in operation["graph_edges"]:
                     graph_add_edge(**edge)
+        self._append_metrics(
+            {
+                "event": "decision_block_store",
+                "count": len(blocks or []),
+                "evidence_count": len(evidence_pointers),
+                "replay_count": len(replay_commands),
+            }
+        )
 
     def _store_topic_blocks(self, conversation_id: str, round_num: int, topics: List[str]) -> None:
         for operation in smart_context_graph.build_topic_block_operations(
@@ -762,6 +821,9 @@ class SmartContextPlugin(NexusPlugin):
             )
             blocks = data.decisions if self.config.decision_block_enabled else []
             topics = data.topics if self.config.topic_block_enabled else []
+            evidence_pointers, replay_commands = self._extract_decision_supporting_refs(
+                f"{user_message}\n{ai_response}"
+            )
 
             for entry in smart_context_storage.build_conversation_store_entries(
                 conversation_id,
@@ -780,7 +842,13 @@ class SmartContextPlugin(NexusPlugin):
                 result["stored"] = True
 
             if self.config.decision_block_enabled and blocks:
-                self._store_decision_blocks(conversation_id, 0, blocks)
+                self._store_decision_blocks(
+                    conversation_id,
+                    0,
+                    blocks,
+                    evidence_pointers=evidence_pointers,
+                    replay_commands=replay_commands,
+                )
 
             if self.config.topic_block_enabled and topics:
                 self._store_topic_blocks(conversation_id, 0, topics)
