@@ -383,6 +383,52 @@ class TestCurrentRuntimeFixes(unittest.TestCase):
         self.assertTrue(callable(getattr(adapter, "search_recall", None)))
         self.assertTrue(callable(getattr(adapter, "add_document", None)))
 
+    def test_context_engine_smart_retrieve_uses_budgeted_context_block(self):
+        context_engine_module = importlib.import_module(
+            f"{deepsea_nexus.__name__}.plugins.context_engine"
+        )
+        engine = context_engine_module.ContextEngine()
+        engine.configure_runtime(
+            {
+                "paths": {"base": str(REPO_ROOT)},
+                "context_engine": {
+                    "max_tokens": 1000,
+                    "max_items": 2,
+                    "max_chars_per_item": 120,
+                    "max_lines_total": 12,
+                    "include_now": True,
+                    "include_recent_summary": True,
+                    "include_memory": True,
+                },
+            }
+        )
+        engine.should_retrieve = mock.Mock(return_value=(True, "question"))
+        engine._search_vector_store = mock.Mock(
+            return_value=[
+                {
+                    "content": "FastAPI keeps the relay control plane stable.",
+                    "source": "docs/relay.md",
+                    "relevance": 0.91,
+                    "metadata": {},
+                }
+            ]
+        )
+
+        with mock.patch.object(
+            context_engine_module.smart_context_now,
+            "get_rescue_context",
+            return_value="## NOW Rescue Context\nGoal: stabilize relay audit",
+        ):
+            result = engine.smart_retrieve("relay audit", n=1)
+
+        self.assertTrue(result.triggered)
+        self.assertEqual(result.trigger_type, "question")
+        self.assertIn("## NOW", result.context_text)
+        self.assertIn("Goal: stabilize relay audit", result.context_text)
+        self.assertNotIn("## NOW Rescue Context", result.context_text)
+        self.assertIn("## RECALL (Top-K)", result.context_text)
+        self.assertIn("[1] (docs/relay.md · 0.91)", result.context_text)
+
 
 class TestLegacyMaintenanceScripts(unittest.TestCase):
     def setUp(self):

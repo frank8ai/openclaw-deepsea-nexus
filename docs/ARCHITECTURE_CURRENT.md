@@ -103,6 +103,8 @@ Together these modules own:
 - rescue-before-compress behavior
 - injection gating and budget trimming
 - summary / evidence / replay aware assembly
+- evidence-gated durable decision writes
+- budgeted compatibility-context assembly for older helper entrypoints
 
 The current policy contract is externalized in:
 
@@ -207,6 +209,8 @@ Key subtrees include:
 1. A caller enters through sync API, async plugin, or Memory v5 service.
 2. Runtime normalizes the write into the current memory path.
 3. SmartContext may emit summaries or decision blocks.
+   - decision blocks only persist as durable decision material when evidence or
+     replay support exists
 4. Memory core persists searchable artifacts.
 5. Memory v5 stores scoped durable items when enabled.
 
@@ -216,6 +220,8 @@ Key subtrees include:
 2. Memory core resolves hybrid recall candidates.
 3. SmartContext / ContextEngine decide whether to inject.
 4. Budgeting and trimming happen before final prompt assembly.
+   - compatibility helpers must reuse this path instead of formatting their own
+     unmanaged recall block
 
 ### Compression / rescue flow
 
@@ -280,6 +286,8 @@ product, but they should not drive new architecture decisions.
 - Keep sync API behavior stable unless an explicit breaking migration is
   planned.
 - Keep context-governance behavior aligned with the canonical policy doc.
+- Keep runtime tuning defaults report-first unless an explicit operator opt-in
+  enables auto-tune writes.
 
 ## Read Next
 

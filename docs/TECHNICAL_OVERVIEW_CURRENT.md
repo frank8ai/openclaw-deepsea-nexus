@@ -118,6 +118,7 @@ Current entrypoints:
 1. User or automation calls sync API, async plugin, or Memory v5 service.
 2. Runtime normalizes the input into current write path(s).
 3. SmartContext may emit summaries or decision blocks.
+   - durable decision blocks are evidence-gated
 4. Memory core persists searchable artifacts.
 5. Memory v5 stores scoped durable items when enabled.
 
@@ -127,6 +128,7 @@ Current entrypoints:
 2. Memory core returns hybrid recall candidates.
 3. SmartContext / ContextEngine decide whether and how much to inject.
 4. Final prompt receives only budgeted, trimmed, current-context-safe material.
+   - compatibility helpers should still end up on this budgeted path
 
 ### Compression / rescue flow
 
@@ -135,6 +137,14 @@ Current entrypoints:
 3. Before compression, typed state is rescued:
    - `goal/status/constraints/blockers/decisions/next/questions/evidence/replay`
 4. Summary output keeps pointers, not raw evidence payloads.
+
+## Current Governance Notes
+
+- durable decision storage is evidence-gated
+  - no evidence pointer or replay hint -> do not write the decision as L2 durable memory
+- runtime tuning is report-first by default
+  - current default config does not silently auto-tune SmartContext or ContextEngine
+  - tuning must be explicitly enabled
 
 ## Integration Boundaries
 

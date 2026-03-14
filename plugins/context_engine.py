@@ -29,11 +29,13 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 
 from .session_manager import SessionManagerPlugin
+from . import smart_context_now
 from .context_engine_runtime import ContextBudget, ContextEngineRuntimeState
+from ..core.config_manager import get_config_manager
 from ..core.plugin_system import NexusPlugin, PluginMetadata, PluginState, get_plugin_registry
 from ..core.event_bus import EventTypes
 from ..compat_async import run_coro_sync
-from ..compat import nexus_add, nexus_init, nexus_recall
+from ..compat import nexus_add, nexus_init, nexus_recall, resolve_default_config_path
 
 
 # ===================== 数据类 =====================
@@ -198,6 +200,7 @@ class ContextEngine:
         self._nexus_core = nexus_core
         self._lazy_loaded = nexus_core is None
         self._runtime = ContextEngineRuntimeState()
+        self._config: Dict[str, Any] = {}
 
     def _call_nexus(self, method_name: str, *args, **kwargs):
         core = self.nexus_core
@@ -583,23 +586,44 @@ class ContextEngine:
                 }
             )
             return []
-    
-    def _build_context(self, results: List[Dict], query: str) -> str:
-        """构建上下文文本"""
-        if not results:
+
+    def _current_config(self) -> Dict[str, Any]:
+        if self._config:
+            return self._config
+        try:
+            manager = get_config_manager()
+            config_path = resolve_default_config_path()
+            if config_path:
+                manager.load_file(config_path)
+            cfg = manager.get_all()
+            if isinstance(cfg, dict):
+                self._config = cfg
+        except Exception:
+            self._config = {}
+        self._runtime.prime(self._config)
+        return self._config
+
+    def _current_now_context(self) -> str:
+        try:
+            now_context = smart_context_now.get_rescue_context()
+        except Exception:
             return ""
-        
-        parts = [
-            f"相关记忆 (搜索词: {query}):",
-            ""
-        ]
-        
-        for i, r in enumerate(results, 1):
-            parts.append(f"【{i}】({r.get('source', '未知')} - {r.get('relevance', 0):.2f})")
-            parts.append(r.get('content', '')[:300])
-            parts.append("")
-        
-        return "\n".join(parts)
+        if not now_context:
+            return ""
+        lines = now_context.splitlines()
+        if lines and lines[0].startswith("## "):
+            return "\n".join(lines[1:]).strip()
+        return now_context.strip()
+
+    def _build_context(self, results: List[Dict], query: str) -> str:
+        """使用当前预算化装配规则构建上下文文本。"""
+        return self.build_context_block(
+            query,
+            results,
+            now_context=self._current_now_context(),
+            recent_summary="",
+            config=self._current_config(),
+        )
     
     def _format_keyword_results(self, results: List[Dict], keywords: List[str]) -> str:
         """格式化关键词结果"""
@@ -718,7 +742,8 @@ class ContextEngine:
         return text
 
     def configure_runtime(self, config: Optional[Dict[str, Any]]) -> None:
-        self._runtime.prime(config)
+        self._config = config if isinstance(config, dict) else {}
+        self._runtime.prime(self._config)
     
     def _generate_summary_prompt(self) -> str:
         """生成摘要提示词"""

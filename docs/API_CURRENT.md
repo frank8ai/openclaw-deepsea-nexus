@@ -125,6 +125,24 @@ Supported commands:
 - `paths`
 - `recall`
 
+### 5. Compatibility context helpers
+
+These helpers still exist for older integrations:
+
+- `ContextEngine`
+- `get_engine()`
+- `smart_retrieve(query, n=5)`
+- `inject_context(query, n=5)`
+- `detect_trigger(text)`
+- `store_summary(conversation_id, response)`
+
+Current boundary:
+
+- keep them for compatibility
+- do not treat them as the preferred surface for new integrations
+- current `inject_context()` should still flow through the same budgeted
+  context-assembly rules as the main runtime path
+
 ## Version Contract
 
 - `__version__`
@@ -144,6 +162,8 @@ automation, but the compatibility surface has boundaries:
 
 - existing sync automation should keep working through package-root functions
 - new code should not be built directly on historical internal modules
+- compatibility context helpers should be treated as bridge surfaces, not the
+  primary integration target
 - current architecture decisions should follow:
   - `TECHNICAL_OVERVIEW_CURRENT.md`
   - `ARCHITECTURE_CURRENT.md`

@@ -56,6 +56,7 @@ Last updated: 2026-03-14
 - SmartContext inject
 - ContextEngine budgeting
 - summary / rescue / replay / evidence discipline
+- evidence-gated durable decisions
 - 与 OpenClaw hook 和 execution-governor 的联动
 
 当前规则真源：
@@ -91,6 +92,7 @@ Last updated: 2026-03-14
 - 上下文治理有固定规则与真源
 - 记忆隔离是当前系统的重要能力，不是实验特性
 - 兼容接入仍然是当前产品设计的一部分
+- 默认调参策略是 report-first，不做静默运行时漂移
 
 ### 产品层不应过度承诺
 

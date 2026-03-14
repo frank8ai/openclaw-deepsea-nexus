@@ -1,5 +1,13 @@
 # Context Engine v3.1 - 智能上下文引擎
 
+> Archived reference: this file describes the early v3.1 consolidation path and
+> is not the current source of truth for the `v5.0.0` release pack.
+> Current docs:
+> - `TECHNICAL_OVERVIEW_CURRENT.md`
+> - `ARCHITECTURE_CURRENT.md`
+> - `API_CURRENT.md`
+> - `sop/Context_Policy_v2_EventDriven.md`
+
 ## 概述
 
 `Context Engine` 是 Deep-Sea Nexus v3.1 的核心子功能，整合了所有智能上下文相关代码。

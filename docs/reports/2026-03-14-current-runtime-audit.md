@@ -69,6 +69,14 @@ Why this was wrong:
   - `smart_context.inject_ratio_auto_tune = false`
   - `context_engine.auto_tune_enabled = false`
 
+### C. Aligned ContextEngine compatibility assembly with current governance
+
+- `plugins/context_engine.py`
+  - compatibility retrieval now reuses `build_context_block()`
+  - legacy `smart_retrieve()` / `inject_context()` / `resume_session()` no longer
+    format a separate unmanaged recall block
+  - current NOW rescue context is folded into the same budgeted assembly path
+
 ## Validation
 
 Targeted validation:
@@ -103,16 +111,10 @@ Result:
 
 ### Next slice 1
 
-Align `ContextEngine` compatibility retrieval path with the current budgeted
-assembly contract so legacy `inject_context()` no longer behaves like a
-parallel formatting path outside the main governance model.
-
-### Next slice 2
-
 Continue shrinking host-specific defaults in runtime config and operational
 entrypoints so the current repo matches the already-cleaned maintenance scripts.
 
-### Next slice 3
+### Next slice 2
 
 Separate current operational runbooks from remaining historical integration
 notes that still describe older SmartContext / ContextEngine coupling.

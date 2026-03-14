@@ -121,6 +121,10 @@ bash scripts/nexus_doctor_local.sh --repair
 - 抢救开关：
   - `rescue_enabled/rescue_gold/rescue_decisions/rescue_next_actions`
   - `rescue_goal/rescue_status/rescue_constraints/rescue_blockers/rescue_evidence/rescue_replay`
+- 默认调参策略：
+  - `smart_context.inject_ratio_auto_tune = false`
+  - `context_engine.auto_tune_enabled = false`
+  - 若要自动调参，需显式启用；当前默认是 report-first
 
 ## 成功判定
 - `run_tests.py` 结尾输出 `ALL TESTS PASSED`
