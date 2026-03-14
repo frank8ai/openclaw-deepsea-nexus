@@ -14,12 +14,17 @@ Last updated: 2026-03-14
 - Memory v5 scoped memory
 - SmartContext / ContextEngine / hook 联动的上下文治理
 - 本地 deploy / doctor / smoke / benchmark 运维链路
+- `v5.0.0` 正式版发布基线（2026-03-14）
 
 当前阶段最重要的目标：
 
 - 把“能用”变成“可验证、可运营、可迁移”
 - 把产品叙事、技术真源、运行治理真源分层稳定下来
 - 把历史方案文档从 current narrative 中剥离出去
+
+正式发布说明：
+
+- `../releases/V5_0_0_OFFICIAL_2026-03-14.md`
 
 ## Next
 
