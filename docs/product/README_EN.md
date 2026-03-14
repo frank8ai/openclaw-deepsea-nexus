@@ -1,50 +1,39 @@
 # Deep-Sea Nexus Product Docs
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
-This file is the English entrypoint for the current product narrative.
-
-## What It Is
-
-Deep-Sea Nexus is a local-first memory and context-governance layer for agent
-workflows. It helps Codex, OpenClaw, and similar local agent setups keep
-durable memory, scoped recall, and observable context behavior across
-long-running tasks and repeated sessions.
-
-## Read In This Order
-
-1. English product docs index: `README_EN.md`
-2. Chinese product docs index: `README.md`
-3. Positioning (Chinese): `positioning.md`
-4. Users and use cases (Chinese): `users-and-use-cases.md`
-5. Capabilities and scope (Chinese): `capabilities.md`
-6. Roadmap (Chinese): `roadmap.md`
-
-## Current Source Map
-
-- Product docs:
-  - `README_EN.md`
-  - `README.md`
-- Technical docs:
-  - `../ARCHITECTURE_CURRENT.md`
-  - `../API_CURRENT.md`
-- Operational docs:
-  - `../LOCAL_DEPLOY.md`
-  - `../sop/Execution_Governor_Context_Management_v1.3_Integration.md`
+This file is the minimal English entrypoint for the current product narrative.
 
 ## Product Summary
 
-Current stable promises:
+Deep-Sea Nexus is a local-first memory and context-governance layer for agent
+workflows.
 
-- backward-compatible sync API for existing automation
-- async runtime and plugin lifecycle
-- Memory v5 scoped memory (`agent_id` / `user_id`)
-- local deploy / doctor / smoke / benchmark workflows
-- gradual migration instead of rewrite-only adoption
+Current product promises:
 
-Current non-goals:
+- durable memory through context governance rather than raw transcript hoarding
+- gradual migration from older sync automation
+- scoped memory with `agent_id` / `user_id`
+- observable local operation through deploy / doctor / smoke / benchmark flows
 
-- hosted SaaS product
-- team collaboration platform
-- multi-tenant cloud memory service
-- generic enterprise knowledge platform
+## Read In This Order
+
+1. Chinese product docs index: `README.md`
+2. Positioning (Chinese): `positioning.md`
+3. Capabilities (Chinese): `capabilities.md`
+4. Users and use cases (Chinese): `users-and-use-cases.md`
+5. Roadmap (Chinese): `roadmap.md`
+
+## Current Source Map
+
+- Product:
+  - `README.md`
+- Technical:
+  - `../TECHNICAL_OVERVIEW_CURRENT.md`
+  - `../ARCHITECTURE_CURRENT.md`
+  - `../API_CURRENT.md`
+- Operations and governance:
+  - `../LOCAL_DEPLOY.md`
+  - `../sop/Context_Policy_v2_EventDriven.md`
+
+Detailed current source of truth remains in Chinese.

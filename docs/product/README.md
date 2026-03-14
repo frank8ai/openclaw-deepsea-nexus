@@ -2,87 +2,99 @@
 
 Last updated: 2026-03-14
 
-本目录是当前仓库的产品层文档真源，回答四个问题：
+本目录是当前 `v5.0.0` release pack 的产品层真源。
+
+它只回答四个问题：
 
 - 这是什么产品
 - 给谁用
-- 当前能稳定承诺什么
-- 接下来怎么演进
+- 当前稳定承诺什么
+- 接下来往哪里演进
 
-英文入口：
+## 当前产品定义
 
-- `README_EN.md`
+Deep-Sea Nexus 是一个本地优先的 agent memory + context governance 层。
 
-如果你要理解 Deep-Sea Nexus 的产品形态，请先读这里，而不是从历史 PRD
-或单个技术实现文档开始。
+它的核心主张不是“无限保存原始上下文”，而是：
 
-## 推荐阅读顺序
+- 所有记忆都先经过上下文治理
+- 只有重要且可追溯的信息进入 durable memory
+- recall / inject / compress / rescue / replay 构成一个可验证闭环
+
+## 阅读顺序
 
 1. `positioning.md`
-2. `users-and-use-cases.md`
-3. `capabilities.md`
+2. `capabilities.md`
+3. `users-and-use-cases.md`
 4. `roadmap.md`
 
-## 文档边界
+## 产品文档与其他文档的边界
 
-产品文档负责回答：
+### 产品文档负责
 
-- `what`: 产品是什么
-- `why`: 为什么存在
-- `who`: 目标用户是谁
-- `scope`: 当前承诺与非目标
+- 产品定义
+- 用户问题
+- 能力边界
+- 当前承诺
+- 路线图
 
-技术文档负责回答：
+### 技术文档负责
 
-- `how`: 当前实现与接口如何工作
-- `where`: 当前运行时入口、模块、配置与验证方式
+- 当前系统如何组织
+- public interface 是什么
+- current runtime 与 compatibility/legacy 的边界
 
-对应技术真源：
+技术真源：
 
+- `../TECHNICAL_OVERVIEW_CURRENT.md`
 - `../ARCHITECTURE_CURRENT.md`
 - `../API_CURRENT.md`
 
-运维文档负责回答：
+### 运行与治理文档负责
 
-- 如何部署
-- 如何巡检
-- 如何验证运行时健康
+- 部署
+- 巡检
+- smoke / benchmark / doctor
+- 上下文治理规则与运行联动
 
-对应运维真源：
+运维与治理真源：
 
 - `../LOCAL_DEPLOY.md`
 - `../sop/Context_Policy_v2_EventDriven.md`
 - `../sop/Execution_Governor_Context_Management_v1.3_Integration.md`
-- `../sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
 
 ## 当前产品文档结构
 
 - `positioning.md`
-  - 一句话定位、目标用户、价值主张、非目标
-- `users-and-use-cases.md`
-  - 典型用户、核心任务、采用路径
+  - 一句话定位、核心命题、非目标
 - `capabilities.md`
-  - 能力地图、当前 release scope、对外表达边界
+  - 能力地图、稳定承诺、当前边界
+- `users-and-use-cases.md`
+  - 主要用户、典型用例、采用路径
 - `roadmap.md`
-  - `Now / Next / Later` 演进路线
+  - `Now / Next / Later`
 
-## 旧文档映射
+## 英文文档策略
 
-- `../README.md`
-  - 仓库总览与入口，不再承担完整产品叙事
-- `../README_EN.md`
-  - 英文仓库总览，不再承担完整产品叙事
+当前英文文档只保留最小入口，不作为详细真源：
+
+- `README_EN.md`
+
+如需详细 current docs，请回到中文主文档。
+
+## 历史文档边界
+
+以下文档保留归档/考古价值，但不是当前产品真源：
+
 - `../PRD.md`
-  - v2 历史 PRD，保留归档价值，不是当前产品真源
 - `../SECOND_BRAIN_V5_PLAN.md`
-  - Memory v5 设计/实现计划，不是完整产品文档
 - `../USAGE_GUIDE.md`
-  - 历史兼容用法文档，不是当前产品叙事
+- `../SMART_CONTEXT_V4_4_0.md`
 
 ## 维护规则
 
-- 产品定位、目标用户、范围边界变化时，优先更新本目录
-- 接口变化，优先更新 `../API_CURRENT.md`
-- 运行时实现变化，优先更新 `../ARCHITECTURE_CURRENT.md`
-- 上下文治理规则变化，优先更新 `../sop/Context_Policy_v2_EventDriven.md`
-- 巡检/部署流程变化，优先更新 `../LOCAL_DEPLOY.md`
+- 产品定位或边界变化：先改本目录
+- 当前系统结构变化：改 `../TECHNICAL_OVERVIEW_CURRENT.md` 和 `../ARCHITECTURE_CURRENT.md`
+- public API 变化：改 `../API_CURRENT.md`
+- 上下文治理规则变化：改 `../sop/Context_Policy_v2_EventDriven.md`
+- 部署和运维路径变化：改 `../LOCAL_DEPLOY.md`

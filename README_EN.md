@@ -1,135 +1,56 @@
 # Deep-Sea Nexus v5.0.0
 
-Long-term memory and context-governance tooling for Codex and OpenClaw agent workflows.
+Local-first long-term memory and context-governance tooling for agent
+workflows.
 
 [简体中文](README.md)
 
-## Overview
-
-Deep-Sea Nexus provides a practical memory layer for agent systems:
-
-- Semantic recall with vector, lexical, and scoped Memory v5 retrieval
-- Backward-compatible Python API for existing automation
-- Session lifecycle management and summary ingestion
-- SmartContext injection with context-budget controls
-- Operational scripts for smoke tests, migration, maintenance, and deploy checks
-
 Last updated: 2026-03-14
 
-## Documentation Entry
+## What It Is
 
-- Docs index: `docs/README.md`
-- Product docs (current narrative): `docs/product/README_EN.md`
-- Current architecture: `docs/ARCHITECTURE_CURRENT.md`
-- Current API surface: `docs/API_CURRENT.md`
-- Current context-governance policy: `docs/sop/Context_Policy_v2_EventDriven.md`
+Deep-Sea Nexus is a local-first memory and context-governance layer for
+Codex, OpenClaw, and similar agent workflows.
 
-Recommended validation:
+Its core idea is not "store unlimited raw chat history". The current product
+model is:
 
-```bash
-python3 tests/test_memory_v5.py -v
-python3 run_tests.py
-python3 scripts/archive_repo_runtime_data.py --apply --include-stale-venv --json
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/archive_repo_runtime_data.py --json
-```
+- all memory first passes through context governance
+- only important, structured, evidence-backed state should become durable memory
+- recall / inject / compress / rescue / replay form one operational loop
 
-## Key Runtime Paths
+## Current Source Map
 
-- Main skill root: `skills/deepsea-nexus/`
-- Current architecture: `docs/ARCHITECTURE_CURRENT.md`
-- Current API surface: `docs/API_CURRENT.md`
-- Local deployment guide: `docs/LOCAL_DEPLOY.md`
-- Context-governance policy: `docs/sop/Context_Policy_v2_EventDriven.md`
-- Context-governance integration: `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
-- Historical design reference: `docs/SECOND_BRAIN_V5_PLAN.md`
-- Historical docs kept for reference only:
-  - `DOCUMENTATION.md`
-  - `AUTO_SUMMARY_INTEGRATION.md`
-  - `SOP_INDEX.md`
-  - `CHANGELOG.md`
-  - `benchmark.txt`
-  - `docs/architecture_v3.md`
+- Repository entry:
+  - `README.md`
+- Docs entry:
+  - `docs/README.md`
+- Product docs:
+  - `docs/product/README_EN.md`
+  - `docs/product/README.md`
+- Technical docs:
+  - `docs/TECHNICAL_OVERVIEW_CURRENT.md`
+  - `docs/ARCHITECTURE_CURRENT.md`
+  - `docs/API_CURRENT.md`
+- Operations and governance:
+  - `docs/LOCAL_DEPLOY.md`
+  - `docs/sop/Context_Policy_v2_EventDriven.md`
 
-## Python API
+Detailed current source of truth remains in Chinese.
 
-### Backward-Compatible API
+## Stable Current Capabilities
 
-```python
-from deepsea_nexus import nexus_init, nexus_recall, nexus_add
+- backward-compatible sync API
+- async runtime and plugin lifecycle
+- Memory v5 scoped memory (`agent_id` / `user_id`)
+- context-governed recall / inject / compress / rescue
+- local deploy / doctor / smoke / benchmark workflows
 
-nexus_init()
-hits = nexus_recall("what did we decide last time?", n=5)
-doc_id = nexus_add(
-    "We chose FastAPI for the control plane.",
-    "Architecture Decision",
-    "fastapi,architecture",
-)
-```
-
-### Summary and Context Helpers
-
-```python
-from deepsea_nexus import StructuredSummary, create_summary_prompt, parse_summary
-
-prompt = create_summary_prompt()
-reply, summary = parse_summary("assistant response here")
-assert summary is None or isinstance(summary, StructuredSummary)
-```
-
-### Memory v5
-
-```python
-from deepsea_nexus import MemoryScope, MemoryV5Service
-
-service = MemoryV5Service({"memory_v5": {"enabled": True, "async_ingest": False}})
-scope = MemoryScope(agent_id="main", user_id="default")
-service.ingest_document(
-    title="Decision",
-    content="We kept FastAPI for the control plane.",
-    tags=["architecture"],
-    scope=scope,
-)
-hits = service.recall("control plane", scope=scope)
-```
-
-## Memory v5 Layout
-
-`memory_v5` stores durable memory under a scoped filesystem layout:
-
-```text
-memory/95_MemoryV5/
-  <agent_id>/<user_id>/
-    resources/
-    items/
-    items_archive/
-    categories/
-    graphs/
-    index.sqlite3
-```
-
-## Useful Commands
-
-- Smoke: `python3 scripts/memory_v5_smoke.py`
-- Benchmark: `python3 scripts/memory_v5_benchmark.py --cases docs/memory_v5_benchmark_sample.json`
-- Maintenance: `python3 scripts/memory_v5_maintenance.py --all-agents`
-- Repo cleanup: `python3 scripts/archive_repo_runtime_data.py --apply --include-stale-venv`
-- Local doctor: `bash scripts/nexus_doctor_local.sh --check --skip-deploy`
-- Effective paths: `python -m deepsea_nexus paths --json`
-
-Repo-cleanup archives are written outside the repo to
-`~/.openclaw-runtime/archive/deepsea-nexus/`.
-
-## Verification
-
-Recommended local checks:
+## Validation
 
 ```bash
 python3 -m unittest tests.test_memory_v5 -v
+python3 run_tests.py
+bash scripts/nexus_doctor_local.sh --check --skip-deploy
 python3 scripts/memory_v5_smoke.py
 ```
-
-For broader runtime verification, use:
-
-- `python3 run_tests.py`
-- `docs/LOCAL_DEPLOY.md`
-- `scripts/deploy_local_v5.sh`

@@ -2,91 +2,105 @@
 
 Last updated: 2026-03-14
 
-This file is the documentation entrypoint for the current `v5.0.0` repository
-state.
+This file is the documentation entrypoint for the current `v5.0.0` release
+pack.
+
+## Document Model
+
+Current docs are split into four layers:
+
+- Product
+  - what the product is
+  - who it serves
+  - what it currently promises
+- Technical
+  - how the current runtime is shaped
+  - which interfaces are public
+  - which modules are current vs compatibility
+- Operations and Governance
+  - how to deploy, verify, and operate it
+  - which context policy is current
+- Archive
+  - historical design notes, older PRDs, migration archaeology
 
 ## Start Here
 
-- Current product docs source of truth: `product/README.md`
-- Current architecture source of truth: `ARCHITECTURE_CURRENT.md`
-- Current public API surface: `API_CURRENT.md`
-- Current context-governance source of truth: `sop/Context_Policy_v2_EventDriven.md`
-- Main repository overview:
-  - `../README.md`
-  - `../README_EN.md`
-
-## Current Product Docs
-
-- Product docs index: `product/README.md`
-- Product docs index (English): `product/README_EN.md`
-- Positioning: `product/positioning.md`
-- Users and use cases: `product/users-and-use-cases.md`
-- Capabilities and scope: `product/capabilities.md`
-- Product roadmap: `product/roadmap.md`
-
-## Current Runtime Guides
-
-- Local deploy and runtime checks: `LOCAL_DEPLOY.md`
-- Context-governance policy:
+- Product source of truth:
+  - `product/README.md`
+- Technical source of truth:
+  - `TECHNICAL_OVERVIEW_CURRENT.md`
+  - `ARCHITECTURE_CURRENT.md`
+  - `API_CURRENT.md`
+- Operations and governance source of truth:
+  - `LOCAL_DEPLOY.md`
   - `sop/Context_Policy_v2_EventDriven.md`
-- Context-governance integration:
   - `sop/Execution_Governor_Context_Management_v1.3_Integration.md`
-- SmartContext operating guidance:
-  - `sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
-  - `sop/SmartContext_Effectiveness_Path.md`
 
-## Historical Or Reference-Only Docs
+## Read By Task
 
-These remain in the repo for background context, but they are not the current
-runtime source of truth:
+### Understand the product
 
-- `../DOCUMENTATION.md`
-- `../AUTO_SUMMARY_INTEGRATION.md`
-- `../SOP_INDEX.md`
-- `../CHANGELOG.md`
-- `../benchmark.txt`
-- `AGENTS.md`
+- `product/README.md`
+- `product/positioning.md`
+- `product/capabilities.md`
+- `product/users-and-use-cases.md`
+- `product/roadmap.md`
+
+### Understand the current system
+
+- `TECHNICAL_OVERVIEW_CURRENT.md`
+- `ARCHITECTURE_CURRENT.md`
+- `API_CURRENT.md`
+
+### Understand context governance
+
+- `sop/Context_Policy_v2_EventDriven.md`
+- `sop/Execution_Governor_Context_Management_v1.3_Integration.md`
+- `sop/SmartContext_Effectiveness_Path.md`
+
+### Deploy or verify locally
+
+- `LOCAL_DEPLOY.md`
+- `../scripts/deploy_local_v5.sh`
+- `../scripts/nexus_doctor_local.sh`
+- `../scripts/memory_v5_smoke.py`
+
+## English Docs
+
+English docs are intentionally minimal in the current release pack:
+
+- repository entry:
+  - `../README_EN.md`
+- product entry:
+  - `product/README_EN.md`
+
+Detailed current source of truth remains in Chinese.
+
+## Archive / Reference-Only Docs
+
+These documents remain in the repo for background context, but they are not
+the current source of truth:
+
 - `PRD.md`
-- `examples_v3.md`
-- `architecture_v3.md`
 - `USAGE_GUIDE.md`
+- `architecture_v3.md`
 - `SECOND_BRAIN_V5_PLAN.md`
 - `SECOND_BRAIN_PARA.md`
 - `SMART_CONTEXT_V4_4_0.md`
 - `SMART_CONTEXT_V4_3_1.md`
+- `CONTEXT_ENGINE.md`
 - `sop/SmartContext_Coding_Compression_SOP_v2.md`
 - `TASK_LIST.md`
 - `TASK_PLAN_context_summary.md`
 - `brainstorming_context_summary.md`
 
-## Practical Validation
+## Validation Baseline
 
-Recommended local validation order:
+Recommended local verification order:
 
 ```bash
-python3 tests/test_memory_v5.py -v
+python3 -m unittest tests.test_memory_v5 -v
 python3 run_tests.py
-python3 scripts/archive_repo_runtime_data.py --apply --include-stale-venv --json
-PYTHONDONTWRITEBYTECODE=1 python3 scripts/archive_repo_runtime_data.py --json
+bash scripts/nexus_doctor_local.sh --check --skip-deploy
+python3 scripts/memory_v5_smoke.py
 ```
-
-What this checks:
-
-- focused Memory v5 and SmartContext regression coverage
-- broader package/runtime regression coverage
-- repo-tree cleanup of generated runtime artifacts
-- confirmation that no runtime artifacts remain inside the repo tree
-
-## Repo Notes
-
-- Current SmartContext refactor work moved shared logic into:
-  - `plugins/smart_context_round.py`
-  - `plugins/smart_context_summary.py`
-  - `plugins/smart_context_conversation.py`
-  - `plugins/smart_context_prompt.py`
-  - `plugins/smart_context_now.py`
-  - `plugins/smart_context_adaptive.py`
-  - `plugins/smart_context_recall.py`
-  - `plugins/smart_context_inject.py`
-- Runtime cleanup archives are written outside the repo to:
-  - `~/.openclaw-runtime/archive/deepsea-nexus/`

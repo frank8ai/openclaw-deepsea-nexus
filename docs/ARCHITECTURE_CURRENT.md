@@ -1,40 +1,58 @@
 # Deep-Sea Nexus Current Architecture
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
-This document is the source of truth for the current Deep-Sea Nexus runtime in
-package release `5.0.0`.
+This document describes the current runtime architecture for the
+`v5.0.0` release pack.
+
+For a shorter technical entrypoint, read `TECHNICAL_OVERVIEW_CURRENT.md`
+first.
+
+## Scope
+
+This document is the current implementation source of truth for:
+
+- package structure
+- runtime layers
+- data and control flow
+- current vs compatibility boundaries
+
+It does not replace:
+
+- product docs in `product/`
+- public API contract in `API_CURRENT.md`
+- policy rules in `sop/Context_Policy_v2_EventDriven.md`
 
 ## Version Model
 
 - Package release: `5.0.0`
 - Async plugin runtime protocol: `3.0.0`
-- Compatibility promise: keep the legacy sync API stable while newer features
-  land in the package and Memory v5 layers
+- Current context-governance baseline: `8 / 20 / 35`
 
-The mixed version numbers are intentional. Package release tracks product
-changes; plugin protocol tracks the long-lived hot-pluggable runtime contract.
+The release number tracks the current product/runtime bundle. The plugin
+protocol tracks the long-lived async runtime contract.
 
 ## Runtime Layers
 
-### 1. Root package API
+### 1. Package-root public surface
 
 Primary user-facing imports are re-exported from the package root:
 
 - `__init__.py`
 - `compat.py`
 
-Supported entrypoints:
+Current supported surface includes:
 
-- Sync compatibility API: `nexus_init`, `nexus_recall`, `nexus_add`,
-  `nexus_health`, `manual_flush`
-- Async app API: `create_app`
-- Memory v5 API: `MemoryV5Service`, `MemoryScope`
-- Shared runtime path helpers: `runtime_paths.py`
+- sync compatibility API
+- async app API
+- Memory v5 scoped API
+- CLI
+
+New code should prefer package-root imports over deep internal imports.
 
 ### 2. Async application container
 
-The async lifecycle lives here:
+The async runtime container lives in:
 
 - `app.py`
 - `core/plugin_system.py`
@@ -44,115 +62,54 @@ The async lifecycle lives here:
 `create_app()` builds the application, loads plugins, and exposes them through
 `app.plugins`.
 
-Important runtime constraint:
+Important runtime property:
 
-- the sync compatibility API and async app instances share the same in-process
-  plugin registry
-- repeated `create_app()` calls in one process therefore reuse registered
-  plugin objects instead of treating each app as a fully isolated container
+- sync compatibility calls and async app instances share one in-process plugin
+  registry
+- repeated initialization in one process reuses plugin objects instead of
+  creating fully isolated runtimes
 
-### 3. Current memory plugin path
+### 3. Memory core
 
-The current semantic memory implementation is:
+The current semantic memory implementation is centered on:
 
 - `plugins/nexus_core_plugin.py`
 
-It is the active plugin used by `app.py` and the sync compatibility layer.
-Hybrid retrieval, degraded lexical fallback, write guards, and Memory v5 fusion
-all live here.
+It owns:
 
-### 4. Context assembly and injection
+- durable write behavior
+- hybrid retrieval
+- degraded lexical fallback
+- write guard behavior
+- Memory v5 fusion on the active runtime path
 
-Current context-related runtime modules:
+This is the current memory core. Historical `nexus_core.py` variants should be
+treated as compatibility or archaeology, not primary runtime design.
+
+### 4. Context governance and context assembly
+
+The current context layer is composed of:
 
 - `plugins/smart_context.py`
-- `plugins/smart_context_adaptive.py`
-- `plugins/smart_context_conversation.py`
-- `plugins/smart_context_now.py`
-- `plugins/smart_context_prompt.py`
-- `plugins/smart_context_round.py`
-- `plugins/smart_context_summary.py`
-- `plugins/smart_context_storage.py`
-- `plugins/smart_context_graph_inject.py`
-- `plugins/smart_context_recall.py`
-- `plugins/smart_context_rescue.py`
-- `plugins/smart_context_graph.py`
-- `plugins/smart_context_decision.py`
-- `plugins/smart_context_inject.py`
-- `plugins/smart_context_text.py`
-- `plugins/smart_context_runtime.py`
 - `plugins/context_engine.py`
 - `plugins/context_engine_runtime.py`
-- `auto_summary.py`
-- `runtime_paths.py`
+- `plugins/smart_context_runtime.py`
+- `plugins/smart_context_*`
 
-These modules still contain significant historical logic and are valid refactor
-targets, but they are part of the current runtime.
+Together these modules own:
 
-Current cleanup status:
+- per-round state evaluation
+- summary vs compressed behavior
+- rescue-before-compress behavior
+- injection gating and budget trimming
+- summary / evidence / replay aware assembly
 
-- `plugins/context_engine.py` fallback now uses the current sync compatibility
-  API as an adapter instead of constructing legacy `NexusCore()` directly
-- `plugins/smart_context.py` relies on the loaded runtime plugin and no longer
-  imports the legacy core module directly
-- `plugins/context_engine_runtime.py` now owns ContextEngine budget, trim,
-  metrics, and auto-tune state so `plugins/context_engine.py` can focus on
-  retrieval and context assembly
-- `plugins/smart_context_runtime.py` now owns SmartContext inject metrics,
-  alert streak, auto-tune, and config persistence state so
-  `plugins/smart_context.py` can focus on retrieval, summaries, and inject
-  decisions
-- `plugins/smart_context_text.py` now owns shared summary, keyword, decision,
-  and topic extraction helpers reused by both `SmartContextPlugin` and the
-  legacy `store_conversation(...)` convenience path
-- `plugins/smart_context_inject.py` now owns shared inject-item trimming,
-  final top-k/trim assembly, signal scoring, and dynamic threshold/max-items
-  rules reused by
-  `SmartContextPlugin`
-- `plugins/smart_context_decision.py` now owns shared context-starved,
-  inject-trigger, and topic-switch rules reused by `SmartContextPlugin`
-- `plugins/smart_context_graph.py` now owns decision/topic block document
-  payloads plus graph-edge extraction/assembly reused by `SmartContextPlugin`
-- `plugins/smart_context_rescue.py` now owns rescue-text extraction and
-  NOW-state merge helpers reused by `SmartContextPlugin`
-- `plugins/smart_context_recall.py` now owns recall-result normalization,
-  de-duplication, score access, inject metrics payload assembly, and
-  threshold/fallback selection reused by
-  `SmartContextPlugin`
-- `plugins/smart_context_graph_inject.py` now owns graph-inject gating and
-  formatted graph-evidence item assembly reused by `SmartContextPlugin`
-- `plugins/smart_context_storage.py` now owns shared SmartContext document
-  payload assembly for round-context writes and conversation-summary writes
-- `plugins/smart_context_round.py` now owns round-result assembly plus rescue
-  status-branch processing, context-history payloads, plus rescue and
-  summary-card observability/document payloads reused by `SmartContextPlugin`
-- `plugins/smart_context.py` now reuses one turn-summary build per round when
-  both turn-summary cards and topic-boundary cards are emitted, avoiding
-  duplicate summary/template extraction in the same round
-- `tests/test_memory_v5.py` now includes plugin-level SmartContext
-  orchestration coverage for:
-  - per-round turn-summary reuse
-  - inject skip behavior when `nexus_core` is unavailable
-  - recall + graph merge behavior on the active inject path
-- after helper extraction, `plugins/smart_context.py` has dropped a set of
-  dead private wrapper methods that only forwarded to runtime/helper modules
-- `plugins/smart_context_adaptive.py` now owns inject-stats aggregation and
-  adaptive threshold calculation reused by `SmartContextPlugin`
-- `plugins/smart_context_conversation.py` now owns shared conversation-store
-  input preparation reused by `SmartContextPlugin.store_conversation(...)`
-  and the compatibility `store_conversation(...)` helper
-- `plugins/smart_context_now.py` now owns NOW-manager rescue persistence and
-  retrieval helpers reused by `SmartContextPlugin`
-- `plugins/smart_context_prompt.py` now owns injected-memory prompt formatting
-  shared by `SmartContextPlugin.generate_context_prompt(...)` and the
-  compatibility `inject_memory_context(...)` helper
-- `plugins/smart_context_summary.py` now owns turn-summary template assembly
-  reused by `SmartContextPlugin._build_turn_summary(...)`
-- legacy `store_conversation(...)` now joins user and assistant text with real
-  newlines before decision/topic extraction so its compatibility path matches
-  the current plugin behavior
-- runtime path resolution for metrics and Memory v5 roots is now centralized in
-  `runtime_paths.py` instead of being reimplemented in multiple active modules
+The current policy contract is externalized in:
+
+- `sop/Context_Policy_v2_EventDriven.md`
+
+The runtime implementation must conform to that policy instead of inventing a
+separate hidden rule set.
 
 ### 5. Memory v5 scoped store
 
@@ -160,97 +117,177 @@ Current durable scoped memory lives under:
 
 - `memory_v5/`
 
+Its role is to provide:
+
+- `agent_id / user_id` isolation
+- resource / item / category organization
+- scoped retrieval and maintenance
+
 Main concepts:
 
-- `MemoryScope`: explicit `agent_id` + `user_id` isolation
-- filesystem-backed item/resource/category layout
-- SQLite-backed retrieval and maintenance services
+- `MemoryScope`
+- `MemoryV5Service`
 
-### 6. Operational entrypoints
+### 6. Operational layer
 
-Current operational entrypoints:
+Operational entrypoints include:
 
 - `run_tests.py`
-- `scripts/_legacy_layout.py`
-- `scripts/archive_repo_runtime_data.py`
 - `scripts/deploy_local_v5.sh`
+- `scripts/nexus_doctor_local.sh`
 - `scripts/memory_v5_smoke.py`
-- `scripts/memory_v5_maintenance.py`
 - `scripts/memory_v5_benchmark.py`
+- maintenance and compatibility scripts under `scripts/`
 
-Legacy maintenance scripts now use `scripts/_legacy_layout.py` to resolve the
-historical `memory/90_Memory` filesystem layout without importing
-`src/nexus_core.py` directly.
+This layer is part of the current release because the product promise includes
+local verification and operability, not just library APIs.
 
-Repo-local runtime artifacts such as `logs/`, non-venv `__pycache__/`, and an
-optional stale `.venv/` are now archived out of the working tree via
-`scripts/archive_repo_runtime_data.py`.
+## Main Data Model
 
-## Canonical Usage Paths
+### Working context
 
-### Sync compatibility path
+Ephemeral typed state used to keep long tasks continuous:
 
-Use this when existing automation expects the historical sync API:
+- goal
+- status
+- constraints
+- blockers
+- next actions
+- open questions
+- evidence pointers
+- replay command
 
-```python
-from deepsea_nexus import nexus_init, nexus_recall, nexus_add
+This state is especially important before compression.
 
-nexus_init()
-hits = nexus_recall("what did we decide?", n=5)
-nexus_add("We kept FastAPI.", "Decision", "architecture")
-```
+### Durable decision layer
 
-### Async application path
+Stable decisions that remain meaningful after the immediate task window.
 
-Use this when managing the runtime explicitly:
+A durable decision should include:
 
-```python
-from deepsea_nexus import create_app
+- decision
+- why
+- relevant constraint
+- evidence pointer
+- reversal condition
 
-app = create_app()
-await app.initialize()
-await app.start()
-hits = await app.plugins["nexus_core"].search_recall("decision", n=5)
-await app.stop()
-```
+### Evidence layer
 
-### Memory v5 path
+Raw operational material stays outside summaries:
 
-Use this when scoped filesystem memory is the primary integration:
+- files
+- logs
+- commands
+- artifacts
+- reports
+- session traces
 
-```python
-from deepsea_nexus import MemoryScope, MemoryV5Service
+The runtime should preserve pointers, not embed large raw evidence payloads in
+summary state.
 
-service = MemoryV5Service({"memory_v5": {"enabled": True, "async_ingest": False}})
-scope = MemoryScope(agent_id="main", user_id="default")
-service.ingest_document(title="Decision", content="We kept FastAPI.", scope=scope)
-```
+### Scoped memory layout
 
-## Deprecated But Still Present
+Current scoped filesystem layout is rooted at:
 
-These files exist for compatibility or history and should not be treated as the
-current implementation:
+- `memory/95_MemoryV5/<agent_id>/<user_id>/`
 
-- `DOCUMENTATION.md`: archived v2.3 technical doc
-- `docs/architecture_v3.md`: archived v4.1-on-v3 architecture doc
-- `docs/USAGE_GUIDE.md`: historical compatibility guide, not the v5 source of truth
-- `plugins/nexus_core.py`: compatibility alias to `plugins/nexus_core_plugin.py`
-- `nexus_core.py`: compatibility-heavy legacy shell still referenced by some
-  historical docs and tests
-- `src/nexus_core.py`: historical implementation snapshot
-- `tests/test_core.py`, `tests/test_complete.py`: archived v2-era tests, not part
-  of the v5 release gate
+Key subtrees include:
+
+- `resources/`
+- `items/`
+- `items_archive/`
+- `categories/`
+- `graphs/`
+- `index.sqlite3`
+
+## Main Runtime Flows
+
+### Capture / write flow
+
+1. A caller enters through sync API, async plugin, or Memory v5 service.
+2. Runtime normalizes the write into the current memory path.
+3. SmartContext may emit summaries or decision blocks.
+4. Memory core persists searchable artifacts.
+5. Memory v5 stores scoped durable items when enabled.
+
+### Recall / inject flow
+
+1. Query enters sync API, async runtime, or context assembly path.
+2. Memory core resolves hybrid recall candidates.
+3. SmartContext / ContextEngine decide whether to inject.
+4. Budgeting and trimming happen before final prompt assembly.
+
+### Compression / rescue flow
+
+1. Runtime evaluates rounds and context pressure.
+2. Current baseline applies:
+   - `0-8`: full
+   - `9-20`: summary
+   - `21-35`: compressed summary + rescued state
+   - `>35`: compressed mode with stronger archive posture
+3. Before compression, typed state is rescued.
+4. Output keeps evidence pointers and replay hints, not raw logs.
+
+## OpenClaw Integration Boundary
+
+Deep-Sea Nexus integrates with OpenClaw, but the boundary is explicit.
+
+### Deep-Sea Nexus owns
+
+- local memory model
+- public package surface
+- local context-governance logic
+- current policy implementation
+- local verification toolchain
+
+### OpenClaw / surrounding runtime owns
+
+- hook registration and message routing
+- outer event timing
+- broader execution-governor policy
+- top-level agent orchestration outside the package
+
+### Shared contract
+
+- Deep-Sea Nexus provides the local memory + context-governance implementation
+- OpenClaw provides the surrounding event and prompt lifecycle
+
+## Current vs Compatibility
+
+### Treat as current
+
+- package-root imports
+- `plugins/nexus_core_plugin.py`
+- current `smart_context` / `context_engine` modules
+- `memory_v5/`
+- current docs in this release pack
+
+### Treat as compatibility or archaeology
+
+- historical `nexus_core.py` variants
+- old architecture/PRD/usage docs
+- older version-labelled SmartContext design notes
+- old tests and scripts whose main purpose is migration support
+
+Compatibility paths still matter because gradual migration is part of the
+product, but they should not drive new architecture decisions.
 
 ## Refactor Guardrails
 
-- Do not remove `nexus_core.py` until historical docs/tests are either migrated
-  or explicitly archived.
-- Prefer package-root imports over deep module imports in new code.
-- Keep sync API behavior stable unless a specific breaking migration is planned.
-- Treat `README.md`, `README_EN.md`, this document, and `docs/API_CURRENT.md`
-  as the current documentation set.
+- Do not build new code against historical internals when a package-root or
+  current plugin path exists.
+- Do not treat archive docs as runtime truth.
+- Keep sync API behavior stable unless an explicit breaking migration is
+  planned.
+- Keep context-governance behavior aligned with the canonical policy doc.
 
-## Validation Baseline
+## Read Next
 
-- `python3 -m unittest tests.test_memory_v5 -v`
-- `python3 run_tests.py`
+- release-level technical map:
+  - `TECHNICAL_OVERVIEW_CURRENT.md`
+- public API:
+  - `API_CURRENT.md`
+- context policy:
+  - `sop/Context_Policy_v2_EventDriven.md`
+- local deploy and validation:
+  - `LOCAL_DEPLOY.md`

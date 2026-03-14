@@ -1,11 +1,11 @@
 # Deep-Sea Nexus Current API
 
-Last updated: 2026-03-12
+Last updated: 2026-03-14
 
 This document describes the supported public API surface for the current
-Deep-Sea Nexus package release.
+`v5.0.0` release pack.
 
-## Recommended Imports
+## Import Rules
 
 Prefer imports from the package root:
 
@@ -15,20 +15,28 @@ from deepsea_nexus import (
     create_app,
     get_version,
     nexus_add,
+    nexus_add_document,
+    nexus_add_documents,
     nexus_health,
     nexus_init,
     nexus_recall,
+    nexus_search,
     MemoryScope,
     MemoryV5Service,
 )
 ```
 
-Avoid new code that imports from historical internals such as `nexus_core.py`,
-`src/nexus_core.py`, or `plugins/nexus_core.py`.
+Avoid new code that imports from historical internals such as:
 
-## Sync Compatibility API
+- `nexus_core.py`
+- `src/nexus_core.py`
+- `plugins/nexus_core.py`
 
-These functions remain the safest entrypoint for existing automation:
+## Public API Groups
+
+### 1. Sync compatibility API
+
+Safest entrypoint for existing automation:
 
 - `nexus_init()`
 - `nexus_recall(query, n=5)`
@@ -52,9 +60,9 @@ nexus_init()
 hits = nexus_recall("previous architecture decision", n=5)
 ```
 
-## Async Application API
+### 2. Async application API
 
-Use the async application path when you need direct lifecycle control:
+Use this when you need direct lifecycle control:
 
 ```python
 from deepsea_nexus import create_app
@@ -69,15 +77,15 @@ hits = await nexus.search_recall("architecture decision", n=5)
 await app.stop()
 ```
 
-Current application and plugin plumbing:
+Current contract:
 
-- `app.py`
-- `core/plugin_system.py`
-- `plugins/nexus_core_plugin.py`
+- `create_app()` returns the async application container
+- `app.plugins["nexus_core"]` is the current memory plugin
+- the plugin registry is shared with sync compatibility paths in-process
 
-## Memory v5 API
+### 3. Memory v5 scoped API
 
-Memory v5 is the current scoped memory layer:
+Use this when scoped durable memory is the primary integration surface:
 
 ```python
 from deepsea_nexus import MemoryScope, MemoryV5Service
@@ -93,9 +101,15 @@ service.ingest_document(
 hits = service.recall("control plane", scope=scope)
 ```
 
-## CLI Entry Point
+Current contract:
 
-The package CLI now exposes the current package surface:
+- `MemoryScope` is the current isolation unit
+- `agent_id / user_id` define scoped durable storage
+- Memory v5 is part of the current release, not an experimental side path
+
+### 4. CLI
+
+Current package CLI commands:
 
 ```bash
 python -m deepsea_nexus version
@@ -113,17 +127,42 @@ Supported commands:
 
 ## Version Contract
 
-- `__version__`: current package release version (`5.0.0`)
-- `get_version()`: same package release version
-- `nexus_health()["version"]`: current plugin runtime protocol version
+- `__version__`
+  - current package release version
+- `get_version()`
+  - same package release version
+- `nexus_health()["version"]`
+  - current plugin runtime protocol version
 
-That distinction is deliberate and explains why package release and runtime
-plugin protocol may show different numbers.
+That distinction is intentional. Package release and runtime protocol are
+related but not identical.
 
-## Historical Docs
+## Compatibility Contract
 
-These files are still useful for migration archaeology, but they are not the
-current API source of truth:
+The current release intentionally preserves compatibility behavior for older
+automation, but the compatibility surface has boundaries:
 
-- `DOCUMENTATION.md`
-- `docs/architecture_v3.md`
+- existing sync automation should keep working through package-root functions
+- new code should not be built directly on historical internal modules
+- current architecture decisions should follow:
+  - `TECHNICAL_OVERVIEW_CURRENT.md`
+  - `ARCHITECTURE_CURRENT.md`
+  - `sop/Context_Policy_v2_EventDriven.md`
+
+## Not Public / Not Recommended
+
+These paths may still exist in the repo, but they are not current public API:
+
+- historical `nexus_core.py` implementations
+- deep internal helper modules under `plugins/smart_context_*`
+- older architecture and PRD documents
+- archive-only scripts and migration artifacts
+
+## Read Next
+
+- technical map:
+  - `TECHNICAL_OVERVIEW_CURRENT.md`
+- implementation structure:
+  - `ARCHITECTURE_CURRENT.md`
+- context-governance rules:
+  - `sop/Context_Policy_v2_EventDriven.md`

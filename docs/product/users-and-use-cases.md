@@ -1,6 +1,6 @@
 # Deep-Sea Nexus 用户与用例
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
 ## 主要用户画像
 
@@ -8,7 +8,7 @@ Last updated: 2026-03-13
 
 关心的问题：
 
-- 当前记忆链路是否真的写入和召回
+- 当前记忆链路是否真的写入、召回、注入成功
 - 升级后会不会打断现有自动化
 - 多个 agent 是否会互相污染记忆
 - 出问题时能不能快速巡检与回退
@@ -16,7 +16,7 @@ Last updated: 2026-03-13
 他们最常走的路径：
 
 - `README.md`
-- `docs/product/capabilities.md`
+- `docs/README.md`
 - `docs/LOCAL_DEPLOY.md`
 - `scripts/nexus_doctor_local.sh`
 
@@ -30,17 +30,17 @@ Last updated: 2026-03-13
 
 他们最常走的路径：
 
-- `docs/product/users-and-use-cases.md`
 - `docs/API_CURRENT.md`
+- `docs/TECHNICAL_OVERVIEW_CURRENT.md`
 - `docs/ARCHITECTURE_CURRENT.md`
 
-### 3. 高强度个人用户
+### 3. 高强度个人用户 / 操作者
 
 关心的问题：
 
-- 长任务和跨天项目能否持续记住上下文
+- 长任务和跨天项目能否持续记住关键上下文
 - 重要决策是否能被后续 agent 回忆出来
-- 记忆是否能按 agent/user 作用域隔离
+- 记忆是否能按 agent / user 作用域隔离
 
 他们最常走的路径：
 
@@ -64,6 +64,7 @@ Last updated: 2026-03-13
 - `nexus_recall`
 - `nexus_add`
 - `manual_flush`
+- `docs/API_CURRENT.md`
 
 ### 用例 B: 为多 agent / 多用户场景做记忆隔离
 
@@ -76,8 +77,8 @@ Last updated: 2026-03-13
 
 - `MemoryV5Service`
 - `MemoryScope`
+- `docs/TECHNICAL_OVERVIEW_CURRENT.md`
 - `scripts/memory_v5_smoke.py`
-- `scripts/memory_v5_maintenance.py`
 
 ### 用例 C: 为长任务做上下文治理
 
@@ -90,8 +91,8 @@ Last updated: 2026-03-13
 推荐入口：
 
 - `docs/sop/Context_Policy_v2_EventDriven.md`
+- `docs/TECHNICAL_OVERVIEW_CURRENT.md`
 - `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
-- `docs/sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
 
 ### 用例 D: 为本地工作区建立可运营记忆层
 
@@ -99,14 +100,14 @@ Last updated: 2026-03-13
 
 - 有 doctor / smoke / benchmark
 - 有运维脚本
-- 有历史兼容与当前真源分层
+- 有 current source of truth 与 archive 的清晰分层
 
 推荐入口：
 
-- `docs/product/capabilities.md`
 - `docs/LOCAL_DEPLOY.md`
 - `scripts/deploy_local_v5.sh`
 - `scripts/nexus_doctor_local.sh`
+- `scripts/memory_v5_benchmark.py`
 
 ## 采用路径
 
@@ -131,6 +132,7 @@ Last updated: 2026-03-13
 
 从这里开始：
 
+- `docs/TECHNICAL_OVERVIEW_CURRENT.md`
 - `docs/ARCHITECTURE_CURRENT.md`
 - `docs/API_CURRENT.md`
 
@@ -142,13 +144,13 @@ Last updated: 2026-03-13
 
 从这里开始：
 
-- `docs/product/capabilities.md`
-- `docs/ARCHITECTURE_CURRENT.md`
+- `docs/TECHNICAL_OVERVIEW_CURRENT.md`
 - `docs/API_CURRENT.md`
+- `docs/product/capabilities.md`
 
 设计补充参考：
 
-- `docs/SECOND_BRAIN_V5_PLAN.md`
+- `docs/SECOND_BRAIN_V5_PLAN.md`（archive reference）
 
 ## 非目标用例
 

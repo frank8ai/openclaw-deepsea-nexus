@@ -1,10 +1,10 @@
 # Deep-Sea Nexus 能力地图与范围边界
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
 ## 能力地图
 
-当前产品能力可以分成五层。
+当前 release 的产品能力分成五层。
 
 ### 1. Capture
 
@@ -12,14 +12,14 @@ Last updated: 2026-03-13
 
 - 摘要写入
 - 文档写入
-- 会话生命周期内的记忆沉淀
+- 会话生命周期中的记忆沉淀
 - 对旧写入入口的兼容承接
 
 当前对应能力：
 
 - sync compatibility API
 - SmartContext summary ingestion
-- 兼容脚本与批量脚本
+- 兼容脚本与批量写入脚本
 
 ### 2. Recall
 
@@ -41,8 +41,8 @@ Last updated: 2026-03-13
 负责把记忆隔离成可运营对象：
 
 - `agent_id / user_id` scope
-- item/resource/category 结构
-- 后续 TTL / archive / decay 的基础
+- `resource / item / category` 结构
+- 后续 TTL / decay / archive 的基础
 
 当前对应能力：
 
@@ -55,73 +55,74 @@ Last updated: 2026-03-13
 
 - SmartContext inject
 - ContextEngine budgeting
-- summary / rescue / graph / decision 相关策略
-- 与 execution-governor 的联动
+- summary / rescue / replay / evidence discipline
+- 与 OpenClaw hook 和 execution-governor 的联动
+
+当前规则真源：
+
+- `../sop/Context_Policy_v2_EventDriven.md`
 
 ### 5. Operate
 
 负责验证、部署、巡检和回归：
 
-- smoke
-- benchmark
 - local deploy
 - doctor / health
-- runtime artifact cleanup
+- smoke / benchmark
+- runtime maintenance
+- 回归验证
 
-## 当前 release 可以稳定承诺的内容
+## 当前稳定承诺
 
-对当前仓库，产品文档可以稳定表达：
+对当前仓库，可以稳定表达的内容是：
 
 - 这是一个本地优先的 agent memory + context-governance 层
 - 支持兼容 API、async runtime、Memory v5 三条使用路径
-- 支持作用域隔离的 Memory v5
-- 支持本地部署、巡检、smoke、benchmark
+- 支持 Memory v5 作用域隔离
+- 支持 context-governed recall / inject / compress / rescue
+- 支持本地 deploy / doctor / smoke / benchmark
 - 支持在旧工作流上做渐进迁移，而不是强制一次性重写
 
-## 当前不要对外过度承诺的内容
+## 当前能力边界
 
-以下能力即使 repo 里有片段、实验或历史文档，也不应当作为当前产品主叙事：
+### 产品层可以明确承诺
+
+- 记忆链路是可验证的
+- 上下文治理有固定规则与真源
+- 记忆隔离是当前系统的重要能力，不是实验特性
+- 兼容接入仍然是当前产品设计的一部分
+
+### 产品层不应过度承诺
 
 - 通用 SaaS 化托管能力
-- 面向团队协作的完整产品面
+- 团队协作产品面
 - 成熟的多租户权限控制面
-- 大而全的知识图谱产品化界面
-- 复杂 BI / analytics / admin console
+- 图谱可视化产品界面
+- 完整 BI / admin console
 
-## 当前文档表达规则
+## 当前 release 的能力表达方式
 
-### 产品层
-
-可以讲：
+### 产品文档应该讲
 
 - 用户问题
 - 产品价值
 - 能力边界
-- 采用路径
+- 当前承诺
 
-不应展开：
+### 技术文档应该讲
 
-- 每个模块文件名
-- 历史实现分叉
-- 低层 refactor 细节
-
-### 技术层
-
-应该讲：
-
-- 模块
-- API
-- runtime layers
-- current source of truth
+- 模块边界
+- 运行时结构
+- public interface
+- current vs compatibility
 
 对应文档：
 
+- `../TECHNICAL_OVERVIEW_CURRENT.md`
 - `../ARCHITECTURE_CURRENT.md`
 - `../API_CURRENT.md`
 
-### 运维层
-
-应该讲：
+### 运维文档应该讲
 
 - 部署
 - 体检
@@ -132,14 +133,14 @@ Last updated: 2026-03-13
 对应文档：
 
 - `../LOCAL_DEPLOY.md`
-- `../sop/*.md`
+- `../sop/Context_Policy_v2_EventDriven.md`
+- `../sop/Execution_Governor_Context_Management_v1.3_Integration.md`
 
-## 文档重写建议
+## 当前最关键的边界语句
 
-如果后续继续整理，优先顺序应是：
+后续所有产品与技术文档，都应保持以下表述一致：
 
-1. 保持本目录稳定，先把产品层定住
-2. 继续把 `README.md` 压回仓库总览，而不是产品 PRD
-3. 让 `PRD.md`、`USAGE_GUIDE.md`、`architecture_v3.md` 明确变成历史参考
-4. 把版本迭代史从产品叙事里继续剥离到历史文档或 changelog
-
+- Deep-Sea Nexus 的核心功能是上下文治理驱动的长期记忆
+- 所有记忆都应先经过上下文处理，而不是旁路直接沉淀
+- durable memory 不接受“无证据的随意摘要”
+- 历史兼容能力存在，但不是当前产品叙事中心
