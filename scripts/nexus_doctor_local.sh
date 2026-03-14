@@ -4,6 +4,8 @@ set -u
 set -o pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OPENCLAW_HOME_DIR="${OPENCLAW_HOME:-${HOME}/.openclaw}"
+OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-${OPENCLAW_HOME_DIR}/workspace}"
 MODE="repair"
 RUN_QUICK_DEPLOY=1
 
@@ -16,7 +18,7 @@ NEEDS_GATEWAY_RESTART=0
 VECTOR_COUNT=""
 
 PLIST_PATH="${HOME}/Library/LaunchAgents/ai.openclaw.gateway.plist"
-EXPECTED_VECTOR_DB="${NEXUS_VECTOR_DB:-${HOME}/.openclaw/workspace/memory/.vector_db_restored}"
+EXPECTED_VECTOR_DB="${NEXUS_VECTOR_DB:-${OPENCLAW_WORKSPACE_DIR}/memory/.vector_db_restored}"
 EXPECTED_COLLECTION="${NEXUS_COLLECTION:-deepsea_nexus_restored}"
 PYTHON_BIN=""
 NEXUS_JSON=""
@@ -271,8 +273,8 @@ check_nexus_health() {
 import json
 import os
 import sys
-sys.path.insert(0, os.path.expanduser("~/.openclaw/workspace/skills"))
-
+workspace_root = os.environ.get("OPENCLAW_WORKSPACE", os.path.expanduser("~/.openclaw/workspace"))
+sys.path.insert(0, os.path.join(os.path.expanduser(workspace_root), "skills"))
 payload = {"ok": False}
 try:
     from deepsea_nexus import nexus_init, nexus_health, nexus_stats

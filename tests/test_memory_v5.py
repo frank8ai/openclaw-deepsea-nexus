@@ -1645,6 +1645,33 @@ class TestHostPathDefaults(unittest.TestCase):
             self.assertEqual(plugin._archive_path, os.path.join(temp_dir, "memory", "archive"))
 
 
+class TestOperationalEntrypathCleanup(unittest.TestCase):
+    def test_audit_recent_summaries_path_helpers_follow_workspace_and_repo(self):
+        module = _load_script_module("audit_recent_summaries")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": temp_dir},
+            clear=False,
+        ):
+            workspace = module.resolve_openclaw_workspace()
+            report_dir = module.default_report_dir()
+            stores = module.discover_vector_stores(Path(temp_dir) / "memory" / ".vector_db_restored")
+
+        self.assertEqual(workspace, Path(temp_dir).resolve())
+        self.assertEqual(report_dir, (REPO_ROOT / "docs" / "reports").resolve())
+        self.assertEqual(stores, [])
+
+    def test_current_shell_entrypoints_have_valid_syntax(self):
+        for relative_path in ("scripts/deploy_local_v5.sh", "scripts/nexus_doctor_local.sh"):
+            result = subprocess.run(
+                ["bash", "-n", str(REPO_ROOT / relative_path)],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, msg=f"{relative_path}: {result.stderr}")
+
+
 class TestContextEngineRuntimeState(unittest.TestCase):
     def test_budget_from_config_reads_context_engine_section(self):
         runtime = context_engine_runtime.ContextEngineRuntimeState()

@@ -1,7 +1,11 @@
 # Second-Brain v5.0 Plan (memU-aligned)
 
-> Note: this file is the Memory v5 feature/design plan.
-> For current product-level positioning and scope, see `product/README.md`.
+> Archived reference: this file is a historical Memory v5 design plan and is
+> not the current source of truth for the `v5.0.0` release pack.
+> Current docs:
+> - `product/README.md`
+> - `TECHNICAL_OVERVIEW_CURRENT.md`
+> - `ARCHITECTURE_CURRENT.md`
 
 ## Current Baseline (v4.4.x)
 - Vector recall + lexical fallback + SmartContext injection.

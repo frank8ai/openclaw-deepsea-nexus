@@ -1,5 +1,8 @@
 # Second Brain PARA (vNext)
 
+> Archived reference: this file describes an older PARA-oriented extension path
+> and is not the current source of truth for the `v5.0.0` release pack.
+
 目标：把 Deep-Sea Nexus 的结构化摘要、向量检索与 Obsidian PARA 体系结合，形成“可执行第二大脑”。
 
 ## 完成状态（基于历史提交与实测）

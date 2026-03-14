@@ -96,6 +96,19 @@ Why this was wrong:
 - additional historical docs were explicitly marked archive/reference-only so
   they stop competing with the current release pack
 
+### E. Reduced host-specific defaults in current operational entrypoints
+
+- current entry scripts now prefer env-aware workspace resolution instead of one
+  host path:
+  - `scripts/deploy_local_v5.sh`
+  - `scripts/nexus_doctor_local.sh`
+  - `scripts/audit_recent_summaries.py`
+- report output for `audit_recent_summaries.py` now defaults to the current repo
+  `docs/reports/` path instead of assuming one OpenClaw workspace checkout
+- additional archive banners were added to older plan/reference docs:
+  - `docs/SECOND_BRAIN_V5_PLAN.md`
+  - `docs/SECOND_BRAIN_PARA.md`
+
 ## Validation
 
 Targeted validation:

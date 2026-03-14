@@ -22,6 +22,24 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def resolve_openclaw_workspace() -> Path:
+    raw = os.environ.get("OPENCLAW_WORKSPACE")
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return (resolve_openclaw_home() / "workspace").resolve()
+
+
+def default_report_dir() -> Path:
+    return (REPO_ROOT / "docs" / "reports").resolve()
+
+
 def ensure_chroma_importable() -> None:
     try:
         import chromadb  # noqa: F401
@@ -29,7 +47,7 @@ def ensure_chroma_importable() -> None:
     except Exception:
         pass
 
-    workspace_venv = Path("~/.openclaw/workspace/.venv-nexus/lib").expanduser()
+    workspace_venv = resolve_openclaw_workspace() / ".venv-nexus" / "lib"
     if workspace_venv.exists():
         for child in workspace_venv.iterdir():
             site_packages = child / "site-packages"
@@ -40,7 +58,7 @@ def ensure_chroma_importable() -> None:
         return
     except Exception as exc:
         raise RuntimeError(
-            "chromadb is unavailable. Use ~/.openclaw/workspace/.venv-nexus/bin/python "
+            f"chromadb is unavailable. Use {resolve_openclaw_workspace() / '.venv-nexus' / 'bin' / 'python'} "
             "or install chromadb in current runtime."
         ) from exc
 
@@ -200,7 +218,8 @@ def discover_vector_stores(main_db: Path) -> List[Path]:
         stores.append(p)
 
     add(main_db)
-    memory_root = Path("~/.openclaw/workspace/memory").expanduser()
+    workspace_root = resolve_openclaw_workspace()
+    memory_root = workspace_root / "memory"
     if memory_root.exists():
         for child in sorted(memory_root.iterdir()):
             if child.is_dir() and child.name.startswith(".vector_db"):
@@ -210,7 +229,7 @@ def discover_vector_stores(main_db: Path) -> List[Path]:
         for child in sorted(archives_root.iterdir()):
             if child.is_dir() and child.name.startswith(".vector_db"):
                 add(child)
-    add(Path("~/.openclaw/workspace/skills/memory/.vector_db"))
+    add(workspace_root / "skills" / "memory" / ".vector_db")
     return stores
 
 
@@ -306,7 +325,7 @@ def main() -> int:
         "--main-db",
         default=os.environ.get(
             "NEXUS_VECTOR_DB",
-            os.path.expanduser("~/.openclaw/workspace/memory/.vector_db_restored"),
+            str(resolve_openclaw_workspace() / "memory" / ".vector_db_restored"),
         ),
     )
     parser.add_argument(
@@ -315,7 +334,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--report-dir",
-        default=os.path.expanduser("~/.openclaw/workspace/skills/deepsea-nexus/docs/reports"),
+        default=str(default_report_dir()),
     )
     args = parser.parse_args()
 
