@@ -54,7 +54,8 @@
 
 手动运行：
 ```bash
-cd /Users/yizhi/.openclaw/workspace/skills/deepsea-nexus
+REPO_ROOT="${DEEPSEA_NEXUS_ROOT:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/skills/deepsea-nexus}"
+cd "$REPO_ROOT"
 python3 scripts/smart_context_param_advisor.py --lookback-hours 24 --min-events 8 --print-markdown
 ```
 
@@ -64,7 +65,8 @@ python3 scripts/smart_context_param_advisor.py --lookback-hours 24 --min-events 
 
 安装：
 ```bash
-bash /Users/yizhi/.openclaw/workspace/skills/deepsea-nexus/scripts/install_smart_context_param_advisor_cron.sh
+REPO_ROOT="${DEEPSEA_NEXUS_ROOT:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/skills/deepsea-nexus}"
+bash "$REPO_ROOT/scripts/install_smart_context_param_advisor_cron.sh"
 ```
 
 ## 5. 调参规则（建议）

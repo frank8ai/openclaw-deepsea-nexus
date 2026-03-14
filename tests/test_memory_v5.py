@@ -1860,8 +1860,23 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
 
         self.assertIn("Historical ops reference", effectiveness)
         self.assertIn("Context_Policy_v2_EventDriven.md", effectiveness)
+        self.assertNotIn("/Users/yizhi", effectiveness)
         self.assertIn("Archived reference", tuning)
         self.assertIn("2026-03-14-current-runtime-audit.md", tuning)
+        self.assertNotIn("/Users/yizhi", tuning)
+
+    def test_current_docs_use_env_neutral_workspace_examples(self):
+        local_deploy = (REPO_ROOT / "docs" / "LOCAL_DEPLOY.md").read_text(encoding="utf-8")
+        usage_guide = (REPO_ROOT / "docs" / "USAGE_GUIDE.md").read_text(encoding="utf-8")
+
+        self.assertIn('REPO_ROOT="${DEEPSEA_NEXUS_ROOT:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/skills/deepsea-nexus}"', local_deploy)
+        self.assertIn('${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3}', local_deploy)
+        self.assertNotIn("/Users/yizhi", local_deploy)
+
+        self.assertIn('REPO_ROOT="${DEEPSEA_NEXUS_ROOT:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/skills/deepsea-nexus}"', usage_guide)
+        self.assertIn('"base_path": "~/.openclaw/workspace"', usage_guide)
+        self.assertIn("import os", usage_guide)
+        self.assertNotIn('base_path="/Users/yizhi/.openclaw/workspace"', usage_guide)
 
     def test_deploy_local_v4_script_uses_current_workspace_defaults(self):
         script_path = REPO_ROOT / "scripts" / "deploy_local_v4.sh"

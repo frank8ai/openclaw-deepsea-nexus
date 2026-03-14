@@ -43,9 +43,9 @@
 - **优先级**：此文件的内容具有最高优先级，会覆盖 `openclaw.json` 中的 `contextPruning` 设置。
 
 ## 3. 运维与防漂移指令
-- **重同步命令**：`python3 /Users/yizhi/.openclaw/workspace/skills/deepsea-nexus/scripts/sync_openclaw_context_optimizer.py --apply`
-- **查看执行指标**：`tail -f /Users/yizhi/.openclaw/workspace/logs/smart_context_metrics.log`（寻找 `process_round` 事件）。
-- **确认 Hook 状态**：`rg "Registered hook: context-optimizer" /Users/yizhi/.openclaw/logs/gateway.log`。
+- **重同步命令**：`python3 "${DEEPSEA_NEXUS_ROOT:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/skills/deepsea-nexus}/scripts/sync_openclaw_context_optimizer.py" --apply`
+- **查看执行指标**：`tail -f "${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/logs/smart_context_metrics.log"`（寻找 `process_round` 事件）。
+- **确认 Hook 状态**：`rg "Registered hook: context-optimizer" "${OPENCLAW_HOME:-$HOME/.openclaw}/logs/gateway.log"`。
 
 ## 4. 关键避坑记录
 - **Runtime direct 误区**：`Runtime: direct` 是显示状态，不代表 Hook 不工作。不要尝试去改 runtimeMode。

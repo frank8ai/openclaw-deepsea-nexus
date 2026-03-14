@@ -76,7 +76,7 @@ bash scripts/nexus_doctor_local.sh --repair
 用于确认“最近摘要是否都在主库”，并可迁移缺失项回主库：
 
 ```bash
-${HOME}/.openclaw/workspace/.venv-nexus/bin/python \
+${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3} \
   scripts/audit_recent_summaries.py --days 7 --migrate-missing
 ```
 
@@ -195,7 +195,8 @@ PY
 为避免 OpenClaw 升级后 `context-optimizer` 默认值回退，使用以下单一真源同步：
 
 ```bash
-cd ~/.openclaw/workspace/skills/deepsea-nexus
+REPO_ROOT="${DEEPSEA_NEXUS_ROOT:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/skills/deepsea-nexus}"
+cd "$REPO_ROOT"
 python3 scripts/sync_openclaw_context_optimizer.py --apply
 ```
 
@@ -211,16 +212,16 @@ python3 scripts/sync_openclaw_context_optimizer.py --apply
 
 ```bash
 # 应用 v1.3（默认优先）
-bash ~/.openclaw/workspace/scripts/apply_execution_governor.sh
+bash "${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/scripts/apply_execution_governor.sh"
 
 # 验证策略版本与开关
-jq -r '.version,.context_management.enabled' ~/.openclaw/state/execution-governor-policy.json
+jq -r '.version,.context_management.enabled' "${OPENCLAW_HOME:-$HOME/.openclaw}/state/execution-governor-policy.json"
 
 # 离线烟测（事件 + 命令注册）
-node ~/.openclaw/workspace/scripts/execution_governor_context_smoke.js
+node "${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/scripts/execution_governor_context_smoke.js"
 
 # 运行态报表（新增 cache/context/native-capability 维度）
-python3 ~/.openclaw/workspace/scripts/execution_governor_report.py --tail 2000
+python3 "${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/scripts/execution_governor_report.py" --tail 2000
 ```
 
 联动价值：
@@ -253,4 +254,4 @@ bash scripts/install_vector_db_maintenance_cron.sh
 - `chromadb` 未安装：
   - 现版本会自动进入 degraded mode（lexical fallback），可继续运行。
 - `deepsea_nexus` 导入失败：
-  - 确认脚本在仓库根目录执行，或显式设置 `PYTHONPATH=~/.openclaw/workspace/skills`。
+  - 确认脚本在仓库根目录执行，或显式设置 `PYTHONPATH="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/skills"`。

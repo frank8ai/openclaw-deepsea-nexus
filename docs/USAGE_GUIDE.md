@@ -48,7 +48,8 @@ pip3
 ### 2. 安装依赖
 
 ```bash
-cd ~/.openclaw/workspace/skills/deepsea-nexus
+REPO_ROOT="${DEEPSEA_NEXUS_ROOT:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/skills/deepsea-nexus}"
+cd "$REPO_ROOT"
 pip3 install -r requirements.txt
 ```
 
@@ -294,7 +295,7 @@ print(f"总文档数: {stats['total_documents']}")
 {
   "brain": {
     "enabled": true,
-    "base_path": "/Users/yizhi/.openclaw/workspace",
+    "base_path": "~/.openclaw/workspace",
     "mode": "facts",
     "min_score": 0.2,
     "merge": "append",
@@ -330,9 +331,15 @@ is not available, the system falls back to hashed embeddings without breaking.
 ### Brain API
 
 ```python
+import os
+
 from deepsea_nexus.brain import configure_brain, brain_write, brain_retrieve, checkpoint, rollback, list_versions
 
-configure_brain(enabled=True, base_path="/Users/yizhi/.openclaw/workspace", scorer_type="vector")
+configure_brain(
+    enabled=True,
+    base_path=os.path.expanduser("~/.openclaw/workspace"),
+    scorer_type="vector",
+)
 brain_write({"id": "1", "kind": "fact", "source": "demo", "content": "JSONL is append-only"})
 results = brain_retrieve("append-only", mode="facts", limit=3)
 stats = checkpoint()
