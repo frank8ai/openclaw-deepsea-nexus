@@ -101,7 +101,7 @@ EXAMPLE_HOOKS = {
 # Git Status Hook - pre-prompt
 # 显示当前工作目录的Git状态
 
-cd /Users/yizhi/.openclaw/workspace 2>/dev/null || exit 0
+cd "${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}" 2>/dev/null || exit 0
 
 echo "=== Git Status ==="
 git status --short 2>/dev/null || echo "Not a git repo"

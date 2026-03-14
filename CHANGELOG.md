@@ -52,7 +52,7 @@
 
 #### 实测（sample=200）
 - 审计命令：
-  - `NEXUS_VECTOR_DB=/Users/yizhi/.openclaw/workspace/memory/.vector_db_restored`
+  - `NEXUS_VECTOR_DB=${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/memory/.vector_db_restored`
   - `NEXUS_COLLECTION=deepsea_nexus_restored`
   - `python scripts/nexus_audit_contract.py --limit 200 --show-missing 12`
 - 覆盖率：

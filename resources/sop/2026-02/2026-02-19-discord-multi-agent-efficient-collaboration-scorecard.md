@@ -40,9 +40,9 @@
 ## Best Practice Evidence
 | Practice | Source | Evidence Type | Expected Benefit | Failure Mode |
 |---|---|---|---|---|
-| Deterministic binding with most-specific-first routing | /Users/yizhi/.openclaw/workspace/.firecrawl/docs-concepts-multi-agent.md | Official product doc | Reduce routing ambiguity and wrong-agent replies | Binding order drift causes unexpected routing |
-| Role-based routing runs after peer and before guild-only | /Users/yizhi/.openclaw/workspace/.firecrawl/docs-openclaw-channels-discord.md | Official product doc | Keep stable ownership while allowing specialization | Missing role/member intent breaks role routing |
-| Baseline secure Discord config and fallback | /Users/yizhi/.openclaw/workspace/docs/discord-multi-agent-setup.md | Internal runbook | Fast recovery and lower misconfiguration risk | Baseline applied once but not maintained |
+| Deterministic binding with most-specific-first routing | ${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.firecrawl/docs-concepts-multi-agent.md | Official product doc | Reduce routing ambiguity and wrong-agent replies | Binding order drift causes unexpected routing |
+| Role-based routing runs after peer and before guild-only | ${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.firecrawl/docs-openclaw-channels-discord.md | Official product doc | Keep stable ownership while allowing specialization | Missing role/member intent breaks role routing |
+| Baseline secure Discord config and fallback | ${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/docs/discord-multi-agent-setup.md | Internal runbook | Fast recovery and lower misconfiguration risk | Baseline applied once but not maintained |
 
 ## Best Method Decision
 - Selected method: Option B (main-agent orchestration, parallel workers, explicit converge gate)

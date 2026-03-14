@@ -2,8 +2,8 @@
 
 - Date: 2026-02-17
 - Scope: 29 SOP
-- Search SOP tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Web_Research.md`
-- Research SOP tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Deep_Research.md`
+- Search SOP tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Web_Research.md`
+- Research SOP tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Deep_Research.md`
 - External evidence pack: `resources/sop/2026-02/2026-02-17-sop-toolchain-research-pack.md`
 
 | SOP | 名称 | 最佳实践 | 最佳方法 | 最佳工具 | Score | 研究记录 |

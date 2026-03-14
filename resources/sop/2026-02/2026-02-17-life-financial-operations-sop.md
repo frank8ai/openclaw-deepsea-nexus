@@ -76,8 +76,8 @@ Standardize weekly budget, bill, and cash-flow checks to reduce surprises and ke
 
 ## 三优原则研究与升级（Toolchain）
 - 研究日期: 2026-02-17
-- Search SOP工具: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Web_Research.md`
-- Research SOP工具: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Deep_Research.md`
+- Search SOP工具: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Web_Research.md`
+- Research SOP工具: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Deep_Research.md`
 - 外部证据包: `resources/sop/2026-02/2026-02-17-sop-toolchain-research-pack.md`
 - 本SOP研究记录: `resources/sop/2026-02/research-toolchain/life-financial-operations-toolchain-research.md`
 - 最佳实践: 现金流与账单优先，先稳健再优化收益

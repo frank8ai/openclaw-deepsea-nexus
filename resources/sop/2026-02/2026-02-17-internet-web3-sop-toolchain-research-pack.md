@@ -3,8 +3,8 @@
 ## Metadata
 - Date: 2026-02-17
 - Scope: 20 SOP (互联网通用 + Web3特有)
-- Search SOP Tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Web_Research.md`
-- Research SOP Tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Deep_Research.md`
+- Search SOP Tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Web_Research.md`
+- Research SOP Tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Deep_Research.md`
 - Goal: 为每条SOP确定最佳实践、最佳方法、最佳工具，并按最高标准+4项硬机制落地。
 
 ## External Sources Used

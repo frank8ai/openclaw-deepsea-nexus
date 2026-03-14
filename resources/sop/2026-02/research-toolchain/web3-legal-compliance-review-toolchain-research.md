@@ -3,8 +3,8 @@
 - Date: 2026-02-17
 - SOP: `resources/sop/2026-02/2026-02-17-web3-legal-compliance-review-sop.md`
 - SOP Name: 法务合规审查（Web3）
-- Search SOP Tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Web_Research.md`
-- Research SOP Tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Deep_Research.md`
+- Search SOP Tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Web_Research.md`
+- Research SOP Tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Deep_Research.md`
 - External evidence pack: `resources/sop/2026-02/2026-02-17-internet-web3-sop-toolchain-research-pack.md`
 - Scorecard: `resources/sop/2026-02/2026-02-17-web3-legal-compliance-review-scorecard.md`
 

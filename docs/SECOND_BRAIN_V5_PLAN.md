@@ -62,7 +62,7 @@ memory/95_MemoryV5/
 
 ## Ops Scripts
 - Smoke: `python3 scripts/memory_v5_smoke.py`
-- Migration: `python3 scripts/memory_v5_migrate.py --path /Users/yizhi/memory`
+- Migration: `python3 scripts/memory_v5_migrate.py --path ~/memory`
 - Maintenance: `python3 scripts/memory_v5_maintenance.py --agent main --user default`
 - Benchmark: `python3 scripts/memory_v5_benchmark.py --cases docs/memory_v5_benchmark_sample.json`
 

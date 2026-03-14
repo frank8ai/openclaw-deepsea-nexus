@@ -3,8 +3,8 @@
 - Date: 2026-02-17
 - SOP: `resources/sop/2026-02/2026-02-17-study-error-closure-sop.md`
 - SOP Name: 学习错题与薄弱点闭环
-- Search SOP Tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Web_Research.md`
-- Research SOP Tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Deep_Research.md`
+- Search SOP Tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Web_Research.md`
+- Research SOP Tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Deep_Research.md`
 - External evidence pack: `resources/sop/2026-02/2026-02-17-sop-toolchain-research-pack.md`
 - Scorecard: `resources/sop/2026-02/2026-02-17-study-error-closure-scorecard.md`
 

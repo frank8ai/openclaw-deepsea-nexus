@@ -597,8 +597,8 @@ export NEXUS_PYTHON_PATH="$HOME/.openclaw/workspace/skills/deepsea-nexus/.venv-3
 
 ```bash
 # 添加 cron job
-0 * * * * /Users/yizhi/.openclaw/workspace/skills/deepsea-nexus/.venv-3.13/bin/python \
-  /Users/yizhi/.openclaw/workspace/skills/deepsea-nexus/scripts/nexus_auto_save.py
+0 * * * * ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3} \
+  ${DEEPSEA_NEXUS_ROOT:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/skills/deepsea-nexus}/scripts/nexus_auto_save.py
 ```
 
 ---

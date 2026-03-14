@@ -3,8 +3,8 @@
 ## Metadata
 - Date: 2026-02-17
 - Toolchain:
-  - Search SOP: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Web_Research.md`
-  - Research SOP: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Deep_Research.md`
+  - Search SOP: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Web_Research.md`
+  - Research SOP: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Deep_Research.md`
 - Scope: `resources/sop/2026-02/*-sop.md` 全量SOP
 - Goal: 为每个SOP确定最佳实践、最佳方法、最佳工具，并据此升级SOP。
 

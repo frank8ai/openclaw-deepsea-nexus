@@ -10,16 +10,32 @@ import json
 import re
 import subprocess
 from datetime import datetime
+from pathlib import Path
 
 # 添加Deep-Sea Nexus路径
-NEXUS_PATH = os.path.expanduser(
-    os.environ.get("NEXUS_SKILL_PATH", "/Users/yizhi/.openclaw/workspace/skills/deepsea-nexus")
+def _resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def _resolve_workspace_root() -> Path:
+    return Path(
+        os.environ.get("OPENCLAW_WORKSPACE", _resolve_openclaw_home() / "workspace")
+    ).expanduser().resolve()
+
+
+NEXUS_PATH = str(
+    Path(
+        os.environ.get(
+            "NEXUS_SKILL_PATH",
+            _resolve_workspace_root() / "skills" / "deepsea-nexus",
+        )
+    ).expanduser().resolve()
 )
 sys.path.insert(0, NEXUS_PATH)
 
 def _write_summary_json(summary: dict, response: str, conversation_id: str, user_query: str) -> str:
     """Write summary artifact JSON and return path."""
-    fallback_dir = os.path.expanduser("~/.openclaw/logs/summaries/structured")
+    fallback_dir = (_resolve_openclaw_home() / "logs" / "summaries" / "structured").resolve()
     os.makedirs(fallback_dir, exist_ok=True)
     log_file = os.path.join(fallback_dir, f"{conversation_id}.json")
     data = {

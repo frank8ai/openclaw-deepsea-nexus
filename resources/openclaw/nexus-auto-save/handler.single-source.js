@@ -20,11 +20,13 @@ function resolveSkillPath() {
 }
 
 function resolvePythonBin() {
+  const home = process.env.HOME || "";
+  const workspace = process.env.OPENCLAW_WORKSPACE || join(home, ".openclaw", "workspace");
   const candidates = [
     process.env.NEXUS_PYTHON_PATH,
-    "/Users/yizhi/.openclaw/workspace/.venv-nexus/bin/python3",
-    "/Users/yizhi/.openclaw/workspace/.venv-nexus/bin/python",
-    "/Users/yizhi/miniconda3/envs/openclaw-nexus/bin/python",
+    join(workspace, ".venv-nexus", "bin", "python3"),
+    join(workspace, ".venv-nexus", "bin", "python"),
+    join(home, "miniconda3", "envs", "openclaw-nexus", "bin", "python"),
   ].filter(Boolean);
 
   for (const candidate of candidates) {

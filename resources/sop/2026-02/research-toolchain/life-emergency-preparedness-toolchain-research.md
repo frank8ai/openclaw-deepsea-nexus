@@ -3,8 +3,8 @@
 - Date: 2026-02-17
 - SOP: `resources/sop/2026-02/2026-02-17-life-emergency-preparedness-sop.md`
 - SOP Name: 生活应急准备
-- Search SOP Tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Web_Research.md`
-- Research SOP Tool: `/Users/yizhi/.openclaw/workspace/SOP/SOP_HQ_Deep_Research.md`
+- Search SOP Tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Web_Research.md`
+- Research SOP Tool: `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/SOP/SOP_HQ_Deep_Research.md`
 - External evidence pack: `resources/sop/2026-02/2026-02-17-sop-toolchain-research-pack.md`
 - Scorecard: `resources/sop/2026-02/2026-02-17-life-emergency-preparedness-scorecard.md`
 

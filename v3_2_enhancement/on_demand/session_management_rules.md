@@ -99,7 +99,8 @@ F1_Session:
 
 ```bash
 # 创建新会话
-cd /Users/yizhi/.openclaw/skills/deepsea-nexus
+REPO_ROOT="${DEEPSEA_NEXUS_ROOT:-${OPENCLAW_HOME:-$HOME/.openclaw}/skills/deepsea-nexus}"
+cd "$REPO_ROOT"
 python3 -c "
 from session_manager import SessionManager
 manager = SessionManager()

@@ -9,6 +9,7 @@ import importlib.util
 import io
 import json
 import os
+import itertools
 import subprocess
 import sys
 import tempfile
@@ -1882,6 +1883,26 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
         self.assertIn("${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}-coder", sop_index)
         self.assertNotIn("/Users/yizhi/.openclaw/workspace-coder", sop_index)
 
+    def test_repo_non_report_text_assets_do_not_pin_host_specific_paths(self):
+        text_suffixes = {".md", ".py", ".sh", ".js", ".json"}
+        ignored_roots = {
+            REPO_ROOT / "docs" / "reports",
+            REPO_ROOT / "tests",
+        }
+        offenders = []
+
+        for path in itertools.chain.from_iterable(REPO_ROOT.rglob(f"*{suffix}") for suffix in text_suffixes):
+            if any(root in path.parents for root in ignored_roots):
+                continue
+            try:
+                content = path.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            if "/Users/yizhi" in content:
+                offenders.append(str(path.relative_to(REPO_ROOT)))
+
+        self.assertEqual(offenders, [])
+
     def test_deploy_local_v4_script_uses_current_workspace_defaults(self):
         script_path = REPO_ROOT / "scripts" / "deploy_local_v4.sh"
         contents = script_path.read_text(encoding="utf-8")
@@ -1906,8 +1927,19 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
         self.assertIn("repoPath: `{{repoPath}}`", contents)
         self.assertNotIn("/Users/yizhi", contents)
 
+    def test_hook_wrapper_scripts_use_current_runtime_defaults(self):
+        run_save = (REPO_ROOT / "hooks" / "agent_end" / "run_save.sh").read_text(encoding="utf-8")
+        run_recall = (REPO_ROOT / "hooks" / "before_agent_start" / "run_recall.sh").read_text(encoding="utf-8")
+
+        for contents in (run_save, run_recall):
+            self.assertIn('OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-${OPENCLAW_HOME_DIR}/workspace}"', contents)
+            self.assertIn('elif [[ -x "${ROOT_DIR}/.venv-3.13/bin/python" ]]; then', contents)
+            self.assertNotIn("/Users/yizhi", contents)
+
     def test_current_shell_entrypoints_have_valid_syntax(self):
         for relative_path in (
+            "hooks/agent_end/run_save.sh",
+            "hooks/before_agent_start/run_recall.sh",
             "scripts/deploy_local_v4.sh",
             "scripts/deploy_local_v5.sh",
             "scripts/nexus_doctor_local.sh",
