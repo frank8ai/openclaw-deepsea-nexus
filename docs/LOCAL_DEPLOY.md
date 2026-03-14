@@ -110,12 +110,17 @@ bash scripts/nexus_doctor_local.sh --repair
 ## 推荐运行参数（智能上下文）
 当前建议生产参数（已在 `config.json` 默认值中）：
 
+- canonical policy: `docs/sop/Context_Policy_v2_EventDriven.md`
 - `smart_context.full_rounds = 8`
 - `smart_context.summary_rounds = 20`
 - `smart_context.compress_after_rounds = 35`
 - `smart_context.trigger_soft_ratio = 0.7`
 - `smart_context.trigger_hard_ratio = 0.85`
-- 抢救开关：`rescue_enabled/rescue_gold/rescue_decisions/rescue_next_actions = true`
+- 结构化摘要字段：
+  - `summary/goal/status/decisions/constraints/blockers/next_actions/questions/evidence/replay`
+- 抢救开关：
+  - `rescue_enabled/rescue_gold/rescue_decisions/rescue_next_actions`
+  - `rescue_goal/rescue_status/rescue_constraints/rescue_blockers/rescue_evidence/rescue_replay`
 
 ## 成功判定
 - `run_tests.py` 结尾输出 `ALL TESTS PASSED`
@@ -141,13 +146,27 @@ from deepsea_nexus.core.plugin_system import get_plugin_registry
 assert nexus_init()
 sc = get_plugin_registry().get("smart_context")
 print("rounds:", sc.config.full_rounds, sc.config.summary_rounds, sc.config.compress_after_rounds)
-print("rescue:", sc.config.rescue_enabled, sc.config.rescue_gold, sc.config.rescue_decisions, sc.config.rescue_next_actions)
+print("summary_fields:", sc.config.summary_template_fields)
+print(
+    "rescue:",
+    sc.config.rescue_enabled,
+    sc.config.rescue_gold,
+    sc.config.rescue_decisions,
+    sc.config.rescue_next_actions,
+    sc.config.rescue_goal,
+    sc.config.rescue_status,
+    sc.config.rescue_constraints,
+    sc.config.rescue_blockers,
+    sc.config.rescue_evidence,
+    sc.config.rescue_replay,
+)
 PY
 ```
 
 期望输出：
 - `rounds: 8 20 35`
-- `rescue: True True True True`
+- `summary_fields:` 包含 `goal/status/constraints/blockers/evidence/replay`
+- `rescue:` 输出全部为 `True`
 
 ## OpenClaw 侧联动（本机）
 如果你希望输入侧先压缩上下文，再由 Deep-Sea 注入记忆，建议启用：

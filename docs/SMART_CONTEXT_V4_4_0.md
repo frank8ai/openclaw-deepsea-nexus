@@ -1,5 +1,12 @@
 # Smart Context / vNext Brain 升级方案（v4.4.0）
 
+> Archived reference: this is a v4.4.0 upgrade plan, not the current runtime source of truth.
+> Current docs:
+> - `sop/Context_Policy_v2_EventDriven.md`
+> - `LOCAL_DEPLOY.md`
+> - `ARCHITECTURE_CURRENT.md`
+> - `API_CURRENT.md`
+
 ## 目标
 - 始终带着正确背景工作：目标/偏好/项目/安全边界不丢。
 - 长任务沉淀为可复用资产：Pack/Card/SOP/Prompt。

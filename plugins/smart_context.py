@@ -67,7 +67,7 @@ class ContextCompressionConfig:
     full_tokens_max: int = 8000
     summary_tokens_max: int = 3000
     compressed_tokens_max: int = 2000
-    trigger_soft_ratio: float = 0.6
+    trigger_soft_ratio: float = 0.7
     trigger_hard_ratio: float = 0.85
     
     # 摘要存储规则
@@ -78,11 +78,15 @@ class ContextCompressionConfig:
     summary_template_enabled: bool = True
     summary_template_fields: Tuple[str, ...] = (
         "summary",
+        "goal",
+        "status",
         "decisions",
+        "constraints",
+        "blockers",
         "next_actions",
         "questions",
-        "entities",
-        "keywords",
+        "evidence",
+        "replay",
     )
     topic_switch_enabled: bool = True
     topic_switch_min_overlap_ratio: float = 0.2
@@ -140,6 +144,12 @@ class ContextCompressionConfig:
     rescue_gold: bool = True        # 抢救 #GOLD 标记
     rescue_decisions: bool = True     # 抢救关键决策
     rescue_next_actions: bool = True # 抢救下一步行动
+    rescue_goal: bool = True
+    rescue_status: bool = True
+    rescue_constraints: bool = True
+    rescue_blockers: bool = True
+    rescue_evidence: bool = True
+    rescue_replay: bool = True
 
 
 @dataclass
@@ -236,7 +246,7 @@ class SmartContextPlugin(NexusPlugin):
                     full_tokens_max=smart_cfg.get("full_tokens_max", 8000),
                     summary_tokens_max=smart_cfg.get("summary_tokens_max", 3000),
                     compressed_tokens_max=smart_cfg.get("compressed_tokens_max", 2000),
-                    trigger_soft_ratio=smart_cfg.get("trigger_soft_ratio", 0.6),
+                    trigger_soft_ratio=smart_cfg.get("trigger_soft_ratio", 0.7),
                     trigger_hard_ratio=smart_cfg.get("trigger_hard_ratio", 0.85),
                     store_summary_enabled=smart_cfg.get("store_summary_enabled", True),
                     summary_on_each_turn=smart_cfg.get("summary_on_each_turn", True),
@@ -246,11 +256,15 @@ class SmartContextPlugin(NexusPlugin):
                             "summary_template_fields",
                             [
                                 "summary",
+                                "goal",
+                                "status",
                                 "decisions",
+                                "constraints",
+                                "blockers",
                                 "next_actions",
                                 "questions",
-                                "entities",
-                                "keywords",
+                                "evidence",
+                                "replay",
                             ],
                         )
                     ),
@@ -302,6 +316,12 @@ class SmartContextPlugin(NexusPlugin):
                     rescue_gold=smart_cfg.get("rescue_gold", True),
                     rescue_decisions=smart_cfg.get("rescue_decisions", True),
                     rescue_next_actions=smart_cfg.get("rescue_next_actions", True),
+                    rescue_goal=smart_cfg.get("rescue_goal", True),
+                    rescue_status=smart_cfg.get("rescue_status", True),
+                    rescue_constraints=smart_cfg.get("rescue_constraints", True),
+                    rescue_blockers=smart_cfg.get("rescue_blockers", True),
+                    rescue_evidence=smart_cfg.get("rescue_evidence", True),
+                    rescue_replay=smart_cfg.get("rescue_replay", True),
                 )
             graph_cfg = config.get("graph", {}) if isinstance(config.get("graph", {}), dict) else {}
             self._graph_enabled = bool(graph_cfg.get("enabled", False))
@@ -368,7 +388,10 @@ class SmartContextPlugin(NexusPlugin):
         if round_num <= self.config.summary_rounds:
             return True, "summary"  # 中间的轮数只保留摘要
 
-        return True, "compress"  # 更早的轮数压缩
+        if round_num <= self.config.compress_after_rounds:
+            return True, "summary_rounds"  # 进入压缩层，但仍处于常规压缩窗口
+
+        return True, "compress_after_rounds"  # 更强压缩/归档原因
 
     def _estimate_tokens(self, text: str) -> int:
         if not text:
@@ -424,8 +447,8 @@ class SmartContextPlugin(NexusPlugin):
         
         根据轮数决定处理方式：
         - 0-8 轮：完整保留
-        - 9-30 轮：只保留摘要
-        - 30+ 轮：压缩/归档
+        - 9-20 轮：只保留摘要
+        - 21+ 轮：压缩/归档
         
         Args:
             conversation_id: 对话 ID
@@ -1003,12 +1026,26 @@ class SmartContextPlugin(NexusPlugin):
                 rescue_gold=bool(self.config.rescue_gold),
                 rescue_decisions=bool(self.config.rescue_decisions),
                 rescue_next_actions=bool(self.config.rescue_next_actions),
+                rescue_goal=bool(self.config.rescue_goal),
+                rescue_status=bool(self.config.rescue_status),
+                rescue_constraints=bool(self.config.rescue_constraints),
+                rescue_blockers=bool(self.config.rescue_blockers),
+                rescue_evidence=bool(self.config.rescue_evidence),
+                rescue_replay=bool(self.config.rescue_replay),
             )
         except Exception as e:
             return {
                 "decisions_rescued": 0,
+                "goal_rescued": 0,
+                "status_rescued": 0,
+                "constraints_rescued": 0,
+                "blockers_rescued": 0,
+                "next_actions_rescued": 0,
                 "goals_rescued": 0,
+                "open_questions_rescued": 0,
                 "questions_rescued": 0,
+                "evidence_rescued": 0,
+                "replay_rescued": 0,
                 "saved": False,
                 "error": str(e),
             }

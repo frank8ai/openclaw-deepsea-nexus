@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, List
 
+from . import smart_context_rescue
 from . import smart_context_text
 
 
@@ -14,6 +15,20 @@ from . import smart_context_text
 class TurnSummaryBuildResult:
     summary_result: smart_context_text.SummaryResult
     text: str
+
+
+def _merge_items(primary: List[str], secondary: List[str], *, limit: int, prefixes: tuple[str, ...] = ()) -> List[str]:
+    seen = set()
+    merged: List[str] = []
+    for item in (primary or []) + (secondary or []):
+        cleaned = smart_context_rescue._canonical_item(item, prefixes)
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        merged.append(cleaned)
+        if len(merged) >= max(1, int(limit)):
+            break
+    return merged
 
 
 def build_turn_summary(
@@ -41,8 +56,29 @@ def build_turn_summary(
     if not summary_template_enabled:
         return TurnSummaryBuildResult(summary_result=summary_result, text=summary_result.summary)
 
-    actions = smart_context_text.extract_actions(ai_response, max_items=max(1, int(action_limit)))
-    questions = smart_context_text.extract_questions(combined_text, max_items=max(1, int(question_limit)))
+    rescue_updates = smart_context_rescue.collect_rescue_updates(
+        combined_text,
+        rescue_gold=True,
+        rescue_decisions=True,
+        rescue_next_actions=True,
+        rescue_goal=True,
+        rescue_status=True,
+        rescue_constraints=True,
+        rescue_blockers=True,
+        rescue_evidence=True,
+        rescue_replay=True,
+    )
+    actions = _merge_items(
+        rescue_updates.get("next_actions", []),
+        smart_context_text.extract_actions(ai_response, max_items=max(1, int(action_limit))),
+        limit=max(1, int(action_limit)),
+        prefixes=smart_context_rescue.NEXT_PREFIXES,
+    )
+    questions = _merge_items(
+        smart_context_text.extract_questions(combined_text, max_items=max(1, int(question_limit))),
+        rescue_updates.get("open_questions", []),
+        limit=max(1, int(question_limit)),
+    )
     entities = smart_context_text.extract_key_entities(combined_text, limit=max(1, int(entity_limit)))
     keywords = smart_context_text.extract_keywords(
         f"{user_message} {ai_response}",
@@ -55,18 +91,38 @@ def build_turn_summary(
         keyword_limit=max(1, int(keyword_limit)),
     )
 
+    decision_items = _merge_items(decisions, rescue_updates.get("decisions", []), limit=3)
+    constraints = rescue_updates.get("constraints", [])[:3]
+    blockers = rescue_updates.get("blockers", [])[:3]
+    evidence = rescue_updates.get("evidence_pointers", [])[:3]
+    replay_commands = rescue_updates.get("replay_commands", [])[:1]
+    goal = str(rescue_updates.get("current_goal", "") or "").strip()
+    status = str(rescue_updates.get("current_status", "") or "").strip()
+
     fields = set(summary_template_fields or ())
     lines: List[str] = []
     if "summary" in fields:
         lines.append(f"Summary: {summary_result.summary}")
-    if "decisions" in fields and decisions:
-        lines.append(f"Decisions: {'; '.join(decisions[:3])}")
+    if "goal" in fields and goal:
+        lines.append(f"Goal: {goal}")
+    if "status" in fields and status:
+        lines.append(f"Status: {status}")
+    if "decisions" in fields and decision_items:
+        lines.append(f"Decisions: {'; '.join(decision_items[:3])}")
+    if "constraints" in fields and constraints:
+        lines.append(f"Constraints: {'; '.join(constraints[:3])}")
+    if "blockers" in fields and blockers:
+        lines.append(f"Blockers: {'; '.join(blockers[:3])}")
     if "topics" in fields and topics:
         lines.append(f"Topics: {', '.join(topics[:4])}")
     if "next_actions" in fields and actions:
         lines.append(f"Next: {'; '.join(actions[:3])}")
     if "questions" in fields and questions:
         lines.append(f"Questions: {'; '.join(questions[:3])}")
+    if "evidence" in fields and evidence:
+        lines.append(f"Evidence: {'; '.join(evidence[:3])}")
+    if "replay" in fields and replay_commands:
+        lines.append(f"Replay: {replay_commands[0]}")
     if "entities" in fields and entities:
         lines.append(f"Entities: {', '.join(entities[:5])}")
     if "keywords" in fields and keywords:

@@ -47,24 +47,27 @@
     ]
   },
   "smart_context": {
-    "full_rounds": 6,
-    "summary_rounds": 16,
-    "compress_after_rounds": 29,
+    "full_rounds": 8,
+    "summary_rounds": 20,
+    "compress_after_rounds": 35,
     "full_tokens_max": 7200,
     "summary_tokens_max": 3000,
     "compressed_tokens_max": 2000,
-    "trigger_soft_ratio": 0.68,
-    "trigger_hard_ratio": 0.83,
+    "trigger_soft_ratio": 0.7,
+    "trigger_hard_ratio": 0.85,
     "summary_on_each_turn": true,
     "summary_template_enabled": true,
     "summary_template_fields": [
       "summary",
+      "goal",
+      "status",
       "decisions",
-      "topics",
+      "constraints",
+      "blockers",
       "next_actions",
       "questions",
-      "entities",
-      "keywords"
+      "evidence",
+      "replay"
     ],
     "topic_switch_enabled": true,
     "topic_switch_min_overlap_ratio": 0.2,
@@ -113,7 +116,13 @@
     "rescue_enabled": true,
     "rescue_gold": true,
     "rescue_decisions": true,
-    "rescue_next_actions": true
+    "rescue_next_actions": true,
+    "rescue_goal": true,
+    "rescue_status": true,
+    "rescue_constraints": true,
+    "rescue_blockers": true,
+    "rescue_evidence": true,
+    "rescue_replay": true
   },
   "context_engine": {
     "max_tokens": 1000,

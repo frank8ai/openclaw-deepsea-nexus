@@ -1,4 +1,4 @@
-# SOP: SmartContext 规则生效与底层路径 (2026-02-27, 2026-03-02 更新)
+# SOP: SmartContext 规则生效与底层路径 (2026-02-27, 2026-03-14 更新)
 
 > 当前推荐策略已升级到 `Context Policy v2`（事件触发摘要 + L1/L2/L3 + replay）；
 > 参考：`Context_Policy_v2_EventDriven.md`。
@@ -26,7 +26,12 @@
 
 ### C. 规则同步 (Single Source of Truth)
 - **机制**：通过 `sync_openclaw_context_optimizer.py --apply` 将 Deep-Sea Nexus `smart_context` 配置物理写入 `~/.openclaw/state/context-optimizer-single-source.json`。
-- **当前基线**：`6/16/29`（full/summary/compress_after），并支持 mode-aware 动态阈值（coding/general）。
+- **当前基线**：`8/20/35`（full/summary/compress_after）。
+- **运行时语义**：
+  - `<=8` 轮：保留完整上下文
+  - `9-20` 轮：摘要窗口
+  - `21-35` 轮：压缩窗口
+  - `>35` 轮：仍是压缩模式，但原因应记为 `compress_after_rounds`
 - **优先级**：此文件的内容具有最高优先级，会覆盖 `openclaw.json` 中的 `contextPruning` 设置。
 
 ## 3. 运维与防漂移指令

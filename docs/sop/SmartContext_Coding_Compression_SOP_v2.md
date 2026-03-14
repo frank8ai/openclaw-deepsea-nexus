@@ -2,7 +2,9 @@
 
 Updated: 2026-03-02
 
+> Archived reference: this file captures an intermediate coding-only compression plan.
 > superseded-by: `Context_Policy_v2_EventDriven.md` (event-driven/L1-L2-L3 production profile)
+> The threshold numbers and mode profiles below are historical, not current defaults.
 
 ## Objective
 - Keep long coding tasks continuous and resumable.
@@ -32,7 +34,7 @@ Updated: 2026-03-02
 
 ## Mode-Aware Compression Rules
 - Base config source: `smart_context` in `skills/deepsea-nexus/config.json`
-  - current base: `full_rounds=7`, `summary_rounds=18`, `compress_after_rounds=32`, `soft/hard=0.70/0.85`
+  - historical base in this archived plan: `full_rounds=7`, `summary_rounds=18`, `compress_after_rounds=32`, `soft/hard=0.70/0.85`
 - Auto mode detection:
   - coding signals: code fences, stack traces, file paths, tooling commands, patch/diff patterns
   - if score >= 4 => `coding`, else `general`

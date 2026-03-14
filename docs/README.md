@@ -1,6 +1,6 @@
 # Deep-Sea Nexus Docs Guide
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
 This file is the documentation entrypoint for the current `v5.0.0` repository
 state.
@@ -10,6 +10,7 @@ state.
 - Current product docs source of truth: `product/README.md`
 - Current architecture source of truth: `ARCHITECTURE_CURRENT.md`
 - Current public API surface: `API_CURRENT.md`
+- Current context-governance source of truth: `sop/Context_Policy_v2_EventDriven.md`
 - Main repository overview:
   - `../README.md`
   - `../README_EN.md`
@@ -26,11 +27,11 @@ state.
 ## Current Runtime Guides
 
 - Local deploy and runtime checks: `LOCAL_DEPLOY.md`
-- Memory v5 plan and scope model: `SECOND_BRAIN_V5_PLAN.md`
+- Context-governance policy:
+  - `sop/Context_Policy_v2_EventDriven.md`
 - Context-governance integration:
   - `sop/Execution_Governor_Context_Management_v1.3_Integration.md`
 - SmartContext operating guidance:
-  - `SMART_CONTEXT_V4_4_0.md`
   - `sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
   - `sop/SmartContext_Effectiveness_Path.md`
 
@@ -49,8 +50,11 @@ runtime source of truth:
 - `examples_v3.md`
 - `architecture_v3.md`
 - `USAGE_GUIDE.md`
+- `SECOND_BRAIN_V5_PLAN.md`
 - `SECOND_BRAIN_PARA.md`
+- `SMART_CONTEXT_V4_4_0.md`
 - `SMART_CONTEXT_V4_3_1.md`
+- `sop/SmartContext_Coding_Compression_SOP_v2.md`
 - `TASK_LIST.md`
 - `TASK_PLAN_context_summary.md`
 - `brainstorming_context_summary.md`

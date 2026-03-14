@@ -65,7 +65,6 @@ Last updated: 2026-03-13
 ## 与工程计划的关系
 
 - 产品路线图：看本文
-- Memory v5 设计/落地节奏：看 `../SECOND_BRAIN_V5_PLAN.md`
+- Memory v5 设计/落地节奏（设计参考，不是当前产品真源）：看 `../SECOND_BRAIN_V5_PLAN.md`
 - 当前实现状态：看 `../ARCHITECTURE_CURRENT.md`
 - 当前 API 能力：看 `../API_CURRENT.md`
-

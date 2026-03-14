@@ -1595,6 +1595,14 @@ class TestSmartContextRuntimeState(unittest.TestCase):
 
 
 class TestSmartContextPluginOrchestration(unittest.TestCase):
+    def test_should_compress_uses_8_20_35_policy_boundaries(self):
+        plugin = smart_context_module.SmartContextPlugin()
+
+        self.assertEqual(plugin.should_compress(8), (False, "full"))
+        self.assertEqual(plugin.should_compress(12), (True, "summary"))
+        self.assertEqual(plugin.should_compress(24), (True, "summary_rounds"))
+        self.assertEqual(plugin.should_compress(40), (True, "compress_after_rounds"))
+
     def test_process_round_reuses_turn_summary_for_topic_switch(self):
         plugin = smart_context_module.SmartContextPlugin()
         plugin._nexus_core = object()
@@ -1864,18 +1872,22 @@ class TestSmartContextSummaryHelpers(unittest.TestCase):
 
     def test_build_turn_summary_formats_requested_sections(self):
         result = smart_context_summary.build_turn_summary(
-            "继续推进 relay audit\n还缺什么？",
-            "## Relay Runtime\n保留 FastAPI 并更新 server.py\nNext: add tests",
+            "Goal: 稳定 relay audit\nStatus: blocked\nConstraint: 不能破坏兼容\n还缺什么？",
+            "## Relay Runtime\n保留 FastAPI 并更新 server.py\nBlocker: provider metrics missing\nEvidence: tests/test_relay.py\nReplay: pytest -q tests/test_relay.py\nNext: add tests",
             ["决定保留 FastAPI"],
             summary_template_enabled=True,
             summary_template_fields=(
                 "summary",
+                "goal",
+                "status",
                 "decisions",
+                "constraints",
+                "blockers",
                 "topics",
                 "next_actions",
                 "questions",
-                "entities",
-                "keywords",
+                "evidence",
+                "replay",
             ),
             summary_min_length=20,
             topic_max=3,
@@ -1883,12 +1895,16 @@ class TestSmartContextSummaryHelpers(unittest.TestCase):
         )
 
         self.assertIn("Summary:", result.text)
+        self.assertIn("Goal: 稳定 relay audit", result.text)
+        self.assertIn("Status: blocked", result.text)
         self.assertIn("Decisions: 决定保留 FastAPI", result.text)
+        self.assertIn("Constraints: 不能破坏兼容", result.text)
+        self.assertIn("Blockers: provider metrics missing", result.text)
         self.assertIn("Topics: Relay Runtime", result.text)
-        self.assertIn("Next: Next: add tests", result.text)
+        self.assertIn("Next: add tests", result.text)
         self.assertIn("Questions: 还缺什么？", result.text)
-        self.assertIn("Entities: server.py", result.text)
-        self.assertIn("Keywords:", result.text)
+        self.assertIn("Evidence: tests/test_relay.py", result.text)
+        self.assertIn("Replay: pytest -q tests/test_relay.py", result.text)
 
 
 class TestSmartContextPromptHelpers(unittest.TestCase):
@@ -2005,44 +2021,82 @@ class TestSmartContextGraphHelpers(unittest.TestCase):
 
 
 class TestSmartContextRescueHelpers(unittest.TestCase):
-    def test_collect_rescue_updates_extracts_gold_context_and_questions(self):
+    def test_collect_rescue_updates_extracts_typed_preservation_fields(self):
         updates = smart_context_rescue.collect_rescue_updates(
-            "#GOLD: 保留 FastAPI\n我们决定继续推进支付重构。\n这个问题？后续补测试计划",
+            (
+                "Goal: 稳定 relay audit\n"
+                "Status: blocked\n"
+                "Constraint: 不能破坏兼容\n"
+                "#GOLD: 保留 FastAPI\n"
+                "Blocker: provider 指标缺失\n"
+                "Evidence: tests/test_relay.py\n"
+                "Replay: pytest -q tests/test_relay.py\n"
+                "Next: 先补测试\n"
+                "这个问题？后续补测试计划"
+            ),
             rescue_gold=True,
             rescue_decisions=True,
             rescue_next_actions=True,
         )
 
-        self.assertEqual(updates["decisions"], ["保留 FastAPI"])
-        self.assertTrue(any("决定继续推进支付重构" in item for item in updates["next_actions"]))
+        self.assertEqual(updates["current_goal"], "稳定 relay audit")
+        self.assertEqual(updates["current_status"], "blocked")
+        self.assertTrue(any("保留 FastAPI" in item for item in updates["decisions"]))
+        self.assertEqual(updates["constraints"], ["不能破坏兼容"])
+        self.assertEqual(updates["blockers"], ["provider 指标缺失"])
+        self.assertEqual(updates["next_actions"], ["先补测试"])
         self.assertEqual(updates["open_questions"], ["后续补测试计划"])
+        self.assertEqual(updates["evidence_pointers"], ["tests/test_relay.py"])
+        self.assertEqual(updates["replay_commands"], ["pytest -q tests/test_relay.py"])
 
     def test_apply_rescue_updates_only_counts_new_items(self):
         state = {
+            "current_goal": "稳定 relay audit",
             "decisions": ["保留 FastAPI"],
+            "constraints": ["不能破坏兼容"],
             "next_actions": [],
             "open_questions": ["后续补测试"],
         }
         result = smart_context_rescue.apply_rescue_updates(
             state,
             {
+                "current_goal": "稳定 relay audit v2",
+                "current_status": "blocked",
                 "decisions": ["保留 FastAPI", "增加回归测试"],
+                "constraints": ["不能破坏兼容", "保留 8/20/35"],
+                "blockers": ["provider 指标缺失"],
                 "next_actions": ["推进重构"],
                 "open_questions": ["后续补测试", "确认边界"],
+                "evidence_pointers": ["tests/test_relay.py"],
+                "replay_commands": ["pytest -q tests/test_relay.py"],
             },
         )
 
         self.assertEqual(
             result,
             {
+                "goal_rescued": 1,
+                "status_rescued": 1,
                 "decisions_rescued": 1,
+                "constraints_rescued": 1,
+                "blockers_rescued": 1,
+                "next_actions_rescued": 1,
                 "goals_rescued": 1,
+                "open_questions_rescued": 1,
                 "questions_rescued": 1,
+                "evidence_rescued": 1,
+                "replay_rescued": 1,
             },
         )
+        self.assertEqual(state["current_goal"], "稳定 relay audit v2")
+        self.assertEqual(state["current_status"], "blocked")
         self.assertIn("增加回归测试", state["decisions"])
+        self.assertIn("保留 8/20/35", state["constraints"])
+        self.assertIn("provider 指标缺失", state["blockers"])
         self.assertIn("推进重构", state["next_actions"])
         self.assertIn("确认边界", state["open_questions"])
+        self.assertIn("tests/test_relay.py", state["evidence_pointers"])
+        self.assertIn("pytest -q tests/test_relay.py", state["replay_commands"])
 
 
 class TestSmartContextNOWHelpers(unittest.TestCase):

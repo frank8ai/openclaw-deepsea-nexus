@@ -6,7 +6,7 @@ AI agent 的本地长期记忆与上下文治理层。
 
 **版本**: `5.0.0`
 **状态**: 当前可用仓库版本
-**更新**: `2026-03-13`
+**更新**: `2026-03-14`
 
 ## 这是什么
 
@@ -42,6 +42,7 @@ Deep-Sea Nexus 是一个面向 agent 工作流的 `memory + context governance`
 
 - `docs/API_CURRENT.md`
 - `docs/ARCHITECTURE_CURRENT.md`
+- `docs/sop/Context_Policy_v2_EventDriven.md`
 
 ### 3. 做部署和巡检
 
@@ -138,6 +139,7 @@ python3 scripts/memory_v5_smoke.py
   - `docs/API_CURRENT.md`
 - 运维真源:
   - `docs/LOCAL_DEPLOY.md`
+  - `docs/sop/Context_Policy_v2_EventDriven.md`
   - `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
   - `docs/sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
 - 历史/参考:

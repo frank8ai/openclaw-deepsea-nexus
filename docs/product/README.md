@@ -1,6 +1,6 @@
 # Deep-Sea Nexus 产品文档总览
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
 本目录是当前仓库的产品层文档真源，回答四个问题：
 
@@ -51,6 +51,7 @@ Last updated: 2026-03-13
 对应运维真源：
 
 - `../LOCAL_DEPLOY.md`
+- `../sop/Context_Policy_v2_EventDriven.md`
 - `../sop/Execution_Governor_Context_Management_v1.3_Integration.md`
 - `../sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
 
@@ -83,4 +84,5 @@ Last updated: 2026-03-13
 - 产品定位、目标用户、范围边界变化时，优先更新本目录
 - 接口变化，优先更新 `../API_CURRENT.md`
 - 运行时实现变化，优先更新 `../ARCHITECTURE_CURRENT.md`
+- 上下文治理规则变化，优先更新 `../sop/Context_Policy_v2_EventDriven.md`
 - 巡检/部署流程变化，优先更新 `../LOCAL_DEPLOY.md`

@@ -89,9 +89,9 @@ Last updated: 2026-03-13
 
 推荐入口：
 
+- `docs/sop/Context_Policy_v2_EventDriven.md`
 - `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
 - `docs/sop/SmartContext_Daily_Tuning_and_RCA_2026-02-28.md`
-- `docs/SMART_CONTEXT_V4_4_0.md`
 
 ### 用例 D: 为本地工作区建立可运营记忆层
 
@@ -142,9 +142,13 @@ Last updated: 2026-03-13
 
 从这里开始：
 
-- `docs/SECOND_BRAIN_V5_PLAN.md`
 - `docs/product/capabilities.md`
+- `docs/ARCHITECTURE_CURRENT.md`
 - `docs/API_CURRENT.md`
+
+设计补充参考：
+
+- `docs/SECOND_BRAIN_V5_PLAN.md`
 
 ## 非目标用例
 
@@ -153,4 +157,3 @@ Last updated: 2026-03-13
 - 团队级文档协作平台
 - 远程托管知识服务
 - 非本地、非 agent 工作流为中心的通用内容平台
-

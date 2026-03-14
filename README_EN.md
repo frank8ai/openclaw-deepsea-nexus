@@ -14,7 +14,7 @@ Deep-Sea Nexus provides a practical memory layer for agent systems:
 - SmartContext injection with context-budget controls
 - Operational scripts for smoke tests, migration, maintenance, and deploy checks
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
 ## Documentation Entry
 
@@ -22,6 +22,7 @@ Last updated: 2026-03-13
 - Product docs (current narrative): `docs/product/README_EN.md`
 - Current architecture: `docs/ARCHITECTURE_CURRENT.md`
 - Current API surface: `docs/API_CURRENT.md`
+- Current context-governance policy: `docs/sop/Context_Policy_v2_EventDriven.md`
 
 Recommended validation:
 
@@ -37,9 +38,10 @@ PYTHONDONTWRITEBYTECODE=1 python3 scripts/archive_repo_runtime_data.py --json
 - Main skill root: `skills/deepsea-nexus/`
 - Current architecture: `docs/ARCHITECTURE_CURRENT.md`
 - Current API surface: `docs/API_CURRENT.md`
-- Memory v5 plan: `docs/SECOND_BRAIN_V5_PLAN.md`
 - Local deployment guide: `docs/LOCAL_DEPLOY.md`
-- Context-governance SOP: `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
+- Context-governance policy: `docs/sop/Context_Policy_v2_EventDriven.md`
+- Context-governance integration: `docs/sop/Execution_Governor_Context_Management_v1.3_Integration.md`
+- Historical design reference: `docs/SECOND_BRAIN_V5_PLAN.md`
 - Historical docs kept for reference only:
   - `DOCUMENTATION.md`
   - `AUTO_SUMMARY_INTEGRATION.md`
