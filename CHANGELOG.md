@@ -9,6 +9,31 @@
 > - `docs/ARCHITECTURE_CURRENT.md`
 > - `docs/API_CURRENT.md`
 
+## Version 5.0.0 Hotfix 1 (2026-03-14)
+### 🛡️ Runtime Hardening + Security/Isolation Fixes on top of v5.0.0
+- ✅ `scripts/import_sessions.py` removed unsafe `eval(...)` frontmatter path
+  - now uses `yaml.safe_load(...)` for structured list/dict parsing only
+- ✅ Memory v5 scope path hardening:
+  - `memory_v5/layout.py` now sanitizes path-like scope segments to block
+    traversal/escape writes
+- ✅ Memory v5 category scope isolation hardening:
+  - `memory_v5/service.py` category IDs now include scope-key digest
+  - category artifacts no longer collide across same `agent/user` with different
+    `app/run/workspace`
+- ✅ Event/runtime stability hardening:
+  - `core/event_bus.py` no longer depends on pre-existing default event loop at
+    construction
+  - `plugins/session_manager.py` sync API paths now run async persistence/event
+    emission via safe sync/async bridge
+- ✅ Ops consistency:
+  - restored wrapper hook entrypoints:
+    - `hooks/agent_end/run_save.sh`
+    - `hooks/before_agent_start/run_recall.sh`
+  - `.gitignore` updated so runtime wrapper scripts remain versioned
+- ✅ Validation: `python3 -m pytest -q` => `247 passed, 4 skipped`
+- Release note:
+  - `docs/releases/V5_0_0_HOTFIX_1_2026-03-14.md`
+
 ## Version 4.4.2 (2026-02-23)
 ### 🛡️ v4.4.2 - Write Guard Hardening + Recent Summary Audit
 - ✅ 新增统一写入护栏模块：`write_guard.py`

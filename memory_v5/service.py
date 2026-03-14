@@ -5,6 +5,7 @@ import os
 import threading
 import queue
 import uuid
+import hashlib
 from datetime import datetime, timezone
 from math import log1p
 from typing import Any, Dict, List, Optional, Tuple
@@ -610,6 +611,18 @@ class MemoryV5Service:
             "path": category.path,
         }
 
+    def _category_record_id(self, category_name: str, scope: MemoryScope) -> str:
+        normalized_scope = self._normalize_scope(scope)
+        slug = "".join(
+            ch if (ch.isalnum() or ch in {"_", "-"}) else "_"
+            for ch in (_safe_str(category_name).lower() or "general")
+        ).strip("_")
+        while "__" in slug:
+            slug = slug.replace("__", "_")
+        slug = slug[:48] or "general"
+        digest = hashlib.sha1(normalized_scope.scope_key().encode("utf-8")).hexdigest()[:12]
+        return f"cat_{slug}_{digest}"
+
     def _update_category(
         self,
         category_name: str,
@@ -644,7 +657,7 @@ class MemoryV5Service:
         summary_text = "\n".join(summary_lines)
 
         category = MemoryCategory(
-            id=f"cat_{category_name}",
+            id=self._category_record_id(category_name, scope),
             name=category_name,
             summary=summary_text,
             tags=[],

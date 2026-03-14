@@ -35,6 +35,9 @@ model is:
 - Operations and governance:
   - `docs/LOCAL_DEPLOY.md`
   - `docs/sop/Context_Policy_v2_EventDriven.md`
+- Release notes:
+  - `docs/releases/V5_0_0_OFFICIAL_2026-03-14.md`
+  - `docs/releases/V5_0_0_HOTFIX_1_2026-03-14.md`
 
 Detailed current source of truth remains in Chinese.
 
@@ -42,7 +45,7 @@ Detailed current source of truth remains in Chinese.
 
 - backward-compatible sync API
 - async runtime and plugin lifecycle
-- Memory v5 scoped memory (`agent_id` / `user_id`)
+- Memory v5 scoped memory (`agent_id` / `user_id` physical partition + `app_id` / `run_id` / `workspace` record-level isolation)
 - context-governed recall / inject / compress / rescue
 - local deploy / doctor / smoke / benchmark workflows
 

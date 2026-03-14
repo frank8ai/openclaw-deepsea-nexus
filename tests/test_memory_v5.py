@@ -195,6 +195,57 @@ class TestMemoryV5Scopes(unittest.TestCase):
         self.assertGreater(len(os.listdir(main_item_dir)), 0)
         self.assertGreater(len(os.listdir(writer_item_dir)), 0)
 
+    def test_scope_segments_are_sanitized_under_memory_root(self):
+        dangerous_scope = MemoryScope(agent_id="../escape", user_id="/tmp/absolute-user")
+
+        result = self.service.ingest_document(
+            title="TraversalGuardDoc",
+            content="Scope segments should never escape the configured memory root.",
+            tags=["guard"],
+            scope=dangerous_scope,
+        )
+        item_id = str(result.get("item_id", ""))
+        self.assertTrue(item_id)
+
+        layout, _ = self.service._ensure_scope_storage(dangerous_scope)
+        root_abs = os.path.abspath(self.service.root)
+        scope_root_abs = os.path.abspath(layout.scope_root())
+        item_path_abs = os.path.abspath(layout.item_path(item_id))
+
+        self.assertTrue(scope_root_abs.startswith(root_abs + os.sep))
+        self.assertTrue(item_path_abs.startswith(root_abs + os.sep))
+
+    def test_category_records_are_isolated_by_scope_key(self):
+        scope_run_a = MemoryScope(agent_id="main", user_id="default", run_id="run-a")
+        scope_run_b = MemoryScope(agent_id="main", user_id="default", run_id="run-b")
+
+        self.service.ingest_document(
+            title="RunAOnlyDoc",
+            content="This category summary belongs to run-a only.",
+            tags=["run-a"],
+            scope=scope_run_a,
+        )
+        self.service.ingest_document(
+            title="RunBOnlyDoc",
+            content="This category summary belongs to run-b only.",
+            tags=["run-b"],
+            scope=scope_run_b,
+        )
+
+        _, index_a = self.service._ensure_scope_storage(scope_run_a)
+        _, index_b = self.service._ensure_scope_storage(scope_run_b)
+        categories_a = index_a.search_categories("general", 5, scope_run_a)
+        categories_b = index_b.search_categories("general", 5, scope_run_b)
+
+        self.assertEqual(len(categories_a), 1)
+        self.assertEqual(len(categories_b), 1)
+        summary_a = str(categories_a[0].get("summary", ""))
+        summary_b = str(categories_b[0].get("summary", ""))
+        self.assertIn("RunAOnlyDoc", summary_a)
+        self.assertIn("RunBOnlyDoc", summary_b)
+        self.assertNotIn("RunBOnlyDoc", summary_a)
+        self.assertNotIn("RunAOnlyDoc", summary_b)
+
     def test_chinese_query_recall(self):
         scope = MemoryScope(agent_id="main", user_id="default")
         self.service.ingest_document(
@@ -1560,6 +1611,26 @@ class TestImportSessionsScript(unittest.TestCase):
                 str(workspace_session_dir.resolve()),
             },
         )
+
+    def test_parse_session_file_does_not_execute_frontmatter_code(self):
+        session_path = self.repo_root / "session_0900_Malicious.md"
+        marker_path = self.repo_root / "eval_marker.txt"
+        session_path.write_text(
+            f"""---
+title: Malicious Session
+tags: [__import__("os").system("echo should_not_run > {marker_path}")]
+created: 2026-03-14T09:00:00
+---
+
+Session body
+""",
+            encoding="utf-8",
+        )
+
+        payload = self.import_sessions.parse_session_file(str(session_path))
+
+        self.assertFalse(marker_path.exists())
+        self.assertIn("__import__", str(payload.get("tags", "")))
 
 
 class TestLegacyEntryHelpers(unittest.TestCase):

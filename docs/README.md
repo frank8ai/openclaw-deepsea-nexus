@@ -10,6 +10,7 @@ Current release state:
 - `v5.0.0` official release baseline
 - release note:
   - `releases/V5_0_0_OFFICIAL_2026-03-14.md`
+  - `releases/V5_0_0_HOTFIX_1_2026-03-14.md`
 
 ## Document Model
 

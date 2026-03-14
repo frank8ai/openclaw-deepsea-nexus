@@ -120,6 +120,15 @@ class SessionManagerPlugin(NexusPlugin):
         except Exception as e:
             logger.error(f"✗ SessionManager init failed: {e}")
             return False
+
+    def _run_async_safely(self, coro):
+        """Run/schedule a coroutine from both sync and async call paths."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro)
+        loop.create_task(coro)
+        return None
     
     async def start(self) -> bool:
         """Start the plugin"""
@@ -186,26 +195,14 @@ class SessionManagerPlugin(NexusPlugin):
             last_active=now_str,
             status="active"
         )
-        
-        # Persist (sync-safe)
-        try:
-            asyncio.get_running_loop().create_task(self._save_session(session_id))
-        except RuntimeError:
-            asyncio.run(self._save_session(session_id))
 
-        # Emit event (sync-safe)
-        try:
-            asyncio.get_running_loop().create_task(self.emit(EventTypes.SESSION_CREATED, {
+        # Persist + emit in sync/async-safe mode.
+        self._run_async_safely(self._save_session(session_id))
+        self._run_async_safely(self.emit(EventTypes.SESSION_CREATED, {
             "session_id": session_id,
             "topic": topic,
             "timestamp": now_str,
         }))
-        except RuntimeError:
-            asyncio.run(self.emit(EventTypes.SESSION_CREATED, {
-                "session_id": session_id,
-                "topic": topic,
-                "timestamp": now_str,
-            }))
         
         logger.info(f"✓ Session created: {session_id}")
         return session_id
@@ -227,13 +224,10 @@ class SessionManagerPlugin(NexusPlugin):
             return False
         
         self.sessions[session_id].last_active = datetime.now().isoformat()
-        try:
-            asyncio.get_running_loop().create_task(self._save_session(session_id))
-        except RuntimeError:
-            asyncio.run(self._save_session(session_id))
-        
+        self._run_async_safely(self._save_session(session_id))
+
         # Emit event
-        asyncio.create_task(self.emit(EventTypes.SESSION_UPDATED, {
+        self._run_async_safely(self.emit(EventTypes.SESSION_UPDATED, {
             "session_id": session_id,
             "field": "last_active",
         }))
@@ -252,27 +246,16 @@ class SessionManagerPlugin(NexusPlugin):
         session = self.sessions[session_id]
         session.status = "paused"
         session.last_active = datetime.now().isoformat()
-        
-        try:
-            asyncio.get_running_loop().create_task(self._save_session(session_id))
-        except RuntimeError:
-            asyncio.run(self._save_session(session_id))
+
+        self._run_async_safely(self._save_session(session_id))
 
         # Emit event
-        try:
-            asyncio.get_running_loop().create_task(self.emit(EventTypes.SESSION_CLOSED, {
+        self._run_async_safely(self.emit(EventTypes.SESSION_CLOSED, {
             "session_id": session_id,
             "topic": session.topic,
             "chunks": session.chunk_count,
             "gold": session.gold_count,
         }))
-        except RuntimeError:
-            asyncio.run(self.emit(EventTypes.SESSION_CLOSED, {
-                "session_id": session_id,
-                "topic": session.topic,
-                "chunks": session.chunk_count,
-                "gold": session.gold_count,
-            }))
         
         logger.info(f"✓ Session closed: {session_id}")
         return True
@@ -289,11 +272,11 @@ class SessionManagerPlugin(NexusPlugin):
         session = self.sessions[session_id]
         session.status = "archived"
         session.last_active = datetime.now().isoformat()
-        
-        asyncio.create_task(self._save_session(session_id))
-        
+
+        self._run_async_safely(self._save_session(session_id))
+
         # Emit event
-        asyncio.create_task(self.emit(EventTypes.SESSION_ARCHIVED, {
+        self._run_async_safely(self.emit(EventTypes.SESSION_ARCHIVED, {
             "session_id": session_id,
             "topic": session.topic,
             "total_chunks": session.chunk_count,
@@ -311,7 +294,7 @@ class SessionManagerPlugin(NexusPlugin):
         
         # Delete from storage
         if self._storage:
-            asyncio.create_task(self._storage.delete_session(session_id))
+            self._run_async_safely(self._storage.delete_session(session_id))
         
         logger.info(f"✓ Session deleted: {session_id}")
         return True

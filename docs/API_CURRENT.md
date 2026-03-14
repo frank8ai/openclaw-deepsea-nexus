@@ -106,8 +106,12 @@ archive_plan = service.archive_due_items(scope=scope, dry_run=True)
 Current contract:
 
 - `MemoryScope` is the current isolation unit
-- `agent_id / user_id` define scoped durable storage
+- `agent_id / user_id` define filesystem-level partition under Memory v5 root
+- `app_id / run_id / workspace` participate in record-level scope filtering
+  (SQLite scope columns and scope-key category IDs)
 - Memory v5 is part of the current release, not an experimental side path
+- scope segments are sanitized before file-path materialization to prevent
+  path-traversal style escapes from configured memory roots
 - lifecycle governance is report-first
   - `audit_lifecycle()` reports TTL / decay / archive state
   - `audit_lifecycle()` also surfaces zero-valued archive-default backfill candidates for older rows

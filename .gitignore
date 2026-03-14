@@ -42,7 +42,12 @@ chroma_db/
 *.sqlite3
 
 # Local dev hooks (runtime)
-hooks/
+hooks/*
+!hooks/**/
+!hooks/**/*.py
+!hooks/pre-prompt/git_status
+!hooks/tool-call/workspace_sync
+!hooks/**/run_*.sh
 
 # Local logs (runtime)
 logs/

@@ -9,6 +9,7 @@ from typing import Dict, List, Callable, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
+import threading
 import logging
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,9 @@ class EventBus:
         self._subscribers: Dict[str, List[Callable]] = {}
         self._history: List[Event] = []
         self._max_history = max_history
-        self._lock = asyncio.Lock()
+        # Keep history mutation safe across sync + async paths without relying
+        # on a pre-existing asyncio event loop during object construction.
+        self._history_lock = threading.Lock()
 
     async def emit(self, event_type: str, payload: Dict[str, Any],
                    source: Optional[str] = None,
@@ -84,22 +87,27 @@ class EventBus:
         )
 
         # Persist to history
-        async with self._lock:
+        with self._history_lock:
             self._history.append(event)
             if len(self._history) > self._max_history:
                 self._history.pop(0)
 
         # Notify subscribers
+        tasks = []
         if event_type in self._subscribers:
             handlers = self._subscribers[event_type][:]
             for callback in handlers:
                 try:
                     if asyncio.iscoroutinefunction(callback):
-                        asyncio.create_task(self._safe_handler(callback, event))
+                        tasks.append(asyncio.create_task(self._safe_handler(callback, event)))
                     else:
-                        self._safe_sync_handler(callback, event)
+                        result = self._safe_sync_handler(callback, event)
+                        if asyncio.iscoroutine(result):
+                            tasks.append(asyncio.create_task(self._safe_awaitable_handler(result, event)))
                 except Exception as e:
                     logger.error(f"Error dispatching event {event_type}: {e}")
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _safe_handler(self, callback: Callable, event: Event):
         """Safely execute async handler"""
@@ -111,9 +119,17 @@ class EventBus:
     def _safe_sync_handler(self, callback: Callable, event: Event):
         """Safely execute sync handler"""
         try:
-            callback(event)
+            return callback(event)
         except Exception as e:
             logger.error(f"Sync event handler error for {event.type}: {e}")
+        return None
+
+    async def _safe_awaitable_handler(self, awaitable: Any, event: Event):
+        """Safely execute awaitable returned by a sync callback wrapper."""
+        try:
+            await awaitable
+        except Exception as e:
+            logger.error(f"Awaitable event handler error for {event.type}: {e}")
 
     def subscribe(self, event_type: str, callback: Callable) -> None:
         """Subscribe to an event type."""
@@ -185,10 +201,6 @@ class EventBus:
         events.sort(key=lambda e: e.timestamp, reverse=True)
 
         return events[:limit]
-
-    def clear_history(self) -> None:
-        """Clear event history"""
-        self._history.clear()
 
     def get_subscriber_count(self, event_type: Optional[str] = None) -> int:
         """Get number of subscribers"""

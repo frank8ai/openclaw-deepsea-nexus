@@ -214,6 +214,12 @@ Current scoped filesystem layout is rooted at:
 
 - `memory/95_MemoryV5/<agent_id>/<user_id>/`
 
+Scope hardening notes:
+
+- path segments are normalized/sanitized before creating directories
+- `app_id / run_id / workspace` stay in SQLite scope columns and are used in
+  scope-key category IDs to prevent cross-scope category overwrite
+
 Key subtrees include:
 
 - `resources/`
