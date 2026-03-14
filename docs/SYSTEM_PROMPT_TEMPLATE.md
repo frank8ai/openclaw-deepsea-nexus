@@ -1,5 +1,8 @@
 # 系统提示词模板 - 上下文摘要系统 v2.0
 
+> Archived reference: this file preserves an older prompt template and is not
+> the current source of truth for the `v5.0.0` release pack.
+
 ## 核心设计理念
 
 让第二大脑通过每次对话的知识沉淀变得越来越聪明。

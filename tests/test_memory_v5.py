@@ -1509,6 +1509,12 @@ class TestRepoRuntimeCleanupScript(unittest.TestCase):
 
 
 class TestRuntimePathHelpers(unittest.TestCase):
+    def test_resolve_openclaw_workspace_prefers_env(self):
+        with mock.patch.dict(os.environ, {"OPENCLAW_WORKSPACE": "/tmp/custom-openclaw-workspace"}, clear=False):
+            resolved = runtime_paths.resolve_openclaw_workspace()
+
+        self.assertEqual(resolved, "/tmp/custom-openclaw-workspace")
+
     def test_resolve_workspace_base_prefers_paths_base(self):
         config = {
             "paths": {"base": "~/workspace-main"},
@@ -1545,6 +1551,98 @@ class TestRuntimePathHelpers(unittest.TestCase):
         resolved = runtime_paths.resolve_memory_root(config)
 
         self.assertEqual(resolved, "/tmp/custom-memory-root")
+
+    def test_resolve_workspace_base_falls_back_to_env_workspace(self):
+        with mock.patch.dict(os.environ, {"OPENCLAW_WORKSPACE": "/tmp/openclaw-workspace-env"}, clear=False):
+            resolved = runtime_paths.resolve_workspace_base({})
+
+        self.assertEqual(resolved, "/tmp/openclaw-workspace-env")
+
+
+class TestHostPathDefaults(unittest.TestCase):
+    def test_now_manager_uses_openclaw_workspace_default_path(self):
+        module = importlib.import_module(f"{deepsea_nexus.__name__}.plugins.now_manager")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": temp_dir},
+            clear=False,
+        ):
+            manager = module.NOWManager()
+
+        self.assertEqual(manager.path, os.path.join(temp_dir, "NOW.md"))
+
+    def test_write_guard_defaults_follow_openclaw_workspace(self):
+        module = importlib.import_module(f"{deepsea_nexus.__name__}.write_guard")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {
+                "OPENCLAW_WORKSPACE": temp_dir,
+                "NEXUS_TEST_MODE": "0",
+                "PYTEST_CURRENT_TEST": "",
+                "UNITTEST_RUNNING": "0",
+                "NEXUS_ENFORCE_WRITE_GUARD": "1",
+            },
+            clear=False,
+        ):
+            policy = module.get_guard_policy()
+            alert_path = module._alert_log_path()
+
+        self.assertEqual(
+            policy["expected_vector_db"],
+            os.path.join(temp_dir, "memory", ".vector_db_restored"),
+        )
+        self.assertEqual(
+            str(alert_path),
+            os.path.join(temp_dir, "logs", "nexus_write_guard_alerts.jsonl"),
+        )
+
+    def test_vector_store_defaults_follow_openclaw_workspace(self):
+        module = _load_repo_file_module("vector_store_host_defaults", "vector_store.py")
+        fake_collection = object()
+        fake_client = SimpleNamespace(get_or_create_collection=lambda **kwargs: fake_collection)
+        module.CHROMA_AVAILABLE = True
+        module.chromadb = SimpleNamespace(PersistentClient=mock.Mock(return_value=fake_client))
+        module.Settings = mock.Mock(side_effect=lambda **kwargs: {"settings": kwargs})
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": temp_dir, "NEXUS_VECTOR_DB": ""},
+            clear=False,
+        ):
+            store = module.VectorStore()
+
+        self.assertEqual(
+            store.persist_path,
+            os.path.join(temp_dir, "memory", ".vector_db_restored"),
+        )
+
+    def test_session_manager_plugin_defaults_to_workspace_memory(self):
+        module = importlib.import_module(f"{deepsea_nexus.__name__}.plugins.session_manager")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": temp_dir},
+            clear=False,
+        ):
+            plugin = module.SessionManagerPlugin()
+            self.assertTrue(asyncio.run(plugin.initialize({})))
+            self.assertEqual(plugin._config["base_path"], os.path.join(temp_dir, "memory"))
+            self.assertTrue(asyncio.run(plugin.stop()))
+
+    def test_flush_manager_plugin_defaults_to_workspace_memory(self):
+        module = importlib.import_module(f"{deepsea_nexus.__name__}.plugins.flush_manager")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": temp_dir},
+            clear=False,
+        ):
+            plugin = module.FlushManagerPlugin()
+            self.assertTrue(asyncio.run(plugin.initialize({})))
+            self.assertEqual(plugin._config["base_path"], os.path.join(temp_dir, "memory"))
+            self.assertEqual(plugin._archive_path, os.path.join(temp_dir, "memory", "archive"))
 
 
 class TestContextEngineRuntimeState(unittest.TestCase):

@@ -15,6 +15,11 @@ import time
 from pathlib import Path
 from typing import Dict, Tuple
 
+try:
+    from .runtime_paths import resolve_openclaw_workspace
+except ImportError:
+    from runtime_paths import resolve_openclaw_workspace
+
 
 def _is_truthy(value: str) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -25,7 +30,7 @@ def _normalize_path(path_value: str) -> str:
 
 
 def _default_main_db() -> str:
-    return _normalize_path("~/.openclaw/workspace/memory/.vector_db_restored")
+    return _normalize_path(os.path.join(resolve_openclaw_workspace(), "memory", ".vector_db_restored"))
 
 
 def get_guard_policy() -> Dict[str, str]:
@@ -60,10 +65,9 @@ def get_guard_policy() -> Dict[str, str]:
 
 
 def _alert_log_path() -> Path:
-    raw = os.environ.get(
-        "NEXUS_WRITE_GUARD_ALERT_LOG",
-        "~/.openclaw/workspace/logs/nexus_write_guard_alerts.jsonl",
-    )
+    raw = os.environ.get("NEXUS_WRITE_GUARD_ALERT_LOG")
+    if not raw:
+        raw = os.path.join(resolve_openclaw_workspace(), "logs", "nexus_write_guard_alerts.jsonl")
     return Path(_normalize_path(raw))
 
 
@@ -141,4 +145,3 @@ def validate_write_target(context: str = "write") -> Tuple[bool, Dict[str, str]]
         "vector_db": db_norm,
         "collection": collection,
     }
-

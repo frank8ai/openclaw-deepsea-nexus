@@ -1,6 +1,6 @@
 {
   "paths": {
-    "base": "/Users/yizhi/.openclaw/workspace",
+    "base": "~/.openclaw/workspace",
     "archive_monthly": "memory/90_Memory/YYYY-MM",
     "inbox": "memory/00_Inbox",
     "memory": "memory/90_Memory",
@@ -144,7 +144,7 @@
   },
   "graph": {
     "enabled": true,
-    "db_path": "/Users/yizhi/.openclaw/workspace/brain/graph.sqlite3"
+    "db_path": "~/.openclaw/workspace/brain/graph.sqlite3"
   },
   "memory_v5": {
     "enabled": true,
@@ -165,7 +165,7 @@
   },
   "brain": {
     "enabled": true,
-    "base_path": "/Users/yizhi/.openclaw/workspace",
+    "base_path": "~/.openclaw/workspace",
     "max_snapshots": 20,
     "merge": "append",
     "mode": "facts",

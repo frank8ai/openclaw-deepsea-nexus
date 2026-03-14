@@ -8,6 +8,22 @@ import os
 from typing import Any, Dict, Optional
 
 
+def resolve_openclaw_home(default: Optional[str] = None) -> str:
+    candidate = os.environ.get("OPENCLAW_HOME")
+    if candidate:
+        return os.path.expanduser(str(candidate))
+    return os.path.expanduser(str(default or "~/.openclaw"))
+
+
+def resolve_openclaw_workspace(default: Optional[str] = None) -> str:
+    candidate = os.environ.get("OPENCLAW_WORKSPACE")
+    if candidate:
+        return os.path.expanduser(str(candidate))
+    if default:
+        return os.path.expanduser(str(default))
+    return os.path.join(resolve_openclaw_home(), "workspace")
+
+
 def resolve_workspace_base(
     config: Optional[Dict[str, Any]] = None,
     *,
@@ -22,6 +38,7 @@ def resolve_workspace_base(
         paths.get("base"),
         cfg.get("base_path"),
         cfg.get("workspace_root"),
+        os.environ.get("OPENCLAW_WORKSPACE"),
     ]
     if allow_nexus_base:
         candidates.append(nexus_cfg.get("base_path"))

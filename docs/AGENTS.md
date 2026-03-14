@@ -1,5 +1,13 @@
 # Deep-Sea Nexus v2.0 集成指南
 
+> Archived reference: this file is a v2-era integration guide and is not the
+> current source of truth for the `v5.0.0` release pack.
+> Current docs:
+> - `README.md`
+> - `TECHNICAL_OVERVIEW_CURRENT.md`
+> - `ARCHITECTURE_CURRENT.md`
+> - `API_CURRENT.md`
+
 > 说明：本文为 v2 兼容集成说明（历史文档），vNext 以插件方式运行，推荐使用 `config.json` + `OPENCLAW_WORKSPACE` 路径。
 > 若插件已启动，调用 `nexus_core.py` 会自动走 compat 路径，无需手动切换。
 

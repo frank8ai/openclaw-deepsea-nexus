@@ -77,6 +77,25 @@ Why this was wrong:
     format a separate unmanaged recall block
   - current NOW rescue context is folded into the same budgeted assembly path
 
+### D. Reduced current host-specific default paths
+
+- runtime path defaults now prefer:
+  - `OPENCLAW_WORKSPACE`
+  - fallback `OPENCLAW_HOME`
+- affected current runtime modules:
+  - `runtime_paths.py`
+  - `plugins/now_manager.py`
+  - `write_guard.py`
+  - `vector_store.py`
+  - `plugins/session_manager.py`
+  - `session_manager.py`
+  - `plugins/flush_manager.py`
+- current config defaults no longer pin `/Users/yizhi/...` absolute paths
+  - `config.json`
+  - `config.yaml`
+- additional historical docs were explicitly marked archive/reference-only so
+  they stop competing with the current release pack
+
 ## Validation
 
 Targeted validation:
@@ -111,8 +130,9 @@ Result:
 
 ### Next slice 1
 
-Continue shrinking host-specific defaults in runtime config and operational
-entrypoints so the current repo matches the already-cleaned maintenance scripts.
+Continue shrinking host-specific defaults in remaining non-core operational
+entrypoints and maintenance scripts so the repo-wide defaults match the already
+cleaned current runtime.
 
 ### Next slice 2
 

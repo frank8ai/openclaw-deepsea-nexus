@@ -1,5 +1,8 @@
 # SOP: X 文章对照与第二大脑迭代（2026-02-23）
 
+> Archived reference: this file captures a dated iteration note and is not the
+> current source of truth for the `v5.0.0` release pack.
+
 ## 1. 研究输入
 - 来源：`https://x.com/lijiuer92/status/2025678747509391664`（OpenClaw Memory终极指南）
 - 结论主张（抽取）：  

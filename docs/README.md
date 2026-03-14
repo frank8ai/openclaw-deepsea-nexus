@@ -89,6 +89,10 @@ the current source of truth:
 - `SMART_CONTEXT_V4_4_0.md`
 - `SMART_CONTEXT_V4_3_1.md`
 - `CONTEXT_ENGINE.md`
+- `AGENTS.md`
+- `CLEANUP_v2_DUPLICATES.md`
+- `SOP_MEMORY_GAP_ITERATION_2026-02-23.md`
+- `SYSTEM_PROMPT_TEMPLATE.md`
 - `sop/SmartContext_Coding_Compression_SOP_v2.md`
 - `TASK_LIST.md`
 - `TASK_PLAN_context_summary.md`

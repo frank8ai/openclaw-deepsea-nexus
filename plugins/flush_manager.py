@@ -13,6 +13,7 @@ from typing import Dict, Any, List, Optional
 from ..core.plugin_system import NexusPlugin, PluginMetadata
 from ..core.event_bus import EventTypes
 from ..core.config_manager import get_config_manager
+from ..runtime_paths import resolve_openclaw_workspace
 from ..storage.compression import CompressionManager
 
 import logging
@@ -51,6 +52,7 @@ class FlushManagerPlugin(NexusPlugin):
         """Initialize flush manager"""
         try:
             config_mgr = get_config_manager()
+            default_base_path = os.path.join(resolve_openclaw_workspace(), "memory")
             
             self._config = {
                 "enabled": config.get("flush", {}).get("enabled", True),
@@ -61,7 +63,7 @@ class FlushManagerPlugin(NexusPlugin):
                 "keep_active_days": config.get("session", {}).get("auto_archive_days", 30),
                 "keep_archived_days": config.get("flush", {}).get("keep_archived_days", 90),
                 "min_chunks_to_archive": config.get("session", {}).get("min_chunks_to_archive", 5),
-                "base_path": config.get("base_path", "~/.openclaw/workspace/memory"),
+                "base_path": config.get("base_path", default_base_path),
             }
             
             # Expand path

@@ -12,6 +12,11 @@ import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
+try:
+    from ..runtime_paths import resolve_openclaw_workspace
+except ImportError:
+    from runtime_paths import resolve_openclaw_workspace
+
 
 def _load_rescue_module():
     try:
@@ -27,7 +32,7 @@ class NOWManager:
     """
 
     def __init__(self, path: str = None):
-        self.path = path or os.path.expanduser("~/.openclaw/workspace/NOW.md")
+        self.path = path or os.path.join(resolve_openclaw_workspace(), "NOW.md")
         self.state = self._load()
         self.decisions_max = 10
         self.constraints_max = 10

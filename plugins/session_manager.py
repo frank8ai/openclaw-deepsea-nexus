@@ -14,6 +14,7 @@ from dataclasses import dataclass, asdict
 from ..core.plugin_system import NexusPlugin, PluginMetadata, PluginState
 from ..core.event_bus import EventTypes
 from ..core.config_manager import get_config_manager
+from ..runtime_paths import resolve_openclaw_workspace
 
 import logging
 logger = logging.getLogger(__name__)
@@ -85,8 +86,9 @@ class SessionManagerPlugin(NexusPlugin):
         try:
             # Get configuration
             config_mgr = get_config_manager()
+            default_base_path = os.path.join(resolve_openclaw_workspace(), "memory")
             self._config = {
-                "base_path": config.get("base_path", "~/.openclaw/workspace/memory"),
+                "base_path": config.get("base_path", default_base_path),
                 "auto_archive_days": config.get("session", {}).get("auto_archive_days", 30),
                 "index_file": config.get("session", {}).get("index_file", "_sessions_index.json"),
             }

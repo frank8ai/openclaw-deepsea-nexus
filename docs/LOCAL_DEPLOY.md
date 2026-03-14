@@ -21,6 +21,9 @@ bash scripts/deploy_local_v5.sh --full
 - 脚本会优先使用 `NEXUS_PYTHON_PATH`，失败时自动回退到 `python3`，并默认主库：
   - `NEXUS_VECTOR_DB=~/.openclaw/workspace/memory/.vector_db_restored`
   - `NEXUS_COLLECTION=deepsea_nexus_restored`
+- 当前运行时默认路径优先跟随：
+  - `OPENCLAW_WORKSPACE`
+  - 其回退 `OPENCLAW_HOME`
 
 如需显式指定：
 
@@ -73,7 +76,7 @@ bash scripts/nexus_doctor_local.sh --repair
 用于确认“最近摘要是否都在主库”，并可迁移缺失项回主库：
 
 ```bash
-/Users/yizhi/.openclaw/workspace/.venv-nexus/bin/python \
+${HOME}/.openclaw/workspace/.venv-nexus/bin/python \
   scripts/audit_recent_summaries.py --days 7 --migrate-missing
 ```
 
@@ -143,7 +146,8 @@ bash scripts/nexus_doctor_local.sh --repair
 ```bash
 python3 - <<'PY'
 import sys
-sys.path.insert(0, "/Users/yizhi/.openclaw/workspace/skills")
+import os
+sys.path.insert(0, os.path.expanduser("~/.openclaw/workspace/skills"))
 from deepsea_nexus import nexus_init
 from deepsea_nexus.core.plugin_system import get_plugin_registry
 

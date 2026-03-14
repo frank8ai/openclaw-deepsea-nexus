@@ -1,5 +1,8 @@
 # v3.1 清理 2.0 重复代码
 
+> Archived reference: this file records an earlier v3.1 duplicate-cleanup pass
+> and is not the current source of truth for the `v5.0.0` release pack.
+
 ## 问题分析
 
 ### 2.0 版本功能重复

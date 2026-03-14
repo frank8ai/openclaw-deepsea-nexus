@@ -10,6 +10,11 @@ from dataclasses import dataclass
 
 from utils.vector_db_lock import vector_db_write_lock
 
+try:
+    from .runtime_paths import resolve_openclaw_workspace
+except ImportError:
+    from runtime_paths import resolve_openclaw_workspace
+
 # 导入 ChromaDB
 # Prefer the workspace venv (.venv-nexus) if running under a different Python.
 try:
@@ -19,7 +24,7 @@ try:
 except ImportError:
     # Attempt to add workspace venv site-packages to sys.path.
     try:
-        _ws = os.path.expanduser("~/.openclaw/workspace")
+        _ws = resolve_openclaw_workspace()
         _venv_lib = os.path.join(_ws, ".venv-nexus", "lib")
         if os.path.isdir(_venv_lib):
             for _name in os.listdir(_venv_lib):
@@ -62,7 +67,11 @@ class VectorStore:
         
         # 设置持久化路径
         if persist_path is None:
-            persist_path = os.path.expanduser("~/.openclaw/workspace/memory/.vector_db_restored")
+            persist_path = os.environ.get("NEXUS_VECTOR_DB") or os.path.join(
+                resolve_openclaw_workspace(),
+                "memory",
+                ".vector_db_restored",
+            )
         else:
             persist_path = os.path.expanduser(str(persist_path))
 

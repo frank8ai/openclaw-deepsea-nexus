@@ -17,6 +17,11 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, asdict
 import yaml
 
+try:
+    from .runtime_paths import resolve_openclaw_workspace
+except ImportError:
+    from runtime_paths import resolve_openclaw_workspace
+
 
 @dataclass
 class SessionInfo:
@@ -63,7 +68,7 @@ class SessionManager:
             base_path: 记忆库根路径
         """
         if base_path is None:
-            self.base_path = os.path.expanduser("~/.openclaw/workspace/memory")
+            self.base_path = os.path.join(resolve_openclaw_workspace(), "memory")
         else:
             self.base_path = base_path
         
