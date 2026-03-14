@@ -8,8 +8,8 @@
 # 智能摘要快速保存脚本 - 简化版
 # 用法: ./quick_save.sh "对话ID" "回复内容"
 
-NEXUS_DIR="/Users/yizhi/.openclaw/workspace/skills/deepsea-nexus"
-LOG_DIR="$HOME/.openclaw/logs/summaries"
+OPENCLAW_HOME="${OPENCLAW_HOME:-$HOME/.openclaw}"
+LOG_DIR="${NEXUS_SUMMARY_LOG_DIR:-${OPENCLAW_HOME}/logs/summaries}"
 
 # 创建日志目录
 mkdir -p "$LOG_DIR"

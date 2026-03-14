@@ -10,6 +10,29 @@ from pathlib import Path
 from typing import Dict, Iterable, List
 
 
+def _resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def _resolve_workspace_root() -> Path:
+    return Path(
+        os.environ.get("OPENCLAW_WORKSPACE", _resolve_openclaw_home() / "workspace")
+    ).expanduser().resolve()
+
+
+def _resolve_default_memory_v5_root() -> Path:
+    return (_resolve_workspace_root() / "memory" / "95_MemoryV5").resolve()
+
+
+def _resolve_default_db_path() -> Path:
+    return Path(
+        os.environ.get(
+            "NEXUS_VECTOR_DB",
+            _resolve_workspace_root() / "memory" / ".vector_db_restored",
+        )
+    ).expanduser().resolve()
+
+
 def _iter_items(root: Path, agent: str, user: str) -> Iterable[Path]:
     if agent == "all":
         agents = [p for p in root.iterdir() if p.is_dir()]
@@ -52,13 +75,13 @@ def _build_meta(item: Dict, agent_id: str, user_id: str) -> Dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", default="~/.openclaw/workspace/memory/95_MemoryV5")
+    ap.add_argument("--root", default=str(_resolve_default_memory_v5_root()))
     ap.add_argument("--agent", default="main")
     ap.add_argument("--user", default="default")
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--collection", default=os.environ.get("NEXUS_COLLECTION", "deepsea_nexus_restored"))
-    ap.add_argument("--db", default=os.environ.get("NEXUS_VECTOR_DB", "~/.openclaw/workspace/memory/.vector_db_restored"))
+    ap.add_argument("--db", default=str(_resolve_default_db_path()))
     ap.add_argument("--model", default="all-MiniLM-L6-v2")
     args = ap.parse_args()
 

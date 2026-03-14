@@ -6,11 +6,29 @@
 import os
 import sqlite3
 import sys
+from pathlib import Path
+
+
+def resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def resolve_workspace_root() -> Path:
+    return Path(
+        os.environ.get("OPENCLAW_WORKSPACE", resolve_openclaw_home() / "workspace")
+    ).expanduser().resolve()
+
+
+def resolve_default_db_path() -> Path:
+    override = os.environ.get("NEXUS_SESSIONS_DB", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (resolve_workspace_root() / "memory" / "sessions.db").resolve()
 
 def search_sessions(query: str, db_path: str = None) -> list:
     """搜索会话"""
     if db_path is None:
-        db_path = os.path.expanduser("~/.openclaw/workspace/memory/sessions.db")
+        db_path = str(resolve_default_db_path())
     
     conn = sqlite3.connect(db_path)
     
@@ -44,7 +62,7 @@ def search_sessions(query: str, db_path: str = None) -> list:
 def show_session(session_id: str, db_path: str = None):
     """显示会话内容"""
     if db_path is None:
-        db_path = os.path.expanduser("~/.openclaw/workspace/memory/sessions.db")
+        db_path = str(resolve_default_db_path())
     
     conn = sqlite3.connect(db_path)
     cursor = conn.execute('''
@@ -70,7 +88,7 @@ def show_session(session_id: str, db_path: str = None):
 def list_all(db_path: str = None, limit: int = 20):
     """列出所有会话"""
     if db_path is None:
-        db_path = os.path.expanduser("~/.openclaw/workspace/memory/sessions.db")
+        db_path = str(resolve_default_db_path())
     
     conn = sqlite3.connect(db_path)
     cursor = conn.execute('''
@@ -100,7 +118,7 @@ def main():
         return
     
     command = sys.argv[1]
-    db_path = os.path.expanduser("~/.openclaw/workspace/memory/sessions.db")
+    db_path = str(resolve_default_db_path())
     
     if command == 'list':
         limit = int(sys.argv[2]) if len(sys.argv) > 2 else 20

@@ -1258,6 +1258,151 @@ class TestFiveMoreLegacyPathCuts(unittest.TestCase):
             )
 
 
+class TestFiveMoreLegacyEntryCuts(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_quick_save_uses_openclaw_home_summary_log_dir(self):
+        openclaw_home = Path(self.temp_dir) / "openclaw-home"
+        env = os.environ.copy()
+        env["OPENCLAW_HOME"] = str(openclaw_home)
+
+        result = subprocess.run(
+            [
+                "bash",
+                str(REPO_ROOT / "quick_save.sh"),
+                "conversation/1",
+                "## 📋 总结\n兼容测试摘要",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        saved = openclaw_home / "logs" / "summaries" / "conversation_1.txt"
+        self.assertTrue(saved.exists())
+        self.assertIn("兼容测试摘要", saved.read_text(encoding="utf-8"))
+
+    def test_install_smart_context_param_advisor_cron_uses_current_repo_and_workspace(self):
+        fake_bin = Path(self.temp_dir) / "bin"
+        fake_bin.mkdir(parents=True, exist_ok=True)
+        crontab_state = Path(self.temp_dir) / "crontab.txt"
+        fake_crontab = fake_bin / "crontab"
+        fake_crontab.write_text(
+            "#!/bin/sh\n"
+            "state=\"$FAKE_CRONTAB_FILE\"\n"
+            "if [ \"$1\" = \"-l\" ]; then\n"
+            "  if [ -f \"$state\" ]; then cat \"$state\"; exit 0; fi\n"
+            "  exit 1\n"
+            "fi\n"
+            "cat > \"$state\"\n",
+            encoding="utf-8",
+        )
+        fake_crontab.chmod(0o755)
+
+        workspace_root = Path(self.temp_dir) / "workspace"
+        openclaw_home = Path(self.temp_dir) / "openclaw-home"
+        env = os.environ.copy()
+        env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
+        env["FAKE_CRONTAB_FILE"] = str(crontab_state)
+        env["OPENCLAW_WORKSPACE"] = str(workspace_root)
+        env["OPENCLAW_HOME"] = str(openclaw_home)
+        env["NEXUS_PYTHON_PATH"] = sys.executable
+
+        result = subprocess.run(
+            [
+                "bash",
+                str(REPO_ROOT / "scripts" / "install_smart_context_param_advisor_cron.sh"),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        installed = crontab_state.read_text(encoding="utf-8")
+        self.assertIn(str(REPO_ROOT.resolve()), installed)
+        self.assertIn(
+            str(workspace_root / "logs" / "smart_context_param_advisor.cron.log"),
+            installed,
+        )
+        self.assertNotIn("/Users/yizhi/.openclaw/workspace/skills/deepsea-nexus", installed)
+
+    def test_search_sessions_defaults_follow_workspace_override(self):
+        workspace_root = self.repo_root / "workspace"
+        with mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": str(workspace_root)},
+            clear=True,
+        ):
+            module = _load_repo_file_module(
+                "search_sessions_paths",
+                "scripts/search_sessions.py",
+            )
+            self.assertEqual(
+                module.resolve_default_db_path(),
+                (workspace_root / "memory" / "sessions.db").resolve(),
+            )
+
+    def test_openclaw_compaction_audit_defaults_follow_home_and_workspace(self):
+        workspace_root = self.repo_root / "workspace"
+        openclaw_home = self.repo_root / "openclaw-home"
+        with mock.patch.dict(
+            os.environ,
+            {
+                "OPENCLAW_WORKSPACE": str(workspace_root),
+                "OPENCLAW_HOME": str(openclaw_home),
+            },
+            clear=True,
+        ):
+            module = _load_repo_file_module(
+                "openclaw_compaction_audit_paths",
+                "scripts/openclaw_compaction_audit.py",
+            )
+            self.assertEqual(
+                module.GATEWAY_LOG,
+                (openclaw_home / "logs" / "gateway.log").resolve(),
+            )
+            self.assertEqual(
+                module.STATE_PATH,
+                (workspace_root / "logs" / "compaction_audit_state.json").resolve(),
+            )
+            self.assertEqual(
+                module.SMART_LOG,
+                (workspace_root / "logs" / "smart_context_metrics.log").resolve(),
+            )
+
+    def test_vector_db_rebuild_defaults_follow_workspace_override(self):
+        workspace_root = self.repo_root / "workspace"
+        with mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": str(workspace_root)},
+            clear=True,
+        ):
+            module = _load_repo_file_module(
+                "vector_db_rebuild_paths",
+                "scripts/vector_db_rebuild_from_v5.py",
+            )
+            self.assertEqual(
+                module._resolve_default_memory_v5_root(),
+                (workspace_root / "memory" / "95_MemoryV5").resolve(),
+            )
+            self.assertEqual(
+                module._resolve_default_db_path(),
+                (workspace_root / "memory" / ".vector_db_restored").resolve(),
+            )
+
+
 class TestRepoRuntimeCleanupScript(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()

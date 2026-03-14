@@ -5,14 +5,25 @@ Audit OpenClaw system compactions and write to smart_context_metrics.log.
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
 
 
-GATEWAY_LOG = Path("~/.openclaw/logs/gateway.log").expanduser()
-STATE_PATH = Path("~/.openclaw/workspace/logs/compaction_audit_state.json").expanduser()
-SMART_LOG = Path("~/.openclaw/workspace/logs/smart_context_metrics.log").expanduser()
+def resolve_openclaw_home() -> Path:
+    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+
+
+def resolve_workspace_root() -> Path:
+    return Path(
+        os.environ.get("OPENCLAW_WORKSPACE", resolve_openclaw_home() / "workspace")
+    ).expanduser().resolve()
+
+
+GATEWAY_LOG = (resolve_openclaw_home() / "logs" / "gateway.log").resolve()
+STATE_PATH = (resolve_workspace_root() / "logs" / "compaction_audit_state.json").resolve()
+SMART_LOG = (resolve_workspace_root() / "logs" / "smart_context_metrics.log").resolve()
 
 
 COMPACTION_PAT = re.compile(r"auto-compaction succeeded.*", re.IGNORECASE)
