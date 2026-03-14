@@ -2,17 +2,22 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OPENCLAW_HOME_DIR="${OPENCLAW_HOME:-$HOME/.openclaw}"
+OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-${OPENCLAW_HOME_DIR}/workspace}"
 if [[ -n "${NEXUS_PYTHON_PATH:-}" && -x "${NEXUS_PYTHON_PATH}" ]]; then
   PYTHON_BIN="${NEXUS_PYTHON_PATH}"
 elif [[ -x "${HOME}/miniconda3/envs/openclaw-nexus/bin/python" ]]; then
   PYTHON_BIN="${HOME}/miniconda3/envs/openclaw-nexus/bin/python"
-elif [[ -x "${HOME}/.openclaw/workspace/skills/deepsea-nexus/.venv-3.13/bin/python" ]]; then
-  PYTHON_BIN="${HOME}/.openclaw/workspace/skills/deepsea-nexus/.venv-3.13/bin/python"
+elif [[ -x "${ROOT_DIR}/.venv-3.13/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/.venv-3.13/bin/python"
+elif [[ -x "${OPENCLAW_WORKSPACE_DIR}/.venv-nexus/bin/python3" ]]; then
+  PYTHON_BIN="${OPENCLAW_WORKSPACE_DIR}/.venv-nexus/bin/python3"
 else
   PYTHON_BIN="${NEXUS_PYTHON_PATH:-${HOME}/miniconda3/envs/openclaw-nexus/bin/python}"
 fi
 MODE="${1:---full}"
-export NEXUS_VECTOR_DB="${NEXUS_VECTOR_DB:-${HOME}/.openclaw/workspace/memory/.vector_db_restored}"
+export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE_DIR}"
+export NEXUS_VECTOR_DB="${NEXUS_VECTOR_DB:-${OPENCLAW_WORKSPACE_DIR}/memory/.vector_db_restored}"
 export NEXUS_COLLECTION="${NEXUS_COLLECTION:-deepsea_nexus_restored}"
 
 echo "[deploy] Deep-Sea Nexus local deploy (v4.4.0)"

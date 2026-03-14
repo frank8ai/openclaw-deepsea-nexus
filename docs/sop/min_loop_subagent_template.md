@@ -1,6 +1,9 @@
 # Minimal Closed-Loop Subagent Template (Deep-Sea Nexus)
 
-repoPath: `/Users/yizhi/.openclaw/workspace/skills/deepsea-nexus`
+repoPath: `{{repoPath}}`
+
+> Fill `repoPath` with the actual checkout path for the repo you want the
+> subagent to operate on.
 
 goal:
 - Make `verifyCmd` pass with minimal code changes (no new deps unless required by tests).

@@ -1863,12 +1863,38 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
         self.assertIn("Archived reference", tuning)
         self.assertIn("2026-03-14-current-runtime-audit.md", tuning)
 
+    def test_deploy_local_v4_script_uses_current_workspace_defaults(self):
+        script_path = REPO_ROOT / "scripts" / "deploy_local_v4.sh"
+        contents = script_path.read_text(encoding="utf-8")
+
+        self.assertIn('OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-${OPENCLAW_HOME_DIR}/workspace}"', contents)
+        self.assertIn('elif [[ -x "${ROOT_DIR}/.venv-3.13/bin/python" ]]; then', contents)
+        self.assertIn('export NEXUS_VECTOR_DB="${NEXUS_VECTOR_DB:-${OPENCLAW_WORKSPACE_DIR}/memory/.vector_db_restored}"', contents)
+        self.assertNotIn("/Users/yizhi", contents)
+
+    def test_system_maintenance_bridge_script_uses_env_target(self):
+        script_path = REPO_ROOT / "scripts" / "system_maintenance_bridge.sh"
+        contents = script_path.read_text(encoding="utf-8")
+
+        self.assertIn('OPENCLAW_HOME_DIR="${OPENCLAW_HOME:-$HOME/.openclaw}"', contents)
+        self.assertIn('TARGET_DIR="${NEXUS_SYSTEM_MAINTENANCE_TARGET:-${OPENCLAW_HOME_DIR}/workspace-codex-cli}"', contents)
+        self.assertNotIn("/Users/yizhi", contents)
+
+    def test_min_loop_subagent_template_uses_placeholder_repo_path(self):
+        template_path = REPO_ROOT / "docs" / "sop" / "min_loop_subagent_template.md"
+        contents = template_path.read_text(encoding="utf-8")
+
+        self.assertIn("repoPath: `{{repoPath}}`", contents)
+        self.assertNotIn("/Users/yizhi", contents)
+
     def test_current_shell_entrypoints_have_valid_syntax(self):
         for relative_path in (
+            "scripts/deploy_local_v4.sh",
             "scripts/deploy_local_v5.sh",
             "scripts/nexus_doctor_local.sh",
             "scripts/warmup_service.sh",
             "scripts/generate_p0_sops.sh",
+            "scripts/system_maintenance_bridge.sh",
         ):
             result = subprocess.run(
                 ["bash", "-n", str(REPO_ROOT / relative_path)],
