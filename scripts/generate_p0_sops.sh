@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/Users/yizhi/.openclaw/workspace/skills/deepsea-nexus"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="$ROOT/resources/sop/2026-02"
 DATE="2026-02-17"
 REVIEW_WINDOW="2026-02-10 to 2026-02-17"

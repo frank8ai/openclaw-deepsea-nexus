@@ -19,6 +19,19 @@ from typing import Dict, Any, List, Optional, Tuple
 from enum import Enum
 import yaml
 
+from pathlib import Path
+import sys
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from runtime_paths import resolve_openclaw_workspace
+
+
+def resolve_default_base_path() -> str:
+    return os.path.join(resolve_openclaw_workspace(), "memory")
+
 
 class Priority(Enum):
     """记忆优先级"""
@@ -93,9 +106,9 @@ class TieredFlushManager:
         
         # 路径
         if base_path:
-            self.base_path = base_path
+            self.base_path = os.path.expanduser(base_path)
         else:
-            self.base_path = os.path.expanduser("~/.openclaw/workspace/memory")
+            self.base_path = resolve_default_base_path()
         
         # 归档目录
         self.archive_path = os.path.join(self.base_path, self.config["archive_dir"])

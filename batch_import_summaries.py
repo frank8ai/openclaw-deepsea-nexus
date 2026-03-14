@@ -6,7 +6,7 @@
 这个脚本保留仅为兼容旧 cron 配置，内部已转发到新脚本。
 
 步骤：
-1. 检查 ~/.openclaw/logs/summaries/ 目录
+1. 检查 `NEXUS_SUMMARY_LOG_DIR` 或 `OPENCLAW_HOME/logs/summaries` 目录
 2. 将所有待处理的摘要导入向量库
 3. 清理已导入的文件
 
@@ -30,16 +30,47 @@ import sys
 import json
 import glob
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Any, List
 
-# 设置 DeepSea Nexus 路径
-SKILLS_ROOT = os.path.expanduser("~/.openclaw/workspace/skills")
-sys.path.insert(0, SKILLS_ROOT)
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from runtime_paths import resolve_openclaw_home
+
+
+def resolve_nexus_root() -> Path:
+    override = os.environ.get("DEEPSEA_NEXUS_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return SCRIPT_DIR
+
+
+def configure_import_paths(nexus_root: Path) -> None:
+    candidate = str(nexus_root)
+    if candidate not in sys.path:
+        sys.path.insert(0, candidate)
+
+
+def resolve_summary_log_dir() -> Path:
+    override = os.environ.get("NEXUS_SUMMARY_LOG_DIR", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (Path(resolve_openclaw_home()) / "logs" / "summaries").resolve()
+
+
+def resolve_import_log_path() -> Path:
+    return (Path(resolve_openclaw_home()) / "logs" / "nexus-import.log").resolve()
+
+
+NEXUS_ROOT = resolve_nexus_root()
+configure_import_paths(NEXUS_ROOT)
 
 # 摘要文件目录
-SUMMARIES_DIR = os.path.expanduser("~/.openclaw/logs/summaries")
+SUMMARIES_DIR = str(resolve_summary_log_dir())
 # 批量导入日志
-IMPORT_LOG = os.path.expanduser("~/.openclaw/logs/nexus-import.log")
+IMPORT_LOG = str(resolve_import_log_path())
 
 
 def log(message: str, level: str = "INFO"):
@@ -47,6 +78,7 @@ def log(message: str, level: str = "INFO"):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_msg = f"[{timestamp}] [{level}] {message}"
     print(log_msg)
+    Path(IMPORT_LOG).parent.mkdir(parents=True, exist_ok=True)
     with open(IMPORT_LOG, 'a', encoding='utf-8') as f:
         f.write(log_msg + "\n")
 

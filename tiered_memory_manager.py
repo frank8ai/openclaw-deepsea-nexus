@@ -23,6 +23,18 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
+from pathlib import Path
+import sys
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from runtime_paths import resolve_openclaw_workspace
+
+
+def resolve_default_base_path() -> str:
+    return resolve_openclaw_workspace()
 
 
 class Priority(Enum):
@@ -93,7 +105,7 @@ class TieredMemoryManager:
     manager = TieredMemoryManager()
     
     # 加载记忆
-    manager.load_memory("~/.openclaw/workspace/MEMORY.md")
+    manager.load_memory(os.path.join(resolve_default_base_path(), "MEMORY.md"))
     
     # 获取当前有效的记忆
     valid = manager.get_valid_entries()
@@ -113,7 +125,7 @@ class TieredMemoryManager:
     }
     
     def __init__(self, base_path: str = None):
-        self.base_path = base_path or os.path.expanduser("~/.openclaw/workspace")
+        self.base_path = os.path.expanduser(base_path) if base_path else resolve_default_base_path()
         self.memory_file = os.path.join(self.base_path, "MEMORY.md")
         self.archive_dir = os.path.join(self.base_path, "archive")
         

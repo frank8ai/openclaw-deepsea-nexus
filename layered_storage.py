@@ -18,6 +18,16 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from runtime_paths import resolve_openclaw_workspace
+
+
+def resolve_default_base_path() -> str:
+    return os.path.join(resolve_openclaw_workspace(), "memory")
+
 
 class MemoryTier(Enum):
     """记忆层级"""
@@ -73,7 +83,7 @@ class LayeredStorage:
         Args:
             base_path: 记忆文件根路径
         """
-        self.base_path = base_path or os.path.expanduser("~/.openclaw/workspace/memory")
+        self.base_path = os.path.expanduser(base_path) if base_path else resolve_default_base_path()
         self.index: Dict[str, MemoryItem] = {}
         
         # 创建目录

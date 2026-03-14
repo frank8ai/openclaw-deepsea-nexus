@@ -1644,6 +1644,46 @@ class TestHostPathDefaults(unittest.TestCase):
             self.assertEqual(plugin._config["base_path"], os.path.join(temp_dir, "memory"))
             self.assertEqual(plugin._archive_path, os.path.join(temp_dir, "memory", "archive"))
 
+    def test_layered_storage_defaults_follow_openclaw_workspace(self):
+        module = _load_repo_file_module("layered_storage_host_defaults", "layered_storage.py")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": temp_dir},
+            clear=False,
+        ):
+            storage = module.LayeredStorage()
+
+        self.assertEqual(storage.base_path, os.path.join(temp_dir, "memory"))
+
+    def test_tiered_flush_manager_defaults_follow_openclaw_workspace(self):
+        module = _load_repo_file_module("tiered_flush_manager_host_defaults", "tiered_flush_manager.py")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": temp_dir},
+            clear=False,
+        ):
+            manager = module.TieredFlushManager()
+
+        self.assertEqual(manager.base_path, os.path.join(temp_dir, "memory"))
+        self.assertEqual(manager.archive_path, os.path.join(temp_dir, "memory", "archive"))
+        self.assertEqual(manager.cold_path, os.path.join(temp_dir, "memory", "cold_vector_db"))
+
+    def test_tiered_memory_manager_defaults_follow_openclaw_workspace(self):
+        module = _load_repo_file_module("tiered_memory_manager_host_defaults", "tiered_memory_manager.py")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.dict(
+            os.environ,
+            {"OPENCLAW_WORKSPACE": temp_dir},
+            clear=False,
+        ):
+            manager = module.TieredMemoryManager()
+
+        self.assertEqual(manager.base_path, temp_dir)
+        self.assertEqual(manager.memory_file, os.path.join(temp_dir, "MEMORY.md"))
+        self.assertEqual(manager.archive_dir, os.path.join(temp_dir, "archive"))
+
 
 class TestOperationalEntrypathCleanup(unittest.TestCase):
     def test_audit_recent_summaries_path_helpers_follow_workspace_and_repo(self):
@@ -1713,11 +1753,44 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
         self.assertIn('LOG_PATH="${NEXUS_WARMUP_LOG:-${OPENCLAW_WORKSPACE_DIR}/logs/nexus_warmup.log}"', contents)
         self.assertNotIn("/Users/yizhi", contents)
 
+    def test_batch_import_summaries_defaults_follow_openclaw_home_and_repo(self):
+        with tempfile.TemporaryDirectory() as openclaw_home, tempfile.TemporaryDirectory() as repo_root, mock.patch.dict(
+            os.environ,
+            {
+                "OPENCLAW_HOME": openclaw_home,
+                "DEEPSEA_NEXUS_ROOT": repo_root,
+                "NEXUS_SUMMARY_LOG_DIR": "",
+            },
+            clear=False,
+        ):
+            module = _load_repo_file_module(
+                "batch_import_summaries_entry_defaults",
+                "batch_import_summaries.py",
+            )
+
+            self.assertEqual(module.resolve_nexus_root(), Path(repo_root).resolve())
+            self.assertEqual(
+                module.resolve_summary_log_dir(),
+                (Path(openclaw_home) / "logs" / "summaries").resolve(),
+            )
+            self.assertEqual(
+                module.resolve_import_log_path(),
+                (Path(openclaw_home) / "logs" / "nexus-import.log").resolve(),
+            )
+
+    def test_generate_p0_sops_script_uses_current_repo_defaults(self):
+        script_path = REPO_ROOT / "scripts" / "generate_p0_sops.sh"
+        contents = script_path.read_text(encoding="utf-8")
+
+        self.assertIn('ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"', contents)
+        self.assertNotIn("/Users/yizhi", contents)
+
     def test_current_shell_entrypoints_have_valid_syntax(self):
         for relative_path in (
             "scripts/deploy_local_v5.sh",
             "scripts/nexus_doctor_local.sh",
             "scripts/warmup_service.sh",
+            "scripts/generate_p0_sops.sh",
         ):
             result = subprocess.run(
                 ["bash", "-n", str(REPO_ROOT / relative_path)],
