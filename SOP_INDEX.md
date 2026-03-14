@@ -15,7 +15,9 @@
 - Minimal subagent template (local copy): `docs/sop/min_loop_subagent_template.md`
 
 Notes:
-- These are local workspace assets under `/Users/yizhi/.openclaw/workspace-coder` and are meant to be referenced by agents running in this repo.
+- These are local workspace assets under the active OpenClaw workspace checkout
+  (for example `${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}-coder`) and are
+  meant to be referenced by agents running in this repo.
 
 ## SmartContext Ops (2026-02-28)
 - RCA + daily tuning SOP:
