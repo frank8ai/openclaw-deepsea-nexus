@@ -1,4 +1,4 @@
-# Deep-Sea Nexus 用户与用例
+# OpenClaw Deep-Sea Nexus 用户与用例
 
 Last updated: 2026-03-14
 
@@ -154,7 +154,7 @@ Last updated: 2026-03-14
 
 ## 非目标用例
 
-以下需求当前不适合用 Deep-Sea Nexus 作为主解：
+以下需求当前不适合用 OpenClaw Deep-Sea Nexus 作为主解：
 
 - 团队级文档协作平台
 - 远程托管知识服务

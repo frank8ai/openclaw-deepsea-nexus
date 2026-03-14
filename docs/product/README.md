@@ -1,4 +1,4 @@
-# Deep-Sea Nexus 产品文档总览
+# OpenClaw Deep-Sea Nexus 产品文档总览
 
 Last updated: 2026-03-14
 
@@ -19,7 +19,7 @@ Last updated: 2026-03-14
 
 ## 当前产品定义
 
-Deep-Sea Nexus 是一个本地优先的 agent memory + context governance 层。
+OpenClaw Deep-Sea Nexus 是一个本地优先的 agent memory + context governance 层。
 
 它的核心主张不是“无限保存原始上下文”，而是：
 

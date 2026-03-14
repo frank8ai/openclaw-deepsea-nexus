@@ -1,16 +1,16 @@
-# Deep-Sea Nexus 产品定位
+# OpenClaw Deep-Sea Nexus 产品定位
 
 Last updated: 2026-03-14
 
 ## 一句话
 
-Deep-Sea Nexus 是一个本地优先的 agent memory + context governance 层，
+OpenClaw Deep-Sea Nexus 是一个本地优先的 agent memory + context governance 层，
 用于让 Codex、OpenClaw 及类似工作流中的 agent 在长任务、多轮对话、
 多 agent / 多用户场景下保持可追溯、可隔离、可运营的记忆连续性。
 
 ## 核心命题
 
-Deep-Sea Nexus 的核心命题是：
+OpenClaw Deep-Sea Nexus 的核心命题是：
 
 - 记忆不是“无限堆原始上下文”
 - 记忆必须先经过上下文治理
@@ -21,7 +21,7 @@ Deep-Sea Nexus 的核心命题是：
 
 ## 它解决什么问题
 
-没有 Deep-Sea Nexus 时，agent 工作流常见问题是：
+没有 OpenClaw Deep-Sea Nexus 时，agent 工作流常见问题是：
 
 - 重要决策只存在聊天上下文里，跨会话后丢失
 - 长任务上下文越滚越大，成本和噪音一起上升
@@ -31,7 +31,7 @@ Deep-Sea Nexus 的核心命题是：
 
 ## 当前产品形态
 
-当前 Deep-Sea Nexus 不是一个托管 SaaS，而是一个 repo-local /
+当前 OpenClaw Deep-Sea Nexus 不是一个托管 SaaS，而是一个 repo-local /
 workspace-local 的能力层，主要以以下形式存在：
 
 - Python 包根 API

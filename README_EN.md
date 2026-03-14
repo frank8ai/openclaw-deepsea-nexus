@@ -1,4 +1,4 @@
-# Deep-Sea Nexus v5.0.0
+# OpenClaw Deep-Sea Nexus v5.0.0
 
 Local-first long-term memory and context-governance tooling for agent
 workflows.
@@ -9,7 +9,7 @@ Last updated: 2026-03-14
 
 ## What It Is
 
-Deep-Sea Nexus is a local-first memory and context-governance layer for
+OpenClaw Deep-Sea Nexus is a local-first memory and context-governance layer for
 Codex, OpenClaw, and similar agent workflows.
 
 Its core idea is not "store unlimited raw chat history". The current product

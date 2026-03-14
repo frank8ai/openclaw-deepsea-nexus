@@ -1,4 +1,4 @@
-# Deep-Sea Nexus Technical Overview
+# OpenClaw Deep-Sea Nexus Technical Overview
 
 Last updated: 2026-03-14
 
@@ -20,7 +20,7 @@ The mixed version numbers are intentional:
 
 ## System Model
 
-Deep-Sea Nexus is organized around three ideas:
+OpenClaw Deep-Sea Nexus is organized around three ideas:
 
 ### 1. Public access surfaces
 
@@ -185,7 +185,7 @@ Current entrypoints:
 
 ## Integration Boundaries
 
-### What Deep-Sea Nexus owns
+### What OpenClaw Deep-Sea Nexus owns
 
 - local memory and recall behavior
 - public package entrypoints
@@ -202,7 +202,7 @@ Current entrypoints:
 
 ### Contract between them
 
-- Deep-Sea Nexus provides the policy and local runtime implementation
+- OpenClaw Deep-Sea Nexus provides the policy and local runtime implementation
 - OpenClaw hook/runtime provides the outer event and prompt assembly environment
 
 ## Compatibility Boundaries

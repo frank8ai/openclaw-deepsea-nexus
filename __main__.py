@@ -1,4 +1,4 @@
-"""Current CLI entrypoint for Deep-Sea Nexus."""
+"""Current CLI entrypoint for OpenClaw Deep-Sea Nexus."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def _serialize(value: Any) -> Any:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="deepsea-nexus",
-        description="Current Deep-Sea Nexus CLI for version, health, recall, and path checks.",
+        description="Current OpenClaw Deep-Sea Nexus CLI for version, health, recall, and path checks.",
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -124,7 +124,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.json:
             print(json.dumps(payload, ensure_ascii=False, indent=2))
         else:
-            print(f"Deep-Sea Nexus {payload['package_version']}")
+            print(f"OpenClaw Deep-Sea Nexus {payload['package_version']}")
             print(f"API version: {payload['api_version']}")
         return 0
 

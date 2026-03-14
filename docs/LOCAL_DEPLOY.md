@@ -1,4 +1,4 @@
-# Deep-Sea Nexus v5.0.0 本地部署
+# OpenClaw Deep-Sea Nexus v5.0.0 本地部署
 
 ## 目标
 将当前仓库版本部署到本地 OpenClaw 工作区，并确保门禁与运行态可用。

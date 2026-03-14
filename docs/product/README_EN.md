@@ -1,4 +1,4 @@
-# Deep-Sea Nexus Product Docs
+# OpenClaw Deep-Sea Nexus Product Docs
 
 Last updated: 2026-03-14
 
@@ -6,7 +6,7 @@ This file is the minimal English entrypoint for the current product narrative.
 
 ## Product Summary
 
-Deep-Sea Nexus is a local-first memory and context-governance layer for agent
+OpenClaw Deep-Sea Nexus is a local-first memory and context-governance layer for agent
 workflows.
 
 Current product promises:

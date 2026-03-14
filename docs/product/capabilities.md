@@ -1,4 +1,4 @@
-# Deep-Sea Nexus 能力地图与范围边界
+# OpenClaw Deep-Sea Nexus 能力地图与范围边界
 
 Last updated: 2026-03-14
 
@@ -146,7 +146,7 @@ Last updated: 2026-03-14
 
 后续所有产品与技术文档，都应保持以下表述一致：
 
-- Deep-Sea Nexus 的核心功能是上下文治理驱动的长期记忆
+- OpenClaw Deep-Sea Nexus 的核心功能是上下文治理驱动的长期记忆
 - 所有记忆都应先经过上下文处理，而不是旁路直接沉淀
 - durable memory 不接受“无证据的随意摘要”
 - 历史兼容能力存在，但不是当前产品叙事中心

@@ -1,4 +1,4 @@
-# Deep-Sea Nexus Current Architecture
+# OpenClaw Deep-Sea Nexus Current Architecture
 
 Last updated: 2026-03-14
 
@@ -279,9 +279,9 @@ Key subtrees include:
 
 ## OpenClaw Integration Boundary
 
-Deep-Sea Nexus integrates with OpenClaw, but the boundary is explicit.
+OpenClaw Deep-Sea Nexus integrates with OpenClaw, but the boundary is explicit.
 
-### Deep-Sea Nexus owns
+### OpenClaw Deep-Sea Nexus owns
 
 - local memory model
 - public package surface
@@ -298,7 +298,7 @@ Deep-Sea Nexus integrates with OpenClaw, but the boundary is explicit.
 
 ### Shared contract
 
-- Deep-Sea Nexus provides the local memory + context-governance implementation
+- OpenClaw Deep-Sea Nexus provides the local memory + context-governance implementation
 - OpenClaw provides the surrounding event and prompt lifecycle
 
 ## Current vs Compatibility

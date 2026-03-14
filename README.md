@@ -1,4 +1,4 @@
-# 🧠 Deep-Sea Nexus v5.0.0
+# 🧠 OpenClaw Deep-Sea Nexus v5.0.0
 
 AI agent 的本地长期记忆与上下文治理层。
 
@@ -10,7 +10,7 @@ AI agent 的本地长期记忆与上下文治理层。
 
 ## 项目定义
 
-Deep-Sea Nexus 的目标不是“无限保存原始聊天记录”，而是通过上下文治理实现
+OpenClaw Deep-Sea Nexus 的目标不是“无限保存原始聊天记录”，而是通过上下文治理实现
 长期、可追溯、可隔离、可运营的记忆连续性。
 
 它解决的核心问题是：

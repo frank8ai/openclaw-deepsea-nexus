@@ -1,4 +1,4 @@
-# Deep-Sea Nexus Current API
+# OpenClaw Deep-Sea Nexus Current API
 
 Last updated: 2026-03-14
 
