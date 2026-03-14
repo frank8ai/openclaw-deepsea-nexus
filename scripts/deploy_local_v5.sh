@@ -100,7 +100,7 @@ cd "${ROOT_DIR}"
 
 run_py() {
   set +e
-  "${PYTHON_BIN}" "$@"
+  env -u OPENCLAW_WORKSPACE -u NEXUS_VECTOR_DB -u NEXUS_COLLECTION "${PYTHON_BIN}" "$@"
   rc=$?
   set -e
   if [[ ${rc} -eq 0 ]]; then
@@ -110,7 +110,7 @@ run_py() {
     FALLBACK_PY="$(command -v python3)"
     if [[ "${FALLBACK_PY}" != "${PYTHON_BIN}" ]]; then
       echo "[deploy] primary python failed (rc=${rc}), fallback -> ${FALLBACK_PY}"
-      "${FALLBACK_PY}" "$@"
+      env -u OPENCLAW_WORKSPACE -u NEXUS_VECTOR_DB -u NEXUS_COLLECTION "${FALLBACK_PY}" "$@"
       fb_rc=$?
       if [[ ${fb_rc} -eq 0 ]]; then
         PYTHON_BIN="${FALLBACK_PY}"

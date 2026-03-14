@@ -2817,6 +2817,7 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
         self.assertIn('OPENCLAW_WORKSPACE_DIR="$(infer_workspace_dir)"', contents)
         self.assertIn("run_py_runtime()", contents)
         self.assertIn('"OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE_DIR}"', contents)
+        self.assertIn('env -u OPENCLAW_WORKSPACE -u NEXUS_VECTOR_DB -u NEXUS_COLLECTION', contents)
         self.assertIn("--with-lifecycle-audit", contents)
         self.assertIn("--lifecycle-all-agents", contents)
         self.assertIn('MAINTENANCE_ARGS=("scripts/memory_v5_maintenance.py" "--dry-run" "--write-report")', contents)
