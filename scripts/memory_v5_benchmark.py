@@ -70,13 +70,24 @@ def main() -> None:
     parser.add_argument("--cases", required=True, help="JSON list of {query, expect_any:[...]} cases")
     parser.add_argument("--agent", default="default")
     parser.add_argument("--user", default="default")
+    parser.add_argument("--app", default="")
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--workspace", default="")
     parser.add_argument("--limit", type=int, default=5)
     parser.add_argument("--all-agents", action="store_true")
     args = parser.parse_args()
 
     config = load_config()
     service = MemoryV5Service(config)
-    scopes = [MemoryScope(agent_id=args.agent, user_id=args.user)]
+    scopes = [
+        MemoryScope(
+            agent_id=args.agent,
+            user_id=args.user,
+            app_id=args.app,
+            run_id=args.run_id,
+            workspace=args.workspace,
+        )
+    ]
     if args.all_agents:
         scopes = list(memory_v5_maintenance.iter_scopes(service.root)) or scopes
 

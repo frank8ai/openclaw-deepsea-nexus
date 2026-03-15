@@ -30,6 +30,10 @@
 - ✅ memory_v5 governance tooling now supports explicit extended scope targeting:
   - `scripts/memory_v5_maintenance.py` accepts `--app`, `--run-id`, `--workspace`
   - lifecycle maintenance can be scoped to contextual sub-scope without `--all-agents`
+- ✅ scope-precision parity now covers maintenance/backfill/benchmark tools:
+  - `scripts/memory_v5_backfill_batches.py` accepts `--app`, `--run-id`, `--workspace`
+  - `scripts/memory_v5_benchmark.py` accepts `--app`, `--run-id`, `--workspace`
+  - tests include explicit-scope paths for backfill and benchmark scripts
 - ✅ validation refresh on current branch:
   - `python3 -m pytest -q` => `251 passed, 4 skipped, 1 warning`
   - `git diff --check` clean

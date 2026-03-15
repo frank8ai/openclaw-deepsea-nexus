@@ -25,6 +25,9 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
 ```bash
 ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3} \
   scripts/memory_v5_backfill_batches.py --batch-size 100 --max-batches 5 --write-report
+
+# 若只处理单个扩展 scope，可追加：
+# --app <app_id> --run-id <run_id> --workspace <workspace>
 ```
 
 3. 显式分批 apply（仅回填，不归档）
@@ -32,6 +35,8 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
 ```bash
 ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3} \
   scripts/memory_v5_backfill_batches.py --apply --batch-size 100 --max-batches 5 --write-report
+
+# 同样支持 --app / --run-id / --workspace 进行 scope 精确执行
 ```
 
 4. 回填后复审 lifecycle

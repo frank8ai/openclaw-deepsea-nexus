@@ -70,6 +70,7 @@ Last updated: 2026-03-15
 - thresholded lifecycle status / alerts / hot-scope summaries
 - optional per-kind lifecycle defaults for narrower retention tuning
 - explicit archive-default backfill for older zero-valued rows
+- explicit extended-scope selectors (`app/run/workspace`) across maintenance / backfill / benchmark tools
 
 ### 4. Context Governance
 

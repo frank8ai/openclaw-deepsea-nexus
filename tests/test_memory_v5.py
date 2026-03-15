@@ -1381,6 +1381,43 @@ class TestMemoryV5BackfillBatchesScript(unittest.TestCase):
         self.assertIn(("main", "default", "relay", "run-99", "workspace-z"), reported_scopes)
         self.assertGreaterEqual(result["totals"]["matched"], 2)
 
+    def test_run_explicit_extended_scope_targets_single_context(self):
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        base_scope = MemoryScope(agent_id="main", user_id="default")
+        target_scope = MemoryScope(
+            agent_id="main",
+            user_id="default",
+            app_id="relay",
+            run_id="run-target",
+            workspace="workspace-target",
+        )
+        base_ids = self._seed_backfill_candidates(base_scope, now, count=1)
+        target_ids = self._seed_backfill_candidates(target_scope, now, count=1)
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            app="relay",
+            run_id="run-target",
+            workspace="workspace-target",
+            apply=False,
+            batch_size=5,
+            max_batches=2,
+            now_ts=now.isoformat(),
+        )
+
+        self.assertEqual(result["scope_count"], 1)
+        scope_payload = (result.get("scopes", [{}])[0] or {}).get("scope", {}) or {}
+        self.assertEqual(scope_payload.get("agent_id"), "main")
+        self.assertEqual(scope_payload.get("user_id"), "default")
+        self.assertEqual(scope_payload.get("app_id"), "relay")
+        self.assertEqual(scope_payload.get("run_id"), "run-target")
+        self.assertEqual(scope_payload.get("workspace"), "workspace-target")
+        candidate_ids = list((result.get("scopes", [{}])[0] or {}).get("batches", [{}])[0].get("candidate_ids", []))
+        self.assertIn(target_ids[0], candidate_ids)
+        self.assertNotIn(base_ids[0], candidate_ids)
+
 
 class TestMemoryV5BenchmarkScript(unittest.TestCase):
     def setUp(self):
@@ -1464,6 +1501,78 @@ class TestMemoryV5BenchmarkScript(unittest.TestCase):
         self.assertIsNotNone(target)
         self.assertIn("app=relay", str(target.get("scope", "")))
         self.assertEqual(int(target.get("hit", 0)), 1)
+
+    def test_main_explicit_extended_scope_targets_single_context(self):
+        base_scope = MemoryScope(agent_id="main", user_id="default")
+        target_scope = MemoryScope(
+            agent_id="main",
+            user_id="default",
+            app_id="relay",
+            run_id="run-bench-target",
+            workspace="workspace-bench-target",
+        )
+        self.service.ingest_document(
+            title="BenchmarkBaseScopeDoc",
+            content="Base scope token should not match target query.",
+            tags=["bench"],
+            scope=base_scope,
+        )
+        self.service.ingest_document(
+            title="BenchmarkTargetScopeDoc",
+            content="Target scope token for explicit scope benchmark query.",
+            tags=["bench"],
+            scope=target_scope,
+        )
+        cases_path = Path(self.temp_dir) / "cases_explicit_scope.json"
+        cases_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "query": "explicit scope benchmark query",
+                        "expect_any": ["BenchmarkTargetScopeDoc"],
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        stdout = io.StringIO()
+        with mock.patch.object(self.script, "load_config", return_value=self.config):
+            with mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "memory_v5_benchmark.py",
+                    "--cases",
+                    str(cases_path),
+                    "--agent",
+                    "main",
+                    "--user",
+                    "default",
+                    "--app",
+                    "relay",
+                    "--run-id",
+                    "run-bench-target",
+                    "--workspace",
+                    "workspace-bench-target",
+                    "--limit",
+                    "5",
+                ],
+            ):
+                with contextlib.redirect_stdout(stdout):
+                    self.script.main()
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(int(payload.get("scope_count", 0)), 1)
+        entry = (payload.get("per_scope", [{}]) or [{}])[0]
+        scope_fields = (entry.get("scope_fields", {}) or {})
+        self.assertEqual(scope_fields.get("agent_id"), "main")
+        self.assertEqual(scope_fields.get("user_id"), "default")
+        self.assertEqual(scope_fields.get("app_id"), "relay")
+        self.assertEqual(scope_fields.get("run_id"), "run-bench-target")
+        self.assertEqual(scope_fields.get("workspace"), "workspace-bench-target")
+        self.assertEqual(int(entry.get("hit", 0)), 1)
 
 
 class TestPackageRootExports(unittest.TestCase):

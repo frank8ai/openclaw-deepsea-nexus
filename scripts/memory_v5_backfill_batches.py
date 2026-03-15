@@ -117,8 +117,25 @@ def render_markdown(payload: Dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _resolve_scopes(service: MemoryV5Service, *, agent: str, user: str, all_agents: bool) -> List[MemoryScope]:
-    scopes: List[MemoryScope] = [MemoryScope(agent_id=agent, user_id=user)]
+def _resolve_scopes(
+    service: MemoryV5Service,
+    *,
+    agent: str,
+    user: str,
+    app: str,
+    run_id: str,
+    workspace: str,
+    all_agents: bool,
+) -> List[MemoryScope]:
+    scopes: List[MemoryScope] = [
+        MemoryScope(
+            agent_id=agent,
+            user_id=user,
+            app_id=app,
+            run_id=run_id,
+            workspace=workspace,
+        )
+    ]
     if all_agents:
         scopes = list(memory_v5_maintenance.iter_scopes(service.root)) or scopes
     return scopes
@@ -236,6 +253,9 @@ def run(
     config: Optional[dict] = None,
     agent: str = "default",
     user: str = "default",
+    app: str = "",
+    run_id: str = "",
+    workspace: str = "",
     all_agents: bool = False,
     apply: bool = False,
     batch_size: int = 100,
@@ -253,7 +273,15 @@ def run(
         mem_cfg["async_ingest"] = False
         cfg["memory_v5"] = mem_cfg
     service = MemoryV5Service(cfg)
-    scopes = _resolve_scopes(service, agent=agent, user=user, all_agents=all_agents)
+    scopes = _resolve_scopes(
+        service,
+        agent=agent,
+        user=user,
+        app=app,
+        run_id=run_id,
+        workspace=workspace,
+        all_agents=all_agents,
+    )
 
     generated_at = now_ts or datetime.now(timezone.utc).isoformat()
     batch_size = max(1, int(batch_size))
@@ -321,6 +349,9 @@ def main() -> None:
     )
     parser.add_argument("--agent", default="default")
     parser.add_argument("--user", default="default")
+    parser.add_argument("--app", default="")
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--workspace", default="")
     parser.add_argument("--all-agents", action="store_true")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--batch-size", type=int, default=100)
@@ -335,6 +366,9 @@ def main() -> None:
     result = run(
         agent=args.agent,
         user=args.user,
+        app=args.app,
+        run_id=args.run_id,
+        workspace=args.workspace,
         all_agents=bool(args.all_agents),
         apply=bool(args.apply),
         batch_size=args.batch_size,

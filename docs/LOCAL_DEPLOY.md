@@ -107,6 +107,7 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
 - 去掉 `--dry-run` 才会执行显式 archive move
 - `--exclude-ttl-expired` 可把本轮维护限定为纯 age-based archive candidate
 - `--apply-archive-backfill` 会显式把 older zero-valued `archive_after_days` rows 回填为当前解析后的 archive defaults
+- `--app` / `--run-id` / `--workspace` 可把巡检限定到单个扩展 scope
 - backfill 不会在同一次 maintenance 中自动继续 archive 这些 rows；如需归档，需下一次显式 audit/apply
 
 默认输出：
@@ -120,6 +121,10 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
 # 先预览首批（不写入）
 ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3} \
   scripts/memory_v5_backfill_batches.py --batch-size 100 --max-batches 5 --write-report
+
+# 只看某个扩展 scope（示例）
+${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexus/bin/python3} \
+  scripts/memory_v5_backfill_batches.py --app relay --run-id run-42 --workspace workspace-a --batch-size 100 --max-batches 5 --write-report
 ```
 
 ```bash
@@ -132,6 +137,7 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
 - 默认是 preview 模式，仅输出当前首批候选
 - 只有加 `--apply` 才会写入回填
 - 该脚本不会执行 archive move；即使存在 `archive_due` 也不会在这里归档
+- `--app` / `--run-id` / `--workspace` 可把回填限定在单个扩展 scope
 - `--batch-size` 控制每批最多处理条数
 - `--max-batches` 控制单次运行最多处理多少批
 - 遇到失败默认停止；如需继续批次可加 `--continue-on-failure`
