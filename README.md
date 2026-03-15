@@ -6,12 +6,25 @@ AI agent 的本地长期记忆与上下文治理层。
 
 **版本**: `5.1.0`
 **状态**: `v5.1.0` 升级开发中（5.0.0 为稳定发布基线）
-**更新**: `2026-03-14`
+**更新**: `2026-03-15`
 
 ## Comparison
 
 **Beyond Context Management:** Deep-Sea Nexus 不是在重复做记忆框架，而是在补齐治理层（evidence gate、scope isolation、lifecycle governance、ops audit）。  
 Read the technical manifesto: [`COMPARISON.md`](COMPARISON.md)
+
+## 主要功能总览
+
+面向 GitHub 评审与开发接入，当前版本的产品主能力如下：
+
+- `Evidence-Gated Durable Memory`：记忆沉淀要求证据链，不接受“无证据随意摘要”。
+- `Scoped Isolation`：`agent_id/user_id` 物理隔离 + `app_id/run_id/workspace` 记录级隔离，降低串扰与污染风险。
+- `Lifecycle Governance`：支持 lifecycle audit、archive maintenance、backfill 和 report-first 运维策略。
+- `Context Governance Pipeline`：围绕 `recall / inject / compress / rescue / replay` 构建可验证治理闭环。
+- `Runtime + Compatibility`：同时支持兼容 sync API、async runtime plugin lifecycle、Memory v5 first 三条接入路径。
+- `Operator Tooling`：提供 deploy/doctor/smoke/benchmark/maintenance 一整套本地运维链路。
+
+功能详解与边界请看：[`docs/product/capabilities.md`](docs/product/capabilities.md)
 
 ## 项目定义
 

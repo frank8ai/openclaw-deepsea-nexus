@@ -5,12 +5,25 @@ workflows.
 
 [简体中文](README.md)
 
-Last updated: 2026-03-14
+Last updated: 2026-03-15
 
 ## Comparison
 
 **Beyond Context Management:** Deep-Sea Nexus focuses on governance-grade memory operations (evidence-gated writes, scope isolation, lifecycle governance, and operator auditability).  
 Read the technical manifesto: [`COMPARISON.md`](COMPARISON.md)
+
+## Core Features at a Glance
+
+For GitHub visitors and reviewers, the current product surface is:
+
+- `Evidence-Gated Durable Memory`: durable memory writes require traceable evidence instead of free-form summaries.
+- `Scoped Isolation`: `agent_id/user_id` physical partition plus `app_id/run_id/workspace` record-level isolation.
+- `Lifecycle Governance`: lifecycle audit, archive maintenance, backfill, and report-first operations.
+- `Context Governance Pipeline`: one verifiable loop across `recall / inject / compress / rescue / replay`.
+- `Runtime + Compatibility`: compatibility sync API, async runtime/plugin lifecycle, and Memory v5-first integration.
+- `Operator Tooling`: local deploy/doctor/smoke/benchmark/maintenance workflows for production-like operations.
+
+See detailed capability map: [`docs/product/capabilities.md`](docs/product/capabilities.md)
 
 ## What It Is
 

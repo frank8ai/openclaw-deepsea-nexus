@@ -21,6 +21,10 @@
 - ✅ release/upgrade docs aligned with `v5.1.0` lane:
   - `docs/releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
   - package/docs/README version anchors updated to 5.1 context
+- ✅ GitHub introduction/docs surface now exposes product core features explicitly:
+  - `README.md` and `README_EN.md` include a "core features at a glance" section
+  - `docs/README.md` includes feature-entry alignment rules
+  - `docs/product/capabilities.md` adds the v5.1 intro-facing feature map
 
 ## Version 5.0.0 Hotfix 1 (2026-03-14)
 ### 🛡️ Runtime Hardening + Security/Isolation Fixes on top of v5.0.0
