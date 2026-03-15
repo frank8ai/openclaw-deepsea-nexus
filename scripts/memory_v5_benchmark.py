@@ -7,9 +7,14 @@ import os
 import sys
 
 SKILL_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, SKILL_ROOT)
+if SKILL_ROOT not in sys.path:
+    sys.path.insert(0, SKILL_ROOT)
+SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
 
 from memory_v5 import MemoryV5Service, MemoryScope
+import memory_v5_maintenance
 
 
 def load_config() -> dict:
@@ -31,20 +36,33 @@ def match_hit(hit, expect_any):
     return any(str(k).lower() in text for k in expect_any)
 
 
-def iter_scopes(root: str):
-    if not os.path.isdir(root):
-        return []
-    scopes = []
-    for agent in os.listdir(root):
-        agent_dir = os.path.join(root, agent)
-        if not os.path.isdir(agent_dir):
-            continue
-        for user in os.listdir(agent_dir):
-            user_dir = os.path.join(agent_dir, user)
-            if not os.path.isdir(user_dir):
-                continue
-            scopes.append(MemoryScope(agent_id=agent, user_id=user))
-    return scopes
+def _scope_payload(scope: MemoryScope):
+    return {
+        "agent_id": scope.agent_id,
+        "user_id": scope.user_id,
+        "app_id": scope.app_id,
+        "run_id": scope.run_id,
+        "workspace": scope.workspace,
+    }
+
+
+def _scope_label(scope: MemoryScope) -> str:
+    payload = _scope_payload(scope)
+    agent = str(payload.get("agent_id") or "default")
+    user = str(payload.get("user_id") or "default")
+    qualifiers = []
+    app = str(payload.get("app_id") or "")
+    run = str(payload.get("run_id") or "")
+    workspace = str(payload.get("workspace") or "")
+    if app:
+        qualifiers.append(f"app={app}")
+    if run:
+        qualifiers.append(f"run={run}")
+    if workspace:
+        qualifiers.append(f"workspace={workspace}")
+    if qualifiers:
+        return f"{agent}/{user} ({', '.join(qualifiers)})"
+    return f"{agent}/{user}"
 
 
 def main() -> None:
@@ -60,7 +78,7 @@ def main() -> None:
     service = MemoryV5Service(config)
     scopes = [MemoryScope(agent_id=args.agent, user_id=args.user)]
     if args.all_agents:
-        scopes = iter_scopes(service.root) or scopes
+        scopes = list(memory_v5_maintenance.iter_scopes(service.root)) or scopes
 
     cases = load_cases(args.cases)
     total_cases = len(cases)
@@ -83,10 +101,11 @@ def main() -> None:
                 case_hit_by_any_scope[idx] = True
         total_hit += hit
         total_runs += total_cases
-        scope_name = f"{scope.agent_id}/{scope.user_id}"
+        scope_name = _scope_label(scope)
         per_scope.append(
             {
                 "scope": scope_name,
+                "scope_fields": _scope_payload(scope),
                 "total": total_cases,
                 "hit": hit,
                 "score": round(hit / total_cases, 4) if total_cases else 0.0,

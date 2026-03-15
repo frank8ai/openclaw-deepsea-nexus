@@ -9,6 +9,7 @@ from typing import Dict, List, Callable, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
+import fnmatch
 import threading
 import logging
 
@@ -67,6 +68,21 @@ class EventBus:
         # on a pre-existing asyncio event loop during object construction.
         self._history_lock = threading.Lock()
 
+    def _matching_handlers(self, event_type: str) -> List[Callable]:
+        """Resolve exact and glob-pattern subscribers for an event type."""
+        handlers: List[Callable] = []
+        seen: set[int] = set()
+        for pattern, callbacks in self._subscribers.items():
+            if pattern != event_type and not fnmatch.fnmatchcase(event_type, pattern):
+                continue
+            for callback in callbacks:
+                token = id(callback)
+                if token in seen:
+                    continue
+                seen.add(token)
+                handlers.append(callback)
+        return handlers
+
     async def emit(self, event_type: str, payload: Dict[str, Any],
                    source: Optional[str] = None,
                    priority: EventPriority = EventPriority.NORMAL) -> None:
@@ -94,18 +110,17 @@ class EventBus:
 
         # Notify subscribers
         tasks = []
-        if event_type in self._subscribers:
-            handlers = self._subscribers[event_type][:]
-            for callback in handlers:
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        tasks.append(asyncio.create_task(self._safe_handler(callback, event)))
-                    else:
-                        result = self._safe_sync_handler(callback, event)
-                        if asyncio.iscoroutine(result):
-                            tasks.append(asyncio.create_task(self._safe_awaitable_handler(result, event)))
-                except Exception as e:
-                    logger.error(f"Error dispatching event {event_type}: {e}")
+        handlers = self._matching_handlers(event_type)
+        for callback in handlers:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    tasks.append(asyncio.create_task(self._safe_handler(callback, event)))
+                else:
+                    result = self._safe_sync_handler(callback, event)
+                    if asyncio.iscoroutine(result):
+                        tasks.append(asyncio.create_task(self._safe_awaitable_handler(result, event)))
+            except Exception as e:
+                logger.error(f"Error dispatching event {event_type}: {e}")
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 

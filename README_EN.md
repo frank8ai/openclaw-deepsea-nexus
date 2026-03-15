@@ -1,4 +1,4 @@
-# Deep-Sea Nexus v5.0.0
+# Deep-Sea Nexus v5.1.0
 
 Local-first long-term memory and context-governance tooling for agent
 workflows.
@@ -43,6 +43,7 @@ model is:
 - Release notes:
   - `docs/releases/V5_0_0_OFFICIAL_2026-03-14.md`
   - `docs/releases/V5_0_0_HOTFIX_1_2026-03-14.md`
+  - `docs/releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
 
 Detailed current source of truth remains in Chinese.
 

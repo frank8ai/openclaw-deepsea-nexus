@@ -974,6 +974,56 @@ class TestMemoryV5MaintenanceScript(unittest.TestCase):
         row = next(row for row in rows if row.get("id") == item_id)
         self.assertEqual(int(row["archive_after_days"]), 30)
 
+    def test_all_agents_discovers_extended_scopes_from_index(self):
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        base_scope = MemoryScope(agent_id="main", user_id="default")
+        extended_scope = MemoryScope(
+            agent_id="main",
+            user_id="default",
+            app_id="relay",
+            run_id="run-42",
+            workspace="workspace-a",
+        )
+        self.service.ingest_document(
+            title="MaintenanceBaseScope",
+            content="Base scope entry",
+            tags=["maint"],
+            scope=base_scope,
+        )
+        self.service.ingest_document(
+            title="MaintenanceExtendedScope",
+            content="Extended scope entry",
+            tags=["maint"],
+            scope=extended_scope,
+        )
+
+        discovered = self.script.iter_scopes(self.service.root)
+        discovered_keys = {scope.scope_key() for scope in discovered}
+        self.assertIn(base_scope.normalized().scope_key(), discovered_keys)
+        self.assertIn(extended_scope.normalized().scope_key(), discovered_keys)
+
+        result = self.script.run(
+            config=self.config,
+            all_agents=True,
+            dry_run=True,
+            sample_limit=5,
+            max_items=10,
+            include_ttl_expired=True,
+            now_ts=now.isoformat(),
+        )
+        reported_scopes = {
+            (
+                str((entry.get("scope", {}) or {}).get("agent_id", "")),
+                str((entry.get("scope", {}) or {}).get("user_id", "")),
+                str((entry.get("scope", {}) or {}).get("app_id", "")),
+                str((entry.get("scope", {}) or {}).get("run_id", "")),
+                str((entry.get("scope", {}) or {}).get("workspace", "")),
+            )
+            for entry in result.get("scopes", [])
+        }
+        self.assertIn(("main", "default", "", "", ""), reported_scopes)
+        self.assertIn(("main", "default", "relay", "run-42", "workspace-a"), reported_scopes)
+
     def test_default_report_dir_targets_repo_reports(self):
         self.assertEqual(
             self.script.default_report_dir(),
@@ -1112,6 +1162,126 @@ class TestMemoryV5BackfillBatchesScript(unittest.TestCase):
         values = {row.get("id"): int(row.get("archive_after_days", 0)) for row in rows}
         for item_id in item_ids:
             self.assertEqual(values[item_id], 30)
+
+    def test_run_all_agents_includes_extended_scopes(self):
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        base_scope = MemoryScope(agent_id="main", user_id="default")
+        extended_scope = MemoryScope(
+            agent_id="main",
+            user_id="default",
+            app_id="relay",
+            run_id="run-99",
+            workspace="workspace-z",
+        )
+        self._seed_backfill_candidates(base_scope, now, count=1)
+        self._seed_backfill_candidates(extended_scope, now, count=1)
+
+        result = self.script.run(
+            config=self.config,
+            all_agents=True,
+            apply=False,
+            batch_size=5,
+            max_batches=2,
+            now_ts=now.isoformat(),
+        )
+
+        reported_scopes = {
+            (
+                str((entry.get("scope", {}) or {}).get("agent_id", "")),
+                str((entry.get("scope", {}) or {}).get("user_id", "")),
+                str((entry.get("scope", {}) or {}).get("app_id", "")),
+                str((entry.get("scope", {}) or {}).get("run_id", "")),
+                str((entry.get("scope", {}) or {}).get("workspace", "")),
+            )
+            for entry in result.get("scopes", [])
+        }
+        self.assertIn(("main", "default", "", "", ""), reported_scopes)
+        self.assertIn(("main", "default", "relay", "run-99", "workspace-z"), reported_scopes)
+        self.assertGreaterEqual(result["totals"]["matched"], 2)
+
+
+class TestMemoryV5BenchmarkScript(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config = {
+            "paths": {"base": self.temp_dir},
+            "memory_v5": {
+                "enabled": True,
+                "root": "memory/95_MemoryV5",
+                "async_ingest": False,
+                "graph_enabled": False,
+                "fts_enabled": True,
+                "archive_after_days": 30,
+                "scope": {"agent_id": "default", "user_id": "default"},
+            },
+        }
+        self.service = MemoryV5Service(self.config)
+        self.script = _load_script_module("memory_v5_benchmark")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_main_all_agents_reports_scope_fields(self):
+        scope = MemoryScope(
+            agent_id="main",
+            user_id="default",
+            app_id="relay",
+            run_id="run-bench",
+            workspace="workspace-bench",
+        )
+        self.service.ingest_document(
+            title="BenchmarkScopeDoc",
+            content="Benchmark scope token for extended dimensions.",
+            tags=["bench"],
+            scope=scope,
+        )
+        cases_path = Path(self.temp_dir) / "cases.json"
+        cases_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "query": "Benchmark scope token",
+                        "expect_any": ["BenchmarkScopeDoc"],
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+        stdout = io.StringIO()
+        with mock.patch.object(self.script, "load_config", return_value=self.config):
+            with mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "memory_v5_benchmark.py",
+                    "--cases",
+                    str(cases_path),
+                    "--all-agents",
+                    "--limit",
+                    "5",
+                ],
+            ):
+                with contextlib.redirect_stdout(stdout):
+                    self.script.main()
+
+        payload = json.loads(stdout.getvalue())
+        target = next(
+            (
+                entry
+                for entry in payload.get("per_scope", [])
+                if (entry.get("scope_fields", {}) or {}).get("app_id") == "relay"
+                and (entry.get("scope_fields", {}) or {}).get("run_id") == "run-bench"
+                and (entry.get("scope_fields", {}) or {}).get("workspace") == "workspace-bench"
+            ),
+            None,
+        )
+        self.assertIsNotNone(target)
+        self.assertIn("app=relay", str(target.get("scope", "")))
+        self.assertEqual(int(target.get("hit", 0)), 1)
 
 
 class TestPackageRootExports(unittest.TestCase):

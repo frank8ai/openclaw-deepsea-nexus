@@ -2,15 +2,17 @@
 
 Last updated: 2026-03-14
 
-This file is the documentation entrypoint for the current `v5.0.0` release
-pack.
+This file is the documentation entrypoint for the current `v5.1.0` upgrade
+cycle (`v5.0.0` remains the stable released baseline).
 
 Current release state:
 
 - `v5.0.0` official release baseline
-- release note:
+- `v5.1.0` upgrade lane (in progress)
+- release notes:
   - `releases/V5_0_0_OFFICIAL_2026-03-14.md`
   - `releases/V5_0_0_HOTFIX_1_2026-03-14.md`
+  - `releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
 
 ## Document Model
 

@@ -3,7 +3,7 @@
 Last updated: 2026-03-14
 
 This document describes the current runtime architecture for the
-`v5.0.0` release pack.
+`v5.1.0` upgrade cycle (`v5.0.0` remains the stable release baseline).
 
 For a shorter technical entrypoint, read `TECHNICAL_OVERVIEW_CURRENT.md`
 first.
@@ -25,7 +25,7 @@ It does not replace:
 
 ## Version Model
 
-- Package release: `5.0.0`
+- Package release: `5.1.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 

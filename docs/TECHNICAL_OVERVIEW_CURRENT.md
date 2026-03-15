@@ -2,12 +2,12 @@
 
 Last updated: 2026-03-14
 
-This document is the technical entrypoint for the current `v5.0.0` release
-pack.
+This document is the technical entrypoint for the current `v5.1.0` upgrade
+cycle (`v5.0.0` is still the stable release baseline).
 
 ## Release Context
 
-- Package release: `5.0.0`
+- Package release: `5.1.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 - Primary rule source:

@@ -95,6 +95,19 @@ class TestEventBus(unittest.TestCase):
         self.assertEqual(received1[0].data["msg"], "hello")
         self.assertEqual(received2[0].data["msg"], "hello")
 
+    def test_wildcard_subscriber_receives_matching_events(self):
+        """Wildcard subscriptions (e.g. session.*) should receive matching events."""
+        received = []
+
+        def handler(event):
+            received.append(event.type)
+
+        self.event_bus.subscribe("session.*", handler)
+        self.event_bus.publish("session.created", {"session_id": "s1"})
+        asyncio.run(asyncio.sleep(0.01))
+
+        self.assertEqual(received, ["session.created"])
+
 
 class TestCompressionManager(unittest.TestCase):
     """Test Compression Manager functionality"""

@@ -1,4 +1,4 @@
-# Changelog - Deep-Sea Nexus v4.x
+# Changelog - Deep-Sea Nexus v5.x
 
 > Historical changelog: this file records older release notes and is not the
 > current source of truth for the v5 runtime.
@@ -8,6 +8,19 @@
 > - `docs/README.md`
 > - `docs/ARCHITECTURE_CURRENT.md`
 > - `docs/API_CURRENT.md`
+
+## Version 5.1.0 (2026-03-14, in progress)
+### 🚧 Governance Optimization Kickoff
+- ✅ package version advanced to `5.1.0` (upgrade lane)
+- ✅ event bus wildcard subscriptions are now operational:
+  - `core/event_bus.py` supports glob-style subscriber patterns
+    (e.g. `session.*`, `nexus.*`)
+  - exact + wildcard handlers are deduplicated per callback per emit cycle
+- ✅ unit coverage added for wildcard event subscription behavior:
+  - `tests/test_units.py::TestEventBus::test_wildcard_subscriber_receives_matching_events`
+- ✅ release/upgrade docs aligned with `v5.1.0` lane:
+  - `docs/releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
+  - package/docs/README version anchors updated to 5.1 context
 
 ## Version 5.0.0 Hotfix 1 (2026-03-14)
 ### 🛡️ Runtime Hardening + Security/Isolation Fixes on top of v5.0.0

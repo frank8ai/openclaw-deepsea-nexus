@@ -15,6 +15,7 @@ Last updated: 2026-03-14
 - SmartContext / ContextEngine / hook 联动的上下文治理
 - 本地 deploy / doctor / smoke / benchmark 运维链路
 - `v5.0.0` 正式版发布基线（2026-03-14）
+- `v5.1.0` 升级开发启动（治理层优化）
 
 当前阶段最重要的目标：
 
@@ -25,6 +26,7 @@ Last updated: 2026-03-14
 正式发布说明：
 
 - `../releases/V5_0_0_OFFICIAL_2026-03-14.md`
+- `../releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
 
 ## Next
 

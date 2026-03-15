@@ -36,6 +36,24 @@ def _scope_payload(scope: MemoryScope) -> Dict[str, str]:
     }
 
 
+def _scope_label(payload: Dict[str, str]) -> str:
+    agent = str(payload.get("agent_id") or "default")
+    user = str(payload.get("user_id") or "default")
+    qualifiers = []
+    app = str(payload.get("app_id") or "")
+    run = str(payload.get("run_id") or "")
+    workspace = str(payload.get("workspace") or "")
+    if app:
+        qualifiers.append(f"app={app}")
+    if run:
+        qualifiers.append(f"run={run}")
+    if workspace:
+        qualifiers.append(f"workspace={workspace}")
+    if qualifiers:
+        return f"{agent}/{user} ({', '.join(qualifiers)})"
+    return f"{agent}/{user}"
+
+
 def default_report_dir() -> Path:
     return (Path(SKILL_ROOT).resolve() / "docs" / "reports").resolve()
 
@@ -72,7 +90,7 @@ def render_markdown(payload: Dict[str, Any]) -> str:
     ]
     for scope_entry in payload.get("scopes", []) or []:
         scope = scope_entry.get("scope", {}) or {}
-        scope_name = f"{scope.get('agent_id', 'default')}/{scope.get('user_id', 'default')}"
+        scope_name = _scope_label(scope)
         summary = scope_entry.get("summary", {}) or {}
         lines.extend(
             [

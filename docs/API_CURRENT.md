@@ -3,7 +3,7 @@
 Last updated: 2026-03-14
 
 This document describes the supported public API surface for the current
-`v5.0.0` release pack.
+`v5.1.0` upgrade cycle (`v5.0.0` stable baseline + 5.1 incremental hardening).
 
 ## Import Rules
 
