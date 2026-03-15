@@ -1,4 +1,4 @@
-# OpenClaw Deep-Sea Nexus 产品路线图
+# Deep-Sea Nexus 产品路线图
 
 Last updated: 2026-03-14
 
@@ -15,7 +15,7 @@ Last updated: 2026-03-14
 - SmartContext / ContextEngine / hook 联动的上下文治理
 - 本地 deploy / doctor / smoke / benchmark 运维链路
 - `v5.0.0` 正式版发布基线（2026-03-14）
-- `v5.0.1` patch release 已补齐 lifecycle operator 的默认巡检输出
+- `v5.1.0` 升级开发启动（治理层优化）
 
 当前阶段最重要的目标：
 
@@ -25,8 +25,8 @@ Last updated: 2026-03-14
 
 正式发布说明：
 
-- `../releases/V5_0_1_PATCH_2026-03-14.md`
 - `../releases/V5_0_0_OFFICIAL_2026-03-14.md`
+- `../releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
 
 ## Next
 
@@ -38,9 +38,9 @@ Last updated: 2026-03-14
 
 ### 1. 生命周期治理补齐
 
-- 在真实样本上继续校准 Memory v5 的 TTL / decay / archive / audit 阈值
+- 继续完善 Memory v5 的 TTL / decay / archive / audit 叙事
 - 让“记忆对象化”从设计概念变成更明确的产品承诺
-- 固化 lifecycle audit / backfill / explicit archive 的巡检节奏、告警阈值和 operator runbook
+- 把 lifecycle audit / backfill / explicit archive 收束成稳定巡检入口，而不是散落脚本
 
 ### 2. 评测与证据产品化
 

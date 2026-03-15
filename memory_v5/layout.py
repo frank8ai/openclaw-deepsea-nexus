@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 from dataclasses import dataclass
 from typing import Optional
@@ -11,7 +12,16 @@ def _safe_segment(value: str, default: str = "default") -> str:
     val = (value or "").strip()
     if not val:
         return default
-    return "_".join(val.split())
+    # Normalize path-like input and block path traversal / absolute segments.
+    pieces = [piece for piece in val.replace("\\", "/").split("/") if piece and piece not in {".", ".."}]
+    candidate = "_".join(pieces) if pieces else ""
+    if not candidate:
+        return default
+    sanitized = "".join(ch if (ch.isalnum() or ch in {"_", "-", "."}) else "_" for ch in candidate)
+    sanitized = sanitized.strip("._")
+    while "__" in sanitized:
+        sanitized = sanitized.replace("__", "_")
+    return sanitized or default
 
 
 @dataclass
@@ -68,6 +78,17 @@ class MemoryLayout:
 
     def category_path(self, category_name: str) -> str:
         safe_name = _safe_segment(category_name or "general")
+        # When app/run/workspace qualifiers exist, keep per-scope category files
+        # distinct even if agent/user are shared.
+        qualifiers = [
+            (self.scope.app_id or "").strip(),
+            (self.scope.run_id or "").strip(),
+            (self.scope.workspace or "").strip(),
+        ]
+        qualifier_key = "|".join([q for q in qualifiers if q])
+        if qualifier_key:
+            digest = hashlib.sha1(self.scope.scope_key().encode("utf-8")).hexdigest()[:8]
+            return os.path.join(self.categories_dir(), f"{safe_name}__{digest}.md")
         return os.path.join(self.categories_dir(), f"{safe_name}.md")
 
     def index_path(self) -> str:

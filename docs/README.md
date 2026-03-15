@@ -1,17 +1,35 @@
-# OpenClaw Deep-Sea Nexus Docs Guide
+# Deep-Sea Nexus Docs Guide
 
-Last updated: 2026-03-14
+Last updated: 2026-03-15
 
-This file is the documentation entrypoint for the current `v5.0.1` release
-pack.
+This file is the documentation entrypoint for the current `v5.1.0` upgrade
+cycle (`v5.0.0` remains the stable released baseline).
 
 Current release state:
 
-- `v5.0.1` patch release baseline
-- release note:
-  - `releases/V5_0_1_PATCH_2026-03-14.md`
-- official baseline:
+- `v5.0.0` official release baseline
+- `v5.1.0` upgrade lane (in progress)
+- release notes:
   - `releases/V5_0_0_OFFICIAL_2026-03-14.md`
+  - `releases/V5_0_0_HOTFIX_1_2026-03-14.md`
+  - `releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
+
+## Product Feature Entry (GitHub Intro Surface)
+
+Repository introduction pages should consistently expose these core features:
+
+- `Evidence-Gated Durable Memory`
+- `Scoped Isolation` (`agent/user` physical + `app/run/workspace` record-level)
+- `Lifecycle Governance` (audit/archive/backfill/report-first operations)
+- `Context Governance Pipeline` (`recall/inject/compress/rescue/replay`)
+- `Runtime + Compatibility` (sync API + async runtime + Memory v5)
+- `Operator Tooling` (deploy/doctor/smoke/benchmark/maintenance)
+
+Authoritative details:
+
+- `product/capabilities.md`
+- `../README.md`
+- `../README_EN.md`
 
 ## Document Model
 

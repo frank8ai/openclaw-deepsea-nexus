@@ -6,15 +6,25 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 SKILL_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, SKILL_ROOT)
 
 from memory_v5 import MemoryV5Service, MemoryScope
+
+_SCOPE_TABLES: Tuple[str, ...] = ("items", "resources", "categories", "edges")
+_SCOPE_COLUMNS = {
+    "scope_agent",
+    "scope_user",
+    "scope_app",
+    "scope_run",
+    "scope_workspace",
+}
 
 
 DEFAULT_LIFECYCLE_ALERTS = {
@@ -52,20 +62,94 @@ def default_report_dir() -> Path:
     return (Path(SKILL_ROOT).resolve() / "docs" / "reports").resolve()
 
 
-def iter_scopes(root: str):
+def _scope_sort_key(scope: MemoryScope) -> Tuple[str, str, str, str, str]:
+    normalized = scope.normalized()
+    return (
+        normalized.agent_id,
+        normalized.user_id,
+        normalized.app_id,
+        normalized.run_id,
+        normalized.workspace,
+    )
+
+
+def _discover_scopes_from_index(index_path: str, fallback_scope: MemoryScope) -> List[MemoryScope]:
+    if not os.path.exists(index_path):
+        return []
+    conn: Optional[sqlite3.Connection] = None
+    discovered: Dict[str, MemoryScope] = {}
+    try:
+        conn = sqlite3.connect(f"file:{index_path}?mode=ro", uri=True)
+        table_rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        table_names = {str(row[0]) for row in table_rows if row and row[0]}
+        for table in _SCOPE_TABLES:
+            if table not in table_names:
+                continue
+            try:
+                columns = {
+                    str(row[1])
+                    for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+                    if len(row) > 1
+                }
+            except sqlite3.DatabaseError:
+                continue
+            if not _SCOPE_COLUMNS.issubset(columns):
+                continue
+            try:
+                rows = conn.execute(
+                    f"""
+                    SELECT DISTINCT
+                        COALESCE(scope_agent, ''),
+                        COALESCE(scope_user, ''),
+                        COALESCE(scope_app, ''),
+                        COALESCE(scope_run, ''),
+                        COALESCE(scope_workspace, '')
+                    FROM {table}
+                    """
+                ).fetchall()
+            except sqlite3.DatabaseError:
+                continue
+            for row in rows:
+                scope = MemoryScope(
+                    agent_id=str(row[0] or fallback_scope.agent_id or "default"),
+                    user_id=str(row[1] or fallback_scope.user_id or "default"),
+                    app_id=str(row[2] or ""),
+                    run_id=str(row[3] or ""),
+                    workspace=str(row[4] or ""),
+                ).normalized()
+                discovered[scope.scope_key()] = scope
+    except sqlite3.DatabaseError:
+        return []
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    return sorted(discovered.values(), key=_scope_sort_key)
+
+
+def iter_scopes(root: str) -> List[MemoryScope]:
     if not os.path.isdir(root):
         return []
-    scopes = []
-    for agent in os.listdir(root):
+    scopes: Dict[str, MemoryScope] = {}
+    for agent in sorted(os.listdir(root)):
         agent_dir = os.path.join(root, agent)
         if not os.path.isdir(agent_dir):
             continue
-        for user in os.listdir(agent_dir):
+        for user in sorted(os.listdir(agent_dir)):
             user_dir = os.path.join(agent_dir, user)
             if not os.path.isdir(user_dir):
                 continue
-            scopes.append(MemoryScope(agent_id=agent, user_id=user))
-    return scopes
+            fallback_scope = MemoryScope(agent_id=agent, user_id=user).normalized()
+            index_path = os.path.join(user_dir, "index.sqlite3")
+            discovered = _discover_scopes_from_index(index_path, fallback_scope)
+            if discovered:
+                for scope in discovered:
+                    scopes[scope.scope_key()] = scope
+                continue
+            scopes[fallback_scope.scope_key()] = fallback_scope
+    return sorted(scopes.values(), key=_scope_sort_key)
 
 
 def _scope_payload(scope: MemoryScope) -> Dict[str, str]:
@@ -479,6 +563,9 @@ def run(
     config: Optional[dict] = None,
     agent: str = "default",
     user: str = "default",
+    app: str = "",
+    run_id: str = "",
+    workspace: str = "",
     all_agents: bool = False,
     dry_run: bool = True,
     max_items: int = 100,
@@ -500,7 +587,15 @@ def run(
     service = MemoryV5Service(cfg)
     thresholds = _resolve_lifecycle_alerts(cfg, enable_alerts=enable_alerts)
 
-    scopes: List[MemoryScope] = [MemoryScope(agent_id=agent, user_id=user)]
+    scopes: List[MemoryScope] = [
+        MemoryScope(
+            agent_id=agent,
+            user_id=user,
+            app_id=app,
+            run_id=run_id,
+            workspace=workspace,
+        )
+    ]
     if all_agents:
         scopes = iter_scopes(service.root) or scopes
 
@@ -654,6 +749,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Audit Memory v5 lifecycle state and optionally archive explicit candidates.")
     parser.add_argument("--agent", default="default")
     parser.add_argument("--user", default="default")
+    parser.add_argument("--app", default="")
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--workspace", default="")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--all-agents", action="store_true")
     parser.add_argument("--max-items", type=int, default=100)
@@ -670,6 +768,9 @@ def main() -> None:
     result = run(
         agent=args.agent,
         user=args.user,
+        app=args.app,
+        run_id=args.run_id,
+        workspace=args.workspace,
         all_agents=bool(args.all_agents),
         dry_run=bool(args.dry_run),
         max_items=args.max_items,

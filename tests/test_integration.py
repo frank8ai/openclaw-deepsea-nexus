@@ -157,11 +157,14 @@ class TestEndToEnd(unittest.TestCase):
             # Test session creation
             session_id = start_session("Integration Test")
             self.assertTrue(session_id)
+            self.assertTrue(session_mgr.add_chunk(session_id))
             
             # Test session retrieval
             session = session_mgr.get_session(session_id)
             self.assertIsNotNone(session)
             self.assertEqual(session.topic, "Integration Test")
+            if session:
+                self.assertEqual(session.chunk_count, 1)
             
             # Test session closing
             result = close_session(session_id)

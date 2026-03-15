@@ -1,13 +1,13 @@
-# OpenClaw Deep-Sea Nexus Technical Overview
+# Deep-Sea Nexus Technical Overview
 
 Last updated: 2026-03-14
 
-This document is the technical entrypoint for the current `v5.0.1` release
-pack.
+This document is the technical entrypoint for the current `v5.1.0` upgrade
+cycle (`v5.0.0` is still the stable release baseline).
 
 ## Release Context
 
-- Package release: `5.0.1`
+- Package release: `5.1.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 - Primary rule source:
@@ -20,7 +20,7 @@ The mixed version numbers are intentional:
 
 ## System Model
 
-OpenClaw Deep-Sea Nexus is organized around three ideas:
+Deep-Sea Nexus is organized around three ideas:
 
 ### 1. Public access surfaces
 
@@ -115,7 +115,6 @@ Current entrypoints:
 - `scripts/memory_v5_maintenance.py`
   - current operator entrypoint for lifecycle audit and explicit archive maintenance
   - can also write JSON / Markdown reports for handoff and audit trails
-  - report output now also includes thresholded `status / alerts / hot_scopes / recommendations`
   - `--write-report` defaults those artifacts into `docs/reports/`
 - `scripts/context_recall_scorecard.py`
   - current default pack covers 22 repo-local recall/inject golden cases
@@ -186,7 +185,7 @@ Current entrypoints:
 
 ## Integration Boundaries
 
-### What OpenClaw Deep-Sea Nexus owns
+### What Deep-Sea Nexus owns
 
 - local memory and recall behavior
 - public package entrypoints
@@ -203,7 +202,7 @@ Current entrypoints:
 
 ### Contract between them
 
-- OpenClaw Deep-Sea Nexus provides the policy and local runtime implementation
+- Deep-Sea Nexus provides the policy and local runtime implementation
 - OpenClaw hook/runtime provides the outer event and prompt assembly environment
 
 ## Compatibility Boundaries

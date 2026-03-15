@@ -229,7 +229,7 @@ def main():
     reexec_code = _maybe_reexec_in_venv()
     if reexec_code is not None:
         return reexec_code
-    print("🚀 Deep-Sea Nexus Test Suite (v5.0.1 release gate)")
+    print("🚀 Deep-Sea Nexus Test Suite (v5.1.0 release gate)")
     print("=" * 50)
     caps = get_runtime_capabilities()
     print(

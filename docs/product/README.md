@@ -1,15 +1,16 @@
-# OpenClaw Deep-Sea Nexus 产品文档总览
+# Deep-Sea Nexus 产品文档总览
 
 Last updated: 2026-03-14
 
-本目录是当前 `v5.0.1` release pack 的产品层真源。
+本目录是当前 `v5.1.0` 升级周期（`v5.0.0` 稳定基线）的产品层真源。
 
 当前发布状态：
 
-- `v5.0.1` patch release
+- `v5.0.0` 正式版
+- `v5.1.0` 升级开发中
 - 发布说明：
-  - `../releases/V5_0_1_PATCH_2026-03-14.md`
-  - `../releases/V5_0_0_OFFICIAL_2026-03-14.md`（official baseline）
+  - `../releases/V5_0_0_OFFICIAL_2026-03-14.md`
+  - `../releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
 
 它只回答四个问题：
 
@@ -20,7 +21,7 @@ Last updated: 2026-03-14
 
 ## 当前产品定义
 
-OpenClaw Deep-Sea Nexus 是一个本地优先的 agent memory + context governance 层。
+Deep-Sea Nexus 是一个本地优先的 agent memory + context governance 层。
 
 它的核心主张不是“无限保存原始上下文”，而是：
 

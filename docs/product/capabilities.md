@@ -1,6 +1,23 @@
 # OpenClaw Deep-Sea Nexus 能力地图与范围边界
 
-Last updated: 2026-03-14
+Last updated: 2026-03-15
+
+## GitHub 介绍页能力展示（v5.1）
+
+仓库根目录 README 需要对外统一展示以下主能力：
+
+- `Evidence-Gated Durable Memory`
+  - durable memory 写入必须可追溯到 evidence，不接受“无证据摘要”。
+- `Scoped Isolation`
+  - `agent_id/user_id` 物理隔离 + `app_id/run_id/workspace` 记录级隔离。
+- `Lifecycle Governance`
+  - lifecycle audit、archive maintenance、backfill 与 report-first 运维闭环。
+- `Context Governance Pipeline`
+  - `recall / inject / compress / rescue / replay` 一体化治理。
+- `Runtime + Compatibility`
+  - 兼容 sync API、async runtime/plugin lifecycle、Memory v5 三条接入路径。
+- `Operator Tooling`
+  - deploy/doctor/smoke/benchmark/maintenance 全链路本地运维工具。
 
 ## 能力地图
 

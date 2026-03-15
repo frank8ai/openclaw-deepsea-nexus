@@ -1,4 +1,4 @@
-# OpenClaw Deep-Sea Nexus v5.0.1 本地部署
+# Deep-Sea Nexus v5.1.0 本地部署
 
 ## 目标
 将当前仓库版本部署到本地 OpenClaw 工作区，并确保门禁与运行态可用。
@@ -105,16 +105,9 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
 说明：
 - `--dry-run` 只输出候选，不实际归档
 - 去掉 `--dry-run` 才会执行显式 archive move
-- 默认 JSON / Markdown 报告会额外给出：
-  - `status.level`：整体健康级别
-  - `alerts[]`：扁平化阈值告警
-  - `hot_scopes[]`：按风险排序的 scope 视图
-  - `recommendations[]`：建议后续动作
 - `--exclude-ttl-expired` 可把本轮维护限定为纯 age-based archive candidate
 - `--apply-archive-backfill` 会显式把 older zero-valued `archive_after_days` rows 回填为当前解析后的 archive defaults
-- `--no-alerts` 可关闭阈值分类，仅保留原始 report-first 输出
 - backfill 不会在同一次 maintenance 中自动继续 archive 这些 rows；如需归档，需下一次显式 audit/apply
-- 如需调阈值，可在 `config.json` 中设置 `memory_v5.lifecycle_alerts.*`
 
 默认输出：
 - JSON 报告：`docs/reports/memory_v5_lifecycle_<timestamp>.json`
@@ -203,7 +196,7 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
   - `available: true`
   - `initialized: true`
   - `plugin_version: "3.0.0"`（插件协议版本）
-  - `package_version: "5.0.1"`（发布版本）
+  - `package_version: "5.1.0"`（当前升级版本）
 - v5 benchmark 输出至少满足：
   - `any_scope_hit > 0`
   - `any_scope_score > 0`

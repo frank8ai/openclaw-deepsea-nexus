@@ -6,7 +6,7 @@ description: >
 ---
 # Deep-Sea Nexus Skill
 
-Current package release: `5.0.1`
+Current package release: `5.1.0`
 Current plugin runtime protocol: `3.0.0`
 
 ## What This Skill Provides

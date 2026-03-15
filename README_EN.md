@@ -1,17 +1,33 @@
-# OpenClaw Deep-Sea Nexus v5.0.1
+# Deep-Sea Nexus v5.1.0
 
 Local-first long-term memory and context-governance tooling for agent
 workflows.
 
 [简体中文](README.md)
 
-Last updated: 2026-03-14
+Last updated: 2026-03-15
 
-Current release: `v5.0.1` patch release
+## Comparison
+
+**Beyond Context Management:** Deep-Sea Nexus focuses on governance-grade memory operations (evidence-gated writes, scope isolation, lifecycle governance, and operator auditability).
+Read the technical manifesto: [`COMPARISON.md`](COMPARISON.md)
+
+## Core Features at a Glance
+
+For GitHub visitors and reviewers, the current product surface is:
+
+- `Evidence-Gated Durable Memory`: durable memory writes require traceable evidence instead of free-form summaries.
+- `Scoped Isolation`: `agent_id/user_id` physical partition plus `app_id/run_id/workspace` record-level isolation.
+- `Lifecycle Governance`: lifecycle audit, archive maintenance, backfill, and report-first operations.
+- `Context Governance Pipeline`: one verifiable loop across `recall / inject / compress / rescue / replay`.
+- `Runtime + Compatibility`: compatibility sync API, async runtime/plugin lifecycle, and Memory v5-first integration.
+- `Operator Tooling`: local deploy/doctor/smoke/benchmark/maintenance workflows for production-like operations.
+
+See detailed capability map: [`docs/product/capabilities.md`](docs/product/capabilities.md)
 
 ## What It Is
 
-OpenClaw Deep-Sea Nexus is a local-first memory and context-governance layer for
+Deep-Sea Nexus is a local-first memory and context-governance layer for
 Codex, OpenClaw, and similar agent workflows.
 
 Its core idea is not "store unlimited raw chat history". The current product
@@ -37,6 +53,10 @@ model is:
 - Operations and governance:
   - `docs/LOCAL_DEPLOY.md`
   - `docs/sop/Context_Policy_v2_EventDriven.md`
+- Release notes:
+  - `docs/releases/V5_0_0_OFFICIAL_2026-03-14.md`
+  - `docs/releases/V5_0_0_HOTFIX_1_2026-03-14.md`
+  - `docs/releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
 
 Detailed current source of truth remains in Chinese.
 
@@ -44,19 +64,9 @@ Detailed current source of truth remains in Chinese.
 
 - backward-compatible sync API
 - async runtime and plugin lifecycle
-- Memory v5 scoped memory (`agent_id` / `user_id`)
+- Memory v5 scoped memory (`agent_id` / `user_id` physical partition + `app_id` / `run_id` / `workspace` record-level isolation)
 - context-governed recall / inject / compress / rescue
-- lifecycle maintenance with thresholded status / alerts / hot-scope summaries
 - local deploy / doctor / smoke / benchmark workflows
-
-## Patch Focus
-
-`v5.0.1` tightens the default lifecycle operator path:
-
-- thresholded maintenance status
-- flattened alerts for risky scopes
-- hot-scope summaries for operators
-- explicit follow-up recommendations without enabling silent auto-mutation
 
 ## Validation
 
@@ -65,5 +75,4 @@ python3 -m unittest tests.test_memory_v5 -v
 python3 run_tests.py
 bash scripts/nexus_doctor_local.sh --check --skip-deploy
 python3 scripts/memory_v5_smoke.py
-python3 scripts/memory_v5_maintenance.py --dry-run --write-report
 ```

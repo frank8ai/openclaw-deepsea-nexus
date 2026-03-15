@@ -1,9 +1,9 @@
-# OpenClaw Deep-Sea Nexus Current Architecture
+# Deep-Sea Nexus Current Architecture
 
 Last updated: 2026-03-14
 
 This document describes the current runtime architecture for the
-`v5.0.1` release pack.
+`v5.1.0` upgrade cycle (`v5.0.0` remains the stable release baseline).
 
 For a shorter technical entrypoint, read `TECHNICAL_OVERVIEW_CURRENT.md`
 first.
@@ -25,7 +25,7 @@ It does not replace:
 
 ## Version Model
 
-- Package release: `5.0.1`
+- Package release: `5.1.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 
@@ -214,6 +214,12 @@ Current scoped filesystem layout is rooted at:
 
 - `memory/95_MemoryV5/<agent_id>/<user_id>/`
 
+Scope hardening notes:
+
+- path segments are normalized/sanitized before creating directories
+- `app_id / run_id / workspace` stay in SQLite scope columns and are used in
+  scope-key category IDs to prevent cross-scope category overwrite
+
 Key subtrees include:
 
 - `resources/`
@@ -279,9 +285,9 @@ Key subtrees include:
 
 ## OpenClaw Integration Boundary
 
-OpenClaw Deep-Sea Nexus integrates with OpenClaw, but the boundary is explicit.
+Deep-Sea Nexus integrates with OpenClaw, but the boundary is explicit.
 
-### OpenClaw Deep-Sea Nexus owns
+### Deep-Sea Nexus owns
 
 - local memory model
 - public package surface
@@ -298,7 +304,7 @@ OpenClaw Deep-Sea Nexus integrates with OpenClaw, but the boundary is explicit.
 
 ### Shared contract
 
-- OpenClaw Deep-Sea Nexus provides the local memory + context-governance implementation
+- Deep-Sea Nexus provides the local memory + context-governance implementation
 - OpenClaw provides the surrounding event and prompt lifecycle
 
 ## Current vs Compatibility

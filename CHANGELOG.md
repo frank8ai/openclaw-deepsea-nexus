@@ -1,4 +1,4 @@
-# Changelog - Deep-Sea Nexus v4.x
+# Changelog - Deep-Sea Nexus v5.x
 
 > Historical changelog: this file records older release notes and is not the
 > current source of truth for the v5 runtime.
@@ -8,6 +8,56 @@
 > - `docs/README.md`
 > - `docs/ARCHITECTURE_CURRENT.md`
 > - `docs/API_CURRENT.md`
+
+## Version 5.1.0 (2026-03-14, in progress)
+### 🚧 Governance Optimization Kickoff
+- ✅ package version advanced to `5.1.0` (upgrade lane)
+- ✅ event bus wildcard subscriptions are now operational:
+  - `core/event_bus.py` supports glob-style subscriber patterns
+    (e.g. `session.*`, `nexus.*`)
+  - exact + wildcard handlers are deduplicated per callback per emit cycle
+- ✅ unit coverage added for wildcard event subscription behavior:
+  - `tests/test_units.py::TestEventBus::test_wildcard_subscriber_receives_matching_events`
+- ✅ release/upgrade docs aligned with `v5.1.0` lane:
+  - `docs/releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
+  - package/docs/README version anchors updated to 5.1 context
+- ✅ GitHub introduction/docs surface now exposes product core features explicitly:
+  - `README.md` and `README_EN.md` include a "core features at a glance" section
+  - `docs/README.md` includes feature-entry alignment rules
+  - `docs/product/capabilities.md` adds the v5.1 intro-facing feature map
+- ✅ normalized host-specific absolute paths in exec-plan docs to portable forms
+  (`<repo-root>` + `$HOME`) to satisfy repository cleanup gates
+- ✅ memory_v5 governance tooling now supports explicit extended scope targeting:
+  - `scripts/memory_v5_maintenance.py` accepts `--app`, `--run-id`, `--workspace`
+  - lifecycle maintenance can be scoped to contextual sub-scope without `--all-agents`
+- ✅ validation refresh on current branch:
+  - `python3 -m pytest -q` => `251 passed, 4 skipped, 1 warning`
+  - `git diff --check` clean
+
+## Version 5.0.0 Hotfix 1 (2026-03-14)
+### 🛡️ Runtime Hardening + Security/Isolation Fixes on top of v5.0.0
+- ✅ `scripts/import_sessions.py` removed unsafe `eval(...)` frontmatter path
+  - now uses `yaml.safe_load(...)` for structured list/dict parsing only
+- ✅ Memory v5 scope path hardening:
+  - `memory_v5/layout.py` now sanitizes path-like scope segments to block
+    traversal/escape writes
+- ✅ Memory v5 category scope isolation hardening:
+  - `memory_v5/service.py` category IDs now include scope-key digest
+  - category artifacts no longer collide across same `agent/user` with different
+    `app/run/workspace`
+- ✅ Event/runtime stability hardening:
+  - `core/event_bus.py` no longer depends on pre-existing default event loop at
+    construction
+  - `plugins/session_manager.py` sync API paths now run async persistence/event
+    emission via safe sync/async bridge
+- ✅ Ops consistency:
+  - restored wrapper hook entrypoints:
+    - `hooks/agent_end/run_save.sh`
+    - `hooks/before_agent_start/run_recall.sh`
+  - `.gitignore` updated so runtime wrapper scripts remain versioned
+- ✅ Validation: `python3 -m pytest -q` => `247 passed, 4 skipped`
+- Release note:
+  - `docs/releases/V5_0_0_HOTFIX_1_2026-03-14.md`
 
 ## Version 4.4.2 (2026-02-23)
 ### 🛡️ v4.4.2 - Write Guard Hardening + Recent Summary Audit

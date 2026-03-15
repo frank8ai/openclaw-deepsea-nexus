@@ -111,7 +111,9 @@ def parse_session_file(file_path: str) -> Dict[str, Any]:
             value = line.split(":", 1)[1].strip()
             if value.startswith("[") or value.startswith("{"):
                 try:
-                    value = eval(value)
+                    parsed = yaml.safe_load(value)
+                    if isinstance(parsed, (list, dict)):
+                        value = parsed
                 except Exception:
                     pass
             metadata[key] = value
