@@ -1,7 +1,7 @@
 # Handoff - Lead Integration and Closeout
 
 - Date: 2026-03-15
-- Status: `ready-for-dispatch`
+- Status: `closed`
 
 ## 1. Current Goal
 
@@ -19,7 +19,10 @@
 ## 3. What Was Completed
 
 - Integrated:
-  - 已完成多 agent 分工资产落地，尚未进入 builder 结果集成阶段。
+  - 多 agent 分工资产已落地并完成 lead 侧结项收口。
+  - Builder-A 交付已并入：scope/lifecycle 治理脚本支持扩展 scope 维度（`app/run/workspace`）并完成门禁验证。
+  - Builder-B 交付已并入：`v5.1.0` lane 的 docs/ops 入口口径完成一致性收口。
+  - exec-plan/lead handoff 中 host-specific 绝对路径已替换为可移植写法（`<repo-root>` + `$HOME`）。
 - Updated docs:
   - 新增执行计划:
     - `docs/exec-plans/2026-03-15-v5-1-multi-agent-execution-split.md`
@@ -32,16 +35,17 @@
     - `docs/exec-plans/2026-03-15-v5-1-handoff-builder-b-ops.md`
     - `docs/exec-plans/2026-03-15-v5-1-handoff-lead.md`
 - Final tests / checks run:
-  - `git diff --check` (docs-only change hygiene)
+  - `python3 -m pytest -q` => `251 passed, 4 skipped, 1 warning`
+  - `git diff --check`
 
 ## 4. What Was Not Done
 
 - Intentionally left out:
-  - 本轮不包含 runtime feature 变更与功能验证，只做协作编排。
+  - 未进行大规模 runtime 重构；仅完成治理增量与 docs/ops 收口。
 - Still blocked:
-  - 需要 Builder-A / Builder-B 各自交付 handoff 后才能进入集成。
+  - 无（本轮结项目标已完成）。
 - Not yet validated:
-  - `python3 -m pytest -q` 全量门禁尚未执行（等待 builder 产物）。
+  - 无（已执行全量门禁）。
 
 ## 5. Key Decisions
 
@@ -64,16 +68,10 @@
 ## 7. Recommended Next Step
 
 - Highest-value next action:
-  - 由 Lead 发放 brief 并创建 worktrees，启动并行开发。
+  - 按 `v5.1.0` 升级计划进入下一条治理优化 slice。
 - Suggested validation:
-  - bootstrap:
-    - `/Users/yizhi/scripts/codex-multi-agent-bootstrap.sh /Users/yizhi/bridge-codex-entity/deepsea-nexus v5-1-governance lead builder-a builder-b`
-  - builder return gate:
-    - `python3 -m pytest -q tests/test_memory_v5.py -k "EventBus or MaintenanceScript or BackfillBatchesScript or BenchmarkScript"`
-    - `bash -n scripts/deploy_local_v5.sh`
-    - `rg -n "v5\\.1\\.0|v5\\.0\\.0|upgrade lane|stable baseline" docs README.md README_EN.md`
-  - lead final gate:
+  - standard gate:
   - `python3 -m pytest -q`
   - `git diff --check`
 - Suggested owner / context to load first:
-  - next Lead + this handoff + `ACTIVE-WORKSTREAMS.md` + both builder handoffs
+  - next Lead + `docs/releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`

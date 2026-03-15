@@ -1,7 +1,7 @@
 # Handoff - Builder A Governance Runtime
 
 - Date: 2026-03-15
-- Status: `in-progress`
+- Status: `closed`
 
 ## 1. Current Goal
 
@@ -19,45 +19,50 @@
 ## 3. What Was Completed
 
 - Implemented:
-  - pending
+  - `core/event_bus.py` wildcard subscriptions are operational for governance listeners (`session.*`, `nexus.*`) with sync/async compatibility preserved.
+  - `scripts/memory_v5_maintenance.py` now accepts explicit extended scope selectors (`app/run_id/workspace`) for targeted lifecycle audit/archive runs.
+  - `scripts/memory_v5_maintenance.py` / `scripts/memory_v5_backfill_batches.py` / `scripts/memory_v5_benchmark.py` now support full-scope discovery for `--all-agents` by reading distinct scope columns from each scope index.
+  - `tests/test_memory_v5.py` includes coverage for all-agents extended scope discovery and explicit-scope maintenance execution.
 - Updated docs:
-  - pending
+  - `CHANGELOG.md` updated with v5.1 governance/runtime closeout notes.
+  - this handoff moved from `in-progress` to `closed`.
 - Tests / checks run:
-  - pending
+  - `python3 -m pytest -q tests/test_memory_v5.py -k "EventBus or MaintenanceScript or BackfillBatchesScript or BenchmarkScript"` => `15 passed`
+  - `python3 -m pytest -q` => `251 passed, 4 skipped, 1 warning`
+  - `git diff --check`
 
 ## 4. What Was Not Done
 
 - Intentionally left out:
-  - pending
+  - no broad runtime redesign outside `v5.1.0` governance hardening scope.
 - Still blocked:
-  - pending
+  - none.
 - Not yet validated:
-  - pending
+  - none (builder-scope gate + full gate were both executed).
 
 ## 5. Key Decisions
 
 - Decision:
-  - pending
+  - keep lifecycle maintenance defaults stable (`agent/user`) while adding optional explicit selectors for `app/run/workspace`.
 - Reason:
-  - pending
+  - preserve existing operator workflows while enabling full-scope precision when needed.
 - Future implication:
-  - pending
+  - maintenance/backfill/benchmark tooling can audit both base scopes and contextual sub-scopes without introducing separate scripts.
 
 ## 6. Risks / Watchouts
 
 - Technical risk:
-  - pending
+  - all-agents scope discovery depends on lifecycle tables existing in the scope index; empty/malformed indexes fall back to base scope.
 - Operational risk:
-  - pending
+  - operators should use explicit `app/run/workspace` filters for targeted interventions to avoid broad-scope dry-runs.
 - Context / dependency risk:
-  - pending
+  - none open for this slice.
 
 ## 7. Recommended Next Step
 
 - Highest-value next action:
-  - pending
+  - continue next governance optimization slice from `docs/releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`.
 - Suggested validation:
   - `python3 -m pytest -q tests/test_memory_v5.py -k "EventBus or MaintenanceScript or BackfillBatchesScript or BenchmarkScript"`
 - Suggested owner / context to load first:
-  - Lead + `tests/test_memory_v5.py`
-
+  - next Lead + `docs/releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`

@@ -25,6 +25,14 @@
   - `README.md` and `README_EN.md` include a "core features at a glance" section
   - `docs/README.md` includes feature-entry alignment rules
   - `docs/product/capabilities.md` adds the v5.1 intro-facing feature map
+- ✅ normalized host-specific absolute paths in exec-plan docs to portable forms
+  (`<repo-root>` + `$HOME`) to satisfy repository cleanup gates
+- ✅ memory_v5 governance tooling now supports explicit extended scope targeting:
+  - `scripts/memory_v5_maintenance.py` accepts `--app`, `--run-id`, `--workspace`
+  - lifecycle maintenance can be scoped to contextual sub-scope without `--all-agents`
+- ✅ validation refresh on current branch:
+  - `python3 -m pytest -q` => `251 passed, 4 skipped, 1 warning`
+  - `git diff --check` clean
 
 ## Version 5.0.0 Hotfix 1 (2026-03-14)
 ### 🛡️ Runtime Hardening + Security/Isolation Fixes on top of v5.0.0

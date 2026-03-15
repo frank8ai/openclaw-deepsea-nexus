@@ -1024,6 +1024,71 @@ class TestMemoryV5MaintenanceScript(unittest.TestCase):
         self.assertIn(("main", "default", "", "", ""), reported_scopes)
         self.assertIn(("main", "default", "relay", "run-42", "workspace-a"), reported_scopes)
 
+    def test_run_explicit_extended_scope_targets_single_context(self):
+        now = datetime(2026, 3, 14, tzinfo=timezone.utc)
+        base_scope = MemoryScope(agent_id="main", user_id="default")
+        target_scope = MemoryScope(
+            agent_id="main",
+            user_id="default",
+            app_id="relay",
+            run_id="run-target",
+            workspace="workspace-target",
+        )
+        base_id = str(
+            self.service.ingest_document(
+                title="MaintenanceExplicitScopeBase",
+                content="Base scope entry",
+                tags=["maint"],
+                scope=base_scope,
+            ).get("item_id", "")
+        )
+        target_id = str(
+            self.service.ingest_document(
+                title="MaintenanceExplicitScopeTarget",
+                content="Target scope entry",
+                tags=["maint"],
+                scope=target_scope,
+            ).get("item_id", "")
+        )
+        self._set_item_lifecycle_fields(
+            base_scope,
+            base_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            decay_half_life_days=10,
+        )
+        self._set_item_lifecycle_fields(
+            target_scope,
+            target_id,
+            updated_at=(now - timedelta(days=60)).isoformat(),
+            decay_half_life_days=10,
+        )
+
+        result = self.script.run(
+            config=self.config,
+            agent="main",
+            user="default",
+            app="relay",
+            run_id="run-target",
+            workspace="workspace-target",
+            dry_run=True,
+            sample_limit=5,
+            max_items=10,
+            include_ttl_expired=True,
+            now_ts=now.isoformat(),
+        )
+
+        self.assertEqual(result["scope_count"], 1)
+        self.assertEqual(result["checked"], 1)
+        payload = result["scopes"][0]["scope"]
+        self.assertEqual(payload["agent_id"], "main")
+        self.assertEqual(payload["user_id"], "default")
+        self.assertEqual(payload["app_id"], "relay")
+        self.assertEqual(payload["run_id"], "run-target")
+        self.assertEqual(payload["workspace"], "workspace-target")
+        candidate_ids = result["scopes"][0]["archive"]["candidate_ids"]
+        self.assertIn(target_id, candidate_ids)
+        self.assertNotIn(base_id, candidate_ids)
+
     def test_default_report_dir_targets_repo_reports(self):
         self.assertEqual(
             self.script.default_report_dir(),

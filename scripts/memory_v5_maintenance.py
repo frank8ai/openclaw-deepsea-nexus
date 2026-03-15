@@ -232,6 +232,9 @@ def run(
     config: Optional[dict] = None,
     agent: str = "default",
     user: str = "default",
+    app: str = "",
+    run_id: str = "",
+    workspace: str = "",
     all_agents: bool = False,
     dry_run: bool = True,
     max_items: int = 100,
@@ -251,7 +254,15 @@ def run(
         cfg["memory_v5"] = mem_cfg
     service = MemoryV5Service(cfg)
 
-    scopes: List[MemoryScope] = [MemoryScope(agent_id=agent, user_id=user)]
+    scopes: List[MemoryScope] = [
+        MemoryScope(
+            agent_id=agent,
+            user_id=user,
+            app_id=app,
+            run_id=run_id,
+            workspace=workspace,
+        )
+    ]
     if all_agents:
         scopes = iter_scopes(service.root) or scopes
 
@@ -354,6 +365,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Audit Memory v5 lifecycle state and optionally archive explicit candidates.")
     parser.add_argument("--agent", default="default")
     parser.add_argument("--user", default="default")
+    parser.add_argument("--app", default="")
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--workspace", default="")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--all-agents", action="store_true")
     parser.add_argument("--max-items", type=int, default=100)
@@ -369,6 +383,9 @@ def main() -> None:
     result = run(
         agent=args.agent,
         user=args.user,
+        app=args.app,
+        run_id=args.run_id,
+        workspace=args.workspace,
         all_agents=bool(args.all_agents),
         dry_run=bool(args.dry_run),
         max_items=args.max_items,

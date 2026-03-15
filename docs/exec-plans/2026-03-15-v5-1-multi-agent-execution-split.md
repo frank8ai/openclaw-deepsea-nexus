@@ -2,7 +2,7 @@
 
 - Date: 2026-03-15
 - Slug: `v5-1-multi-agent-execution-split`
-- Status: `ready`
+- Status: `closed`
 - Plan Type: `parallel delivery`
 
 ## 1. Objective
@@ -70,15 +70,15 @@ Forbidden for all builders:
 ## 5. Worktree Layout
 
 - repo path:
-  - `/Users/yizhi/bridge-codex-entity/deepsea-nexus`
+  - `<repo-root>/deepsea-nexus`
 - bootstrap command:
-  - `/Users/yizhi/scripts/codex-multi-agent-bootstrap.sh /Users/yizhi/bridge-codex-entity/deepsea-nexus v5-1-governance lead builder-a builder-b`
+  - `$HOME/scripts/codex-multi-agent-bootstrap.sh <repo-root>/deepsea-nexus v5-1-governance lead builder-a builder-b`
 - expected branch names:
   - `codex/v5-1-governance/lead`
   - `codex/v5-1-governance/builder-a`
   - `codex/v5-1-governance/builder-b`
 - shared registry:
-  - `/Users/yizhi/worktrees/deepsea-nexus/ACTIVE-WORKSTREAMS.md`
+  - `$HOME/worktrees/deepsea-nexus/ACTIVE-WORKSTREAMS.md`
 
 ## 6. Execution Loop
 
@@ -110,3 +110,11 @@ Lead final gate:
 - Only Lead can merge branches and resolve conflicts.
 - If a builder needs a file outside owned scope, it must request reassignment in `ACTIVE-WORKSTREAMS.md` first.
 - Any ownership conflict means pause parallel work and re-split before continuing.
+
+## 9. Closeout Snapshot
+
+- Builder-A handoff: `closed`
+- Builder-B handoff: `closed`
+- Lead final gate:
+  - `python3 -m pytest -q` => `251 passed, 4 skipped, 1 warning`
+  - `git diff --check`
