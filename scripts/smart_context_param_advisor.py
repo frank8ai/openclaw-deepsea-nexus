@@ -22,10 +22,32 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-OPENCLAW_HOME = Path("~/.openclaw").expanduser()
-DEFAULT_WORKSPACE_ROOT = Path(
-    os.environ.get("OPENCLAW_WORKSPACE", OPENCLAW_HOME / "workspace")
-).expanduser()
+
+
+def _safe_resolve_path(value: Any, fallback: Path) -> Path:
+    text = str(value or "").strip()
+    if not text:
+        return fallback.resolve()
+    try:
+        return Path(text).expanduser().resolve()
+    except RuntimeError:
+        # HOME may be unavailable in isolated test envs.
+        if text.startswith("~/"):
+            home = os.environ.get("HOME") or os.environ.get("USERPROFILE")
+            if home:
+                return (Path(home) / text[2:]).resolve()
+            return (fallback.parent / text[2:]).resolve()
+        return Path(text).resolve()
+
+
+OPENCLAW_HOME = _safe_resolve_path(
+    os.environ.get("OPENCLAW_HOME", "~/.openclaw"),
+    PROJECT_ROOT / ".openclaw",
+)
+DEFAULT_WORKSPACE_ROOT = _safe_resolve_path(
+    os.environ.get("OPENCLAW_WORKSPACE", OPENCLAW_HOME / "workspace"),
+    OPENCLAW_HOME / "workspace",
+)
 
 
 def resolve_default_deepsea_config_path() -> Path:
@@ -33,14 +55,14 @@ def resolve_default_deepsea_config_path() -> Path:
         "DEEPSEA_NEXUS_CONFIG"
     )
     if override:
-        return Path(override).expanduser().resolve()
+        return _safe_resolve_path(override, PROJECT_ROOT / "config.json")
     return (PROJECT_ROOT / "config.json").resolve()
 
 
-DEFAULT_METRICS_PATH = (DEFAULT_WORKSPACE_ROOT / "logs" / "smart_context_metrics.log").expanduser()
-DEFAULT_OVERRIDE_PATH = (OPENCLAW_HOME / "state" / "context-optimizer-single-source.json").expanduser()
+DEFAULT_METRICS_PATH = (DEFAULT_WORKSPACE_ROOT / "logs" / "smart_context_metrics.log")
+DEFAULT_OVERRIDE_PATH = (OPENCLAW_HOME / "state" / "context-optimizer-single-source.json")
 DEFAULT_DEEPSEA_CONFIG_PATH = resolve_default_deepsea_config_path()
-DEFAULT_REPORT_DIR = (DEFAULT_WORKSPACE_ROOT / "logs" / "smart-context-advisor").expanduser()
+DEFAULT_REPORT_DIR = (DEFAULT_WORKSPACE_ROOT / "logs" / "smart-context-advisor")
 DEFAULT_LOOKBACK_HOURS = 24
 DEFAULT_MIN_EVENTS = 8
 

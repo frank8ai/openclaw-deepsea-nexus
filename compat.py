@@ -474,13 +474,18 @@ def nexus_health() -> Dict[str, Any]:
         "plugins": {},
     }
     
-    for name in ["nexus_core", "session_manager", "flush_manager"]:
+    for name in ["nexus_core", "session_manager", "runtime_middleware", "flush_manager"]:
         plugin = registry.get(name)
         if plugin:
             health["plugins"][name] = {
                 "state": plugin.state.name,
                 "version": plugin.metadata.version if plugin.metadata else "unknown",
             }
+            if hasattr(plugin, "get_health_summary"):
+                try:
+                    health["plugins"][name]["summary"] = plugin.get_health_summary()
+                except Exception:
+                    pass
             if name == "nexus_core":
                 health["available"] = True
                 health["initialized"] = plugin.state == PluginState.ACTIVE

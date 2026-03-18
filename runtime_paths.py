@@ -5,6 +5,7 @@ Shared runtime path resolution helpers.
 from __future__ import annotations
 
 import os
+import re
 from typing import Any, Dict, Optional
 
 
@@ -50,6 +51,20 @@ def resolve_workspace_base(
     return os.getcwd()
 
 
+def _is_posix_absolute(path: str) -> bool:
+    text = str(path or "")
+    return text.startswith("/") and not re.match(r"^[A-Za-z]:[\\/]", text)
+
+
+def _join_preserving_style(base_path: str, *parts: str) -> str:
+    if _is_posix_absolute(base_path):
+        suffix = "/".join([str(part).strip("/\\") for part in parts if str(part).strip("/\\")])
+        if not suffix:
+            return base_path
+        return base_path.rstrip("/\\") + "/" + suffix
+    return os.path.join(base_path, *parts)
+
+
 def resolve_log_path(
     config: Optional[Dict[str, Any]],
     filename: str,
@@ -65,9 +80,10 @@ def resolve_log_path(
     if not base_path:
         return None
     try:
-        log_dir = os.path.join(base_path, "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        return os.path.join(log_dir, filename)
+        log_dir = _join_preserving_style(base_path, "logs")
+        if not (_is_posix_absolute(log_dir) and os.name == "nt"):
+            os.makedirs(log_dir, exist_ok=True)
+        return _join_preserving_style(log_dir, filename)
     except Exception:
         return None
 
@@ -82,6 +98,11 @@ def resolve_memory_root(
     mem_cfg = cfg.get("memory_v5", {}) if isinstance(cfg.get("memory_v5", {}), dict) else {}
     root = os.path.expanduser(str(mem_cfg.get("root") or default_root))
     if os.path.isabs(root):
-        return root
+        if _is_posix_absolute(root):
+            return root
+        return os.path.normpath(root)
     base_path = resolve_workspace_base(cfg, default=default_base)
-    return os.path.join(os.path.expanduser(str(base_path)), root)
+    joined = _join_preserving_style(os.path.expanduser(str(base_path)), root)
+    if _is_posix_absolute(joined):
+        return joined
+    return os.path.normpath(joined)

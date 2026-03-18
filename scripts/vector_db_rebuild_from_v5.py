@@ -10,14 +10,33 @@ from pathlib import Path
 from typing import Dict, Iterable, List
 
 
+def _safe_path(value: str) -> Path:
+    text = str(value or "").strip()
+    if not text:
+        return Path.cwd()
+    try:
+        return Path(text).expanduser().resolve()
+    except RuntimeError:
+        if text.startswith("~/"):
+            home = os.environ.get("HOME") or os.environ.get("USERPROFILE")
+            if home:
+                return (Path(home) / text[2:]).resolve()
+            return (Path.cwd() / text[2:]).resolve()
+        return Path(text).resolve()
+
+
 def _resolve_openclaw_home() -> Path:
-    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+    raw = os.environ.get("OPENCLAW_HOME")
+    if raw:
+        return _safe_path(raw)
+    return _safe_path("~/.openclaw")
 
 
 def _resolve_workspace_root() -> Path:
-    return Path(
-        os.environ.get("OPENCLAW_WORKSPACE", _resolve_openclaw_home() / "workspace")
-    ).expanduser().resolve()
+    raw = os.environ.get("OPENCLAW_WORKSPACE")
+    if raw:
+        return _safe_path(raw)
+    return (_resolve_openclaw_home() / "workspace").resolve()
 
 
 def _resolve_default_memory_v5_root() -> Path:
@@ -25,12 +44,10 @@ def _resolve_default_memory_v5_root() -> Path:
 
 
 def _resolve_default_db_path() -> Path:
-    return Path(
-        os.environ.get(
-            "NEXUS_VECTOR_DB",
-            _resolve_workspace_root() / "memory" / ".vector_db_restored",
-        )
-    ).expanduser().resolve()
+    raw = os.environ.get("NEXUS_VECTOR_DB")
+    if raw:
+        return _safe_path(raw)
+    return (_resolve_workspace_root() / "memory" / ".vector_db_restored").resolve()
 
 
 def _iter_items(root: Path, agent: str, user: str) -> Iterable[Path]:
@@ -85,7 +102,7 @@ def main() -> int:
     ap.add_argument("--model", default="all-MiniLM-L6-v2")
     args = ap.parse_args()
 
-    root = Path(os.path.expanduser(args.root)).resolve()
+    root = _safe_path(args.root)
     items = list(_iter_items(root, args.agent, args.user))
     if args.limit and args.limit > 0:
         items = items[: args.limit]
@@ -98,7 +115,7 @@ def main() -> int:
     from sentence_transformers import SentenceTransformer
 
     client = chromadb.PersistentClient(
-        path=os.path.expanduser(args.db),
+        path=str(_safe_path(args.db)),
         settings=Settings(anonymized_telemetry=False),
         tenant="default_tenant",
         database="default_database",

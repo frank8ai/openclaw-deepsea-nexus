@@ -62,6 +62,7 @@ class MemoryIndex:
                         project TEXT,
                         category TEXT,
                         source_id TEXT,
+                        metadata TEXT,
                         created_at TEXT,
                         updated_at TEXT,
                         confidence TEXT,
@@ -152,6 +153,7 @@ class MemoryIndex:
         conn = self._ensure_connection()
         existing = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
         wanted = {
+            "metadata": "TEXT",
             "archived": "INTEGER DEFAULT 0",
             "usage_count": "INTEGER DEFAULT 0",
             "last_used": "TEXT",
@@ -266,9 +268,9 @@ class MemoryIndex:
                 """
                 INSERT INTO items (
                     id, title, content, kind, tags, keywords, entities, project, category,
-                    source_id, created_at, updated_at, confidence, archived, usage_count, last_used, ttl_days, decay_half_life_days, archive_after_days,
+                    source_id, metadata, created_at, updated_at, confidence, archived, usage_count, last_used, ttl_days, decay_half_life_days, archive_after_days,
                     scope_agent, scope_user, scope_app, scope_run, scope_workspace
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     title=excluded.title,
                     content=excluded.content,
@@ -279,6 +281,7 @@ class MemoryIndex:
                     project=excluded.project,
                     category=excluded.category,
                     source_id=excluded.source_id,
+                    metadata=excluded.metadata,
                     updated_at=excluded.updated_at,
                     confidence=excluded.confidence,
                     archived=excluded.archived,
@@ -299,6 +302,7 @@ class MemoryIndex:
                     payload.get("project"),
                     payload.get("category"),
                     payload.get("source_id"),
+                    payload.get("metadata"),
                     payload.get("created_at"),
                     payload.get("updated_at"),
                     payload.get("confidence"),

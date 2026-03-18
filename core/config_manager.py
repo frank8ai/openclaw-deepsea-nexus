@@ -103,12 +103,34 @@ class ConfigManager:
             "format": "%(asctime)s | %(name)s | %(levelname)s | %(message)s",
             "file": None,
         },
+        "runtime_middleware": {
+            "enabled": True,
+            "transformer": "rtk",
+            "fail_open": True,
+            "token_gate": {
+                "enabled": True,
+                "min_reduction_ratio": 0.15,
+                "high_salience_threshold": 0.7,
+                "low_salience_threshold": 0.35,
+                "digest_repeat_threshold": 3,
+            },
+            "capture_policy": {
+                "default": {},
+                "test": {"force_store": True},
+                "lint": {"force_store": True},
+                "git_diff": {"force_store": True},
+            },
+            "metrics": {
+                "log_path": None,
+            },
+        },
         "plugins": {
             "auto_load": [
                 "config_manager",
                 "nexus_core",
                 "session_manager",
                 "smart_context",
+                "runtime_middleware",
                 "flush_manager",
             ],
             "hot_reload": True,

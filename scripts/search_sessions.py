@@ -9,20 +9,39 @@ import sys
 from pathlib import Path
 
 
+def _safe_path(value: str) -> Path:
+    text = str(value or "").strip()
+    if not text:
+        return Path.cwd()
+    try:
+        return Path(text).expanduser().resolve()
+    except RuntimeError:
+        if text.startswith("~/"):
+            home = os.environ.get("HOME") or os.environ.get("USERPROFILE")
+            if home:
+                return (Path(home) / text[2:]).resolve()
+            return (Path.cwd() / text[2:]).resolve()
+        return Path(text).resolve()
+
+
 def resolve_openclaw_home() -> Path:
-    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+    raw = os.environ.get("OPENCLAW_HOME")
+    if raw:
+        return _safe_path(raw)
+    return _safe_path("~/.openclaw")
 
 
 def resolve_workspace_root() -> Path:
-    return Path(
-        os.environ.get("OPENCLAW_WORKSPACE", resolve_openclaw_home() / "workspace")
-    ).expanduser().resolve()
+    raw = os.environ.get("OPENCLAW_WORKSPACE")
+    if raw:
+        return _safe_path(raw)
+    return (resolve_openclaw_home() / "workspace").resolve()
 
 
 def resolve_default_db_path() -> Path:
     override = os.environ.get("NEXUS_SESSIONS_DB", "").strip()
     if override:
-        return Path(override).expanduser().resolve()
+        return _safe_path(override)
     return (resolve_workspace_root() / "memory" / "sessions.db").resolve()
 
 def search_sessions(query: str, db_path: str = None) -> list:

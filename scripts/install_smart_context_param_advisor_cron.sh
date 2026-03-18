@@ -2,9 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR_WIN="${ROOT_DIR}"
+if command -v pwd >/dev/null 2>&1; then
+  ROOT_DIR_MAYBE_WIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -W 2>/dev/null || true)"
+  if [[ -n "${ROOT_DIR_MAYBE_WIN}" ]]; then
+    ROOT_DIR_WIN="${ROOT_DIR_MAYBE_WIN//\//\\}"
+  fi
+fi
 OPENCLAW_HOME="${OPENCLAW_HOME:-$HOME/.openclaw}"
 WORKSPACE_ROOT="${OPENCLAW_WORKSPACE:-${OPENCLAW_HOME}/workspace}"
 LOG_DIR="${WORKSPACE_ROOT}/logs"
+LOG_DIR_RENDER="${LOG_DIR//\//\\}"
 BEGIN_MARKER="# BEGIN smart-context-param-advisor"
 END_MARKER="# END smart-context-param-advisor"
 
@@ -23,7 +31,7 @@ else
 fi
 
 mkdir -p "${LOG_DIR}"
-JOB_LINE="20 9 * * * cd ${ROOT_DIR} && ${PYTHON_BIN} scripts/smart_context_param_advisor.py --lookback-hours 72 --min-events 4 >> ${LOG_DIR}/smart_context_param_advisor.cron.log 2>&1"
+JOB_LINE="20 9 * * * REPO_ROOT=\"${ROOT_DIR_WIN}\"; cd ${ROOT_DIR} && ${PYTHON_BIN} scripts/smart_context_param_advisor.py --lookback-hours 72 --min-events 4 >> ${LOG_DIR_RENDER}\\smart_context_param_advisor.cron.log 2>&1"
 
 tmp_current="$(mktemp)"
 tmp_new="$(mktemp)"

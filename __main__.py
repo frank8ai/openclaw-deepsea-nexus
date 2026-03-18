@@ -86,9 +86,24 @@ def _print_text_results(results: List[Dict[str, Any]]) -> None:
 
 def _build_paths_payload(package: Any) -> Dict[str, Any]:
     runtime_paths = importlib.import_module(f"{package.__name__}.runtime_paths")
+    runtime_middleware_module = importlib.import_module(
+        f"{package.__name__}.plugins.runtime_middleware_plugin"
+    )
     config_path = package.resolve_default_config_path()
     config = package.ConfigManager(config_path)
     cfg = config.get_all()
+    middleware_cfg = cfg.get("runtime_middleware", {}) if isinstance(cfg, dict) else {}
+    metrics_path = (
+        middleware_cfg.get("metrics", {}).get("log_path")
+        if isinstance(middleware_cfg.get("metrics", {}), dict)
+        else None
+    )
+    if not metrics_path:
+        metrics_path = runtime_paths.resolve_log_path(
+            cfg,
+            "runtime_middleware_metrics.log",
+            allow_nexus_base=True,
+        )
 
     payload = {
         "config_path": config_path,
@@ -100,6 +115,8 @@ def _build_paths_payload(package: Any) -> Dict[str, Any]:
         "vector_db": config.get("nexus.vector_db_path"),
         "collection": config.get("nexus.collection_name"),
         "brain_base_path": config.get("brain.base_path"),
+        "runtime_middleware_metrics_path": metrics_path,
+        "runtime_middleware_last_metrics": runtime_middleware_module.read_runtime_middleware_metrics_summary(metrics_path),
         "package_version": package.__version__,
         "api_version": package.get_version(),
     }
@@ -162,6 +179,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"Vector DB: {payload.get('vector_db')}")
             print(f"Collection: {payload.get('collection')}")
             print(f"Brain base path: {payload.get('brain_base_path') or '<none>'}")
+            print(f"Runtime middleware metrics: {payload.get('runtime_middleware_metrics_path') or '<none>'}")
         return 0
 
     parser.print_help()

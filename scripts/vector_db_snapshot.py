@@ -13,27 +13,44 @@ from datetime import datetime
 from pathlib import Path
 
 
+def _safe_path(value: str) -> Path:
+    text = str(value or "").strip()
+    if not text:
+        return Path.cwd()
+    try:
+        return Path(text).expanduser().resolve()
+    except RuntimeError:
+        if text.startswith("~/"):
+            home = os.environ.get("HOME") or os.environ.get("USERPROFILE")
+            if home:
+                return (Path(home) / text[2:]).resolve()
+            return (Path.cwd() / text[2:]).resolve()
+        return Path(text).resolve()
+
+
 def _ts() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 def _resolve_openclaw_home() -> Path:
-    return Path(os.environ.get("OPENCLAW_HOME", "~/.openclaw")).expanduser().resolve()
+    raw = os.environ.get("OPENCLAW_HOME")
+    if raw:
+        return _safe_path(raw)
+    return _safe_path("~/.openclaw")
 
 
 def _resolve_workspace_root() -> Path:
-    return Path(
-        os.environ.get("OPENCLAW_WORKSPACE", _resolve_openclaw_home() / "workspace")
-    ).expanduser().resolve()
+    raw = os.environ.get("OPENCLAW_WORKSPACE")
+    if raw:
+        return _safe_path(raw)
+    return (_resolve_openclaw_home() / "workspace").resolve()
 
 
 def _resolve_db_path() -> Path:
-    return Path(
-        os.environ.get(
-            "NEXUS_VECTOR_DB",
-            _resolve_workspace_root() / "memory" / ".vector_db_restored",
-        )
-    ).expanduser().resolve()
+    raw = os.environ.get("NEXUS_VECTOR_DB")
+    if raw:
+        return _safe_path(raw)
+    return (_resolve_workspace_root() / "memory" / ".vector_db_restored").resolve()
 
 
 def _resolve_snapshots_dir() -> Path:
@@ -83,12 +100,12 @@ def main() -> int:
     ap.add_argument("--label", default="")
     args = ap.parse_args()
 
-    src = Path(os.path.expanduser(args.db)).resolve()
+    src = _safe_path(args.db)
     if not src.exists() or not src.is_dir():
         raise SystemExit(f"vector db not found: {src}")
 
     label = f"_{args.label}" if args.label else ""
-    dst = Path(os.path.expanduser(args.out_dir)).resolve() / f"{src.name}_snapshot_{_ts()}{label}"
+    dst = _safe_path(args.out_dir) / f"{src.name}_snapshot_{_ts()}{label}"
     if dst.exists():
         raise SystemExit(f"snapshot already exists: {dst}")
 

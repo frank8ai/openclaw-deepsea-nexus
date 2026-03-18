@@ -7,6 +7,7 @@ Public API expected by the test suite lives here.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -22,6 +23,19 @@ if not __package__:
     _current_module = sys.modules.get(__name__)
     if _current_module is not None:
         sys.modules.setdefault(_BOOTSTRAP_PACKAGE, _current_module)
+
+
+def _prefer_repo_shell_wrappers() -> None:
+    if os.name != "nt":
+        return
+    repo_root = Path(__file__).resolve().parent
+    path_entries = os.environ.get("PATH", "").split(os.pathsep) if os.environ.get("PATH") else []
+    repo_root_str = str(repo_root)
+    if repo_root_str not in path_entries:
+        os.environ["PATH"] = os.pathsep.join([repo_root_str] + path_entries)
+
+
+_prefer_repo_shell_wrappers()
 
 from ._version import __version__
 from .auto_summary import StructuredSummary, SummaryParser

@@ -1,6 +1,6 @@
 # Deep-Sea Nexus Current API
 
-Last updated: 2026-03-14
+Last updated: 2026-03-18
 
 This document describes the supported public API surface for the current
 `v5.1.0` upgrade cycle (`v5.0.0` stable baseline + 5.1 incremental hardening).
@@ -82,6 +82,9 @@ Current contract:
 - `create_app()` returns the async application container
 - `app.plugins["nexus_core"]` is the current memory plugin
 - the plugin registry is shared with sync compatibility paths in-process
+- current internal plugin set also includes `runtime_middleware`
+  - it is intentionally internal in `v5.0.1`
+  - do not build new integrations directly against it as if it were public API
 
 ### 3. Memory v5 scoped API
 
@@ -153,6 +156,14 @@ Supported commands:
 - `paths`
 - `recall`
 
+Current CLI status payloads now also surface:
+
+- `health`
+  - `plugins.runtime_middleware.summary`
+- `paths`
+  - `runtime_middleware_metrics_path`
+  - `runtime_middleware_last_metrics`
+
 ### 5. Compatibility context helpers
 
 These helpers still exist for older integrations:
@@ -170,6 +181,22 @@ Current boundary:
 - do not treat them as the preferred surface for new integrations
 - current `inject_context()` should still flow through the same budgeted
   context-assembly rules as the main runtime path
+
+### 6. Internal runtime middleware
+
+Current release includes an internal `runtime_middleware` plugin with:
+
+- tool-event normalization
+- RTK-style compression
+- token-aware capture gating
+- `tool_event` writes into Memory v5
+- OpenClaw `tool-call` adapter entrypoint
+
+Current boundary:
+
+- keep it internal in `v5.0.1`
+- configure and observe it through runtime config / CLI status
+- do not treat it as stable public Python API yet
 
 ## Version Contract
 

@@ -335,6 +335,7 @@ class MemoryV5Service:
         source_id: str,
         confidence: str,
         scope: MemoryScope,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> MemoryItem:
         lifecycle = self._resolve_item_lifecycle_defaults(kind)
         return MemoryItem(
@@ -352,6 +353,7 @@ class MemoryV5Service:
             ttl_days=lifecycle["ttl_days"],
             decay_half_life_days=lifecycle["decay_half_life_days"],
             archive_after_days=lifecycle["archive_after_days"],
+            metadata=dict(metadata or {}),
             scope=scope,
         )
 
@@ -377,13 +379,15 @@ class MemoryV5Service:
         tags: Optional[List[str]] = None,
         scope: Optional[MemoryScope] = None,
         source_id: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+        kind: str = "document",
     ) -> Dict[str, Any]:
         if not self.enabled:
             return {"enabled": False, "stored": 0}
         if self.async_ingest:
-            self._queue.put(("document", (title, content, tags, scope, source_id), {}))
+            self._queue.put(("document", (title, content, tags, scope, source_id, metadata, kind), {}))
             return {"enabled": True, "queued": True}
-        return self._ingest_document(title, content, tags, scope, source_id)
+        return self._ingest_document(title, content, tags, scope, source_id, metadata, kind)
 
     def _ingest_document(
         self,
@@ -392,12 +396,14 @@ class MemoryV5Service:
         tags: Optional[List[str]],
         scope: Optional[MemoryScope],
         source_id: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        kind: str = "document",
     ) -> Dict[str, Any]:
         scope = self._normalize_scope(scope)
         layout, index = self._ensure_scope_storage(scope)
         tags = _clean_list(tags)
         item = self._build_item(
-            kind="document",
+            kind=_safe_str(kind) or "document",
             title=title,
             content=content,
             tags=tags,
@@ -408,6 +414,7 @@ class MemoryV5Service:
             source_id=source_id,
             confidence="medium",
             scope=scope,
+            metadata=metadata,
         )
         item.path = layout.item_path(item.id)
         self._write_json(item.path, self._item_payload(item))
@@ -416,6 +423,27 @@ class MemoryV5Service:
         if self.graph_enabled:
             self._add_edges_for_item(item, scope, index=index)
         return {"enabled": True, "stored": 1, "item_id": item.id}
+
+    def ingest_tool_event(
+        self,
+        title: str,
+        summary: str,
+        structured: Dict[str, Any],
+        scope: Optional[MemoryScope] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        tags = ["tool_event", _safe_str((metadata or {}).get("event_kind") or "tool")]
+        merged_metadata = dict(metadata or {})
+        merged_metadata.setdefault("structured", structured or {})
+        return self.ingest_document(
+            title=title,
+            content=summary,
+            tags=tags,
+            scope=scope,
+            source_id=_safe_str((metadata or {}).get("evidence_ref") or ""),
+            metadata=merged_metadata,
+            kind="tool_event",
+        )
 
     def _ingest_summary(
         self,
@@ -561,6 +589,7 @@ class MemoryV5Service:
             "project": item.project,
             "category": item.category,
             "source_id": item.source_id,
+            "metadata": json.dumps(item.metadata, ensure_ascii=False),
             "created_at": item.created_at,
             "updated_at": now_iso(),
             "confidence": item.confidence,
@@ -743,6 +772,13 @@ class MemoryV5Service:
         hits: List[MemoryHit] = []
         now = datetime.now(timezone.utc)
         for row in items:
+            raw_metadata = row.get("metadata")
+            parsed_metadata: Dict[str, Any] = {}
+            if raw_metadata:
+                try:
+                    parsed_metadata = json.loads(str(raw_metadata))
+                except Exception:
+                    parsed_metadata = {}
             lifecycle = self._item_lifecycle_state(row, now)
             if lifecycle["archived"] or lifecycle["ttl_expired"]:
                 continue
@@ -770,6 +806,7 @@ class MemoryV5Service:
                         "category": row.get("category", ""),
                         "updated_at": row.get("updated_at", ""),
                         "usage_count": row.get("usage_count", 0),
+                        **parsed_metadata,
                     },
                 )
             )

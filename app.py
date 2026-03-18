@@ -19,6 +19,7 @@ from .plugins.nexus_core_plugin import NexusCorePlugin
 from .plugins.session_manager import SessionManagerPlugin
 from .plugins.flush_manager import FlushManagerPlugin
 from .plugins.smart_context import SmartContextPlugin
+from .plugins.runtime_middleware_plugin import RuntimeMiddlewarePlugin
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ class NexusApplication:
         session_manager = SessionManagerPlugin()
         smart_context = SmartContextPlugin()
         flush_manager = FlushManagerPlugin()
+        runtime_middleware = RuntimeMiddlewarePlugin()
 
         config_manager = ConfigManagerPlugin()
 
@@ -133,6 +135,7 @@ class NexusApplication:
             (nexus_core, nexus_core.metadata),
             (session_manager, session_manager.metadata),
             (smart_context, smart_context.metadata),  # 智能上下文
+            (runtime_middleware, runtime_middleware.metadata),
             (flush_manager, flush_manager.metadata),
         ]
 
@@ -171,13 +174,20 @@ class NexusApplication:
     async def _initialize_plugins(self, config: Dict[str, Any]) -> bool:
         """Initialize all plugins in dependency order"""
         # Get auto-load list from config
-        auto_load = config.get("plugins", {}).get("auto_load", [
+        auto_load = list(config.get("plugins", {}).get("auto_load", [
             "config_manager",
             "nexus_core",
             "session_manager",
             "smart_context",  # 智能上下文（核心功能）
+            "runtime_middleware",
             "flush_manager",
-        ])
+        ]))
+
+        # Keep new runtime middleware enabled even when older config files
+        # override plugins.auto_load with legacy lists.
+        if "runtime_middleware" not in auto_load:
+            insert_at = auto_load.index("flush_manager") if "flush_manager" in auto_load else len(auto_load)
+            auto_load.insert(insert_at, "runtime_middleware")
         
         # Load in order
         for plugin_name in auto_load:

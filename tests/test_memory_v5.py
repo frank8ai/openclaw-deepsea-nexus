@@ -104,6 +104,11 @@ smart_context_summary = importlib.import_module(
 context_contract = importlib.import_module(
     f"{deepsea_nexus.__name__}.context_contract"
 )
+runtime_middleware_module = importlib.import_module(
+    f"{deepsea_nexus.__name__}.plugins.runtime_middleware_plugin"
+)
+RuntimeMiddlewarePlugin = runtime_middleware_module.RuntimeMiddlewarePlugin
+ToolEvent = runtime_middleware_module.ToolEvent
 
 
 def _load_script_module(module_name: str):
@@ -133,6 +138,17 @@ def _load_repo_file_module(module_name: str, relative_path: str):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _bash_command() -> List[str]:
+    if os.name == "nt":
+        git_bash = Path("C:/Program Files/Git/bin/bash.exe")
+        if git_bash.exists():
+            return [str(git_bash)]
+        repo_bash = REPO_ROOT / "bash.cmd"
+        if repo_bash.exists():
+            return [str(repo_bash)]
+    return ["bash"]
 
 
 def _make_stub_module(name: str, **attrs):
@@ -1575,6 +1591,96 @@ class TestMemoryV5BenchmarkScript(unittest.TestCase):
         self.assertEqual(int(entry.get("hit", 0)), 1)
 
 
+class TestRuntimeMiddleware(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config = {
+            "paths": {"base": self.temp_dir},
+            "memory_v5": {
+                "enabled": True,
+                "root": "memory/95_MemoryV5",
+                "async_ingest": False,
+                "graph_enabled": False,
+                "fts_enabled": True,
+                "scope": {"agent_id": "main", "user_id": "default"},
+            },
+            "runtime_middleware": {
+                "enabled": True,
+                "fail_open": True,
+                "token_gate": {
+                    "enabled": True,
+                    "min_reduction_ratio": 0.05,
+                    "high_salience_threshold": 0.65,
+                    "low_salience_threshold": 0.3,
+                    "digest_repeat_threshold": 3,
+                },
+            },
+        }
+        self.plugin = RuntimeMiddlewarePlugin()
+        self.assertTrue(asyncio.run(self.plugin.initialize(self.config)))
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_process_tool_event_stores_structured_tool_event(self):
+        event = ToolEvent(
+            tool_name="pytest",
+            args=["-q", "tests/test_relay.py"],
+            stdout="FAILED tests/test_relay.py::test_provider_metrics - AssertionError\nTraceback...",
+            stderr="",
+            exit_code=1,
+            cwd=self.temp_dir,
+        )
+
+        result = self.plugin.process_tool_event(event)
+        self.assertTrue(result["stored"])
+
+        hits = self.plugin._mem_v5_service.recall("provider metrics", limit=5)
+        self.assertTrue(any(hit.metadata.get("event_kind") == "test" for hit in hits))
+        self.assertTrue(any(hit.metadata.get("tool_name") == "pytest" for hit in hits))
+
+    def test_low_signal_repetition_aggregates_runtime_digest(self):
+        event = ToolEvent(
+            tool_name="rg",
+            args=["TODO", "."],
+            stdout="src/app.py:1 TODO\nsrc/app.py:1 TODO\nsrc/app.py:1 TODO",
+            stderr="",
+            exit_code=0,
+            cwd=self.temp_dir,
+        )
+
+        first = self.plugin.process_tool_event(event)
+        second = self.plugin.process_tool_event(event)
+        third = self.plugin.process_tool_event(event)
+
+        self.assertFalse(first["stored"])
+        self.assertFalse(second["stored"])
+        self.assertTrue(third["stored"])
+
+        items = self.plugin._mem_v5_service.list_items(scope=MemoryScope(agent_id="main", user_id="default"))
+        self.assertTrue(any(row.get("kind") == "tool_event" for row in items))
+        self.assertTrue(any("Repeated low-signal" in row.get("content", "") for row in items))
+
+    def test_fail_open_fallback_keeps_capture_alive(self):
+        event = ToolEvent(
+            tool_name="bash",
+            args=["-lc", "echo boom"],
+            stdout="line one\nline two",
+            stderr="",
+            exit_code=0,
+            cwd=self.temp_dir,
+        )
+
+        with mock.patch.object(self.plugin._transformer, "transform", side_effect=RuntimeError("boom")):
+            result = self.plugin.process_tool_event(event)
+
+        self.assertTrue(result["stored"])
+        health = self.plugin.get_health_summary()
+        self.assertEqual(health["fallbacks"], 1)
+
+
 class TestPackageRootExports(unittest.TestCase):
     def test_documented_exports_exist(self):
         required = [
@@ -1671,6 +1777,21 @@ class TestVersionAndEntrypoints(unittest.TestCase):
         self.assertEqual(payload["vector_db"], str(Path(temp_dir) / "vector-db"))
         self.assertEqual(payload["collection"], "test_collection")
         self.assertEqual(payload["brain_base_path"], temp_dir)
+        self.assertTrue(payload["runtime_middleware_metrics_path"].endswith("runtime_middleware_metrics.log"))
+        self.assertEqual(payload["runtime_middleware_last_metrics"], {})
+
+    def test_cli_health_json_includes_runtime_middleware(self):
+        cli = importlib.import_module(f"{deepsea_nexus.__name__}.__main__")
+        stdout = io.StringIO()
+
+        with contextlib.redirect_stdout(stdout):
+            exit_code = cli.main(["health", "--json"])
+
+        self.assertEqual(exit_code, 0)
+        health_output = stdout.getvalue()
+        payload = json.loads(health_output[health_output.find("{"):])
+        self.assertIn("runtime_middleware", payload["plugins"])
+        self.assertIn("summary", payload["plugins"]["runtime_middleware"])
 
     def test_repo_shim_package_supports_standard_imports(self):
         result = subprocess.run(
@@ -2850,8 +2971,8 @@ class TestFiveMoreLegacyEntryCuts(unittest.TestCase):
         env["OPENCLAW_HOME"] = str(openclaw_home)
 
         result = subprocess.run(
-            [
-                "bash",
+            _bash_command()
+            + [
                 str(REPO_ROOT / "quick_save.sh"),
                 "conversation/1",
                 "## 📋 总结\n兼容测试摘要",
@@ -2894,8 +3015,8 @@ class TestFiveMoreLegacyEntryCuts(unittest.TestCase):
         env["NEXUS_PYTHON_PATH"] = sys.executable
 
         result = subprocess.run(
-            [
-                "bash",
+            _bash_command()
+            + [
                 str(REPO_ROOT / "scripts" / "install_smart_context_param_advisor_cron.sh"),
             ],
             env=env,
@@ -3513,7 +3634,7 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
             "scripts/system_maintenance_bridge.sh",
         ):
             result = subprocess.run(
-                ["bash", "-n", str(REPO_ROOT / relative_path)],
+                _bash_command() + ["-n", str(REPO_ROOT / relative_path)],
                 capture_output=True,
                 text=True,
             )

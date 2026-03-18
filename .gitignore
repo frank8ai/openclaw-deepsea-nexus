@@ -48,6 +48,7 @@ hooks/*
 !hooks/pre-prompt/git_status
 !hooks/tool-call/workspace_sync
 !hooks/**/run_*.sh
+!hooks/tool-call/runtime_middleware_capture.py
 
 # Local logs (runtime)
 logs/

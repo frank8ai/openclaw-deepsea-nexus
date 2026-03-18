@@ -1,6 +1,6 @@
 # Deep-Sea Nexus Current Architecture
 
-Last updated: 2026-03-14
+Last updated: 2026-03-18
 
 This document describes the current runtime architecture for the
 `v5.1.0` upgrade cycle (`v5.0.0` remains the stable release baseline).
@@ -113,7 +113,28 @@ The current policy contract is externalized in:
 The runtime implementation must conform to that policy instead of inventing a
 separate hidden rule set.
 
-### 5. Memory v5 scoped store
+### 5. Runtime middleware
+
+Current tool-output middleware lives in:
+
+- `plugins/runtime_middleware_plugin.py`
+
+Its role is to provide:
+
+- tool-event normalization
+- RTK-style output compression
+- token-before / token-after accounting
+- token-aware capture gating
+- evidence snapshot persistence for tool output
+- OpenClaw-first tool-call adaptation
+
+Current boundary:
+
+- internal plugin, not public API
+- capture-side only in `v5.0.1`
+- does not replace current recall ranking or inject policy
+
+### 6. Memory v5 scoped store
 
 Current durable scoped memory lives under:
 
@@ -139,7 +160,7 @@ Main concepts:
   - zero-valued archive rows remain explicit operator backfill candidates instead
     of being silently reinterpreted at runtime
 
-### 6. Operational layer
+### 7. Operational layer
 
 Operational entrypoints include:
 

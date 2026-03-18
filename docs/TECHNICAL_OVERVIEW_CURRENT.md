@@ -1,6 +1,6 @@
 # Deep-Sea Nexus Technical Overview
 
-Last updated: 2026-03-14
+Last updated: 2026-03-18
 
 This document is the technical entrypoint for the current `v5.1.0` upgrade
 cycle (`v5.0.0` is still the stable release baseline).
@@ -66,6 +66,20 @@ Current implementation center:
 
 - `plugins/nexus_core_plugin.py`
 
+### Runtime middleware
+
+Main responsibility:
+
+- normalize tool-call events before capture
+- apply RTK-style output compression
+- estimate token cost before/after compression
+- gate capture using salience + reduction signals
+- persist evidence snapshots and middleware metrics
+
+Current implementation center:
+
+- `plugins/runtime_middleware_plugin.py`
+
 ### Context governance
 
 Main responsibility:
@@ -130,6 +144,7 @@ Current entrypoints:
    - durable decision blocks are evidence-gated
 4. Memory core persists searchable artifacts.
 5. Memory v5 stores scoped durable items when enabled.
+6. runtime middleware can pre-process tool output into `tool_event` items before they enter scoped memory.
 
 ### Recall / inject flow
 
@@ -155,6 +170,10 @@ Current entrypoints:
 
 - durable decision storage is evidence-gated
   - no evidence pointer or replay hint -> do not write the decision as L2 durable memory
+- runtime middleware is capture-only in v1
+  - it does not replace current recall ranking
+  - it does not bypass SmartContext / ContextEngine policy
+  - fail-open remains the default if tool-output transformation fails
 - Memory v5 lifecycle governance is explicit, not silent background mutation
   - recall applies TTL expiry and decay weighting through the same lifecycle rules
   - lifecycle audit is report-first
@@ -191,6 +210,7 @@ Current entrypoints:
 - public package entrypoints
 - context-governance logic
 - scoped memory model
+- runtime middleware for tool-output normalization
 - local verification toolchain
 
 ### What OpenClaw or surrounding runtime owns

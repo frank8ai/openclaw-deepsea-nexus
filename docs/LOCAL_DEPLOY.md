@@ -54,6 +54,13 @@ bash scripts/nexus_doctor_local.sh --check
 bash scripts/nexus_doctor_local.sh --repair
 ```
 
+Windows 可直接使用：
+
+```powershell
+scripts\nexus_doctor_local.cmd -Check
+scripts\nexus_doctor_local.cmd
+```
+
 说明：
 - 会校验并修复 Gateway 环境变量：
   - `NEXUS_PYTHON_PATH`
@@ -63,8 +70,46 @@ bash scripts/nexus_doctor_local.sh --repair
   - `context-optimizer`
   - `deepsea-rag-recall`
 - 会检查主向量库计数与 `nexus_init/nexus_health` 状态
+- 会输出 `runtime_middleware` 健康摘要与 metrics 路径
 - `--repair` 模式下默认包含一次 `deploy_local_v5.sh --quick` 快速门禁
 - 可加 `--skip-deploy` 跳过快速门禁
+
+## Runtime middleware 运维入口
+
+当前版本默认启用内部 `runtime_middleware` 插件，用于在工具输出进入 capture 前执行：
+
+- RTK 风格压缩
+- event kind 分类
+- token 估算
+- token-aware capture gating
+- evidence snapshot 落盘
+
+默认路径：
+
+- metrics：`<resolved workspace>/logs/runtime_middleware_metrics.log`
+- evidence：`<resolved workspace>/logs/runtime_middleware_evidence/`
+
+查看摘要：
+
+```bash
+python3 scripts/runtime_middleware_report.py --json
+```
+
+也可以直接查看：
+
+```bash
+python3 -m deepsea_nexus health --json
+python3 -m deepsea_nexus paths --json
+```
+
+可配置项（`config.json`）：
+
+- `runtime_middleware.enabled`
+- `runtime_middleware.transformer`
+- `runtime_middleware.fail_open`
+- `runtime_middleware.token_gate.*`
+- `runtime_middleware.capture_policy.*`
+- `runtime_middleware.metrics.log_path`
 
 ## 写入护栏（防止写错库）
 当前版本默认启用写入护栏，所有主要写入入口都会检查：
@@ -254,6 +299,20 @@ PY
 - `OPENCLAW_WORKSPACE=~/.openclaw/workspace-gemini`（若当前 agent workspace 在 gemini）
 - `NEXUS_VECTOR_DB=$OPENCLAW_WORKSPACE/memory/.vector_db_restored`
 - `NEXUS_COLLECTION=deepsea_nexus_restored`
+
+### OpenClaw tool-call capture
+
+当前仓库已提供首个 OpenClaw `tool-call` 适配入口：
+
+- `hooks/tool-call/runtime_middleware_capture.py`
+
+该入口会把 hook context 统一封装成 `ToolEvent`，再交给内部 `runtime_middleware` 插件处理并写入 `Memory v5` 的 `tool_event` 项。
+
+当前边界：
+
+- 这是 OpenClaw first adapter
+- 其他 runtime 尚未在本 release 中提供正式适配器
+- 若 middleware 变换失败，默认 `fail-open`，不会阻塞宿主流程
 
 可选 compaction 建议：
 - `agents.defaults.compaction.reserveTokensFloor = 28000`
