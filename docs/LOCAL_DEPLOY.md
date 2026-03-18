@@ -1,4 +1,4 @@
-# Deep-Sea Nexus v5.1.0 本地部署
+# OpenClaw Deep-Sea Nexus v5.2.0 本地部署
 
 ## 目标
 将当前仓库版本部署到本地 OpenClaw 工作区，并确保门禁与运行态可用。
@@ -247,7 +247,11 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
   - `available: true`
   - `initialized: true`
   - `plugin_version: "3.0.0"`（插件协议版本）
+<<<<<<< HEAD
   - `package_version: "5.1.0"`（当前升级版本）
+=======
+  - `package_version: "5.2.0"`（发布版本）
+>>>>>>> f78dcc1 (docs: publish v5.2.0 release notes)
 - v5 benchmark 输出至少满足：
   - `any_scope_hit > 0`
   - `any_scope_score > 0`

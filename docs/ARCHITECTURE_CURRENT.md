@@ -3,7 +3,7 @@
 Last updated: 2026-03-18
 
 This document describes the current runtime architecture for the
-`v5.1.0` upgrade cycle (`v5.0.0` remains the stable release baseline).
+`v5.2.0` release pack.
 
 For a shorter technical entrypoint, read `TECHNICAL_OVERVIEW_CURRENT.md`
 first.
@@ -25,7 +25,7 @@ It does not replace:
 
 ## Version Model
 
-- Package release: `5.1.0`
+- Package release: `5.2.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 
@@ -131,7 +131,7 @@ Its role is to provide:
 Current boundary:
 
 - internal plugin, not public API
-- capture-side only in `v5.0.1`
+- capture-side only in `v5.2.0`
 - does not replace current recall ranking or inject policy
 
 ### 6. Memory v5 scoped store

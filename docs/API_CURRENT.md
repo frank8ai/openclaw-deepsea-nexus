@@ -3,7 +3,7 @@
 Last updated: 2026-03-18
 
 This document describes the supported public API surface for the current
-`v5.1.0` upgrade cycle (`v5.0.0` stable baseline + 5.1 incremental hardening).
+`v5.2.0` release pack.
 
 ## Import Rules
 
@@ -83,7 +83,7 @@ Current contract:
 - `app.plugins["nexus_core"]` is the current memory plugin
 - the plugin registry is shared with sync compatibility paths in-process
 - current internal plugin set also includes `runtime_middleware`
-  - it is intentionally internal in `v5.0.1`
+- it is intentionally internal in `v5.2.0`
   - do not build new integrations directly against it as if it were public API
 
 ### 3. Memory v5 scoped API
@@ -194,7 +194,7 @@ Current release includes an internal `runtime_middleware` plugin with:
 
 Current boundary:
 
-- keep it internal in `v5.0.1`
+- keep it internal in `v5.2.0`
 - configure and observe it through runtime config / CLI status
 - do not treat it as stable public Python API yet
 

@@ -650,7 +650,7 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
         try:
             os.makedirs(os.path.dirname(self._metrics_path), exist_ok=True)
             record = dict(payload)
-            record.setdefault("schema_version", "5.0.1")
+            record.setdefault("schema_version", "5.2.0")
             record.setdefault("component", "runtime_middleware")
             record.setdefault("ts", _now_iso())
             with open(self._metrics_path, "a", encoding="utf-8") as fh:
