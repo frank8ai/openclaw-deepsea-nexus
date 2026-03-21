@@ -20,6 +20,7 @@ from .plugins.session_manager import SessionManagerPlugin
 from .plugins.flush_manager import FlushManagerPlugin
 from .plugins.smart_context import SmartContextPlugin
 from .plugins.runtime_middleware_plugin import RuntimeMiddlewarePlugin
+from .plugins.execution_guard_plugin import ExecutionGuardPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ class NexusApplication:
         nexus_core = NexusCorePlugin()
         session_manager = SessionManagerPlugin()
         smart_context = SmartContextPlugin()
+        execution_guard = ExecutionGuardPlugin()
         flush_manager = FlushManagerPlugin()
         runtime_middleware = RuntimeMiddlewarePlugin()
 
@@ -135,6 +137,7 @@ class NexusApplication:
             (nexus_core, nexus_core.metadata),
             (session_manager, session_manager.metadata),
             (smart_context, smart_context.metadata),  # 智能上下文
+            (execution_guard, execution_guard.metadata),
             (runtime_middleware, runtime_middleware.metadata),
             (flush_manager, flush_manager.metadata),
         ]
@@ -179,12 +182,20 @@ class NexusApplication:
             "nexus_core",
             "session_manager",
             "smart_context",  # 智能上下文（核心功能）
+            "execution_guard",
             "runtime_middleware",
             "flush_manager",
         ]))
 
         # Keep new runtime middleware enabled even when older config files
         # override plugins.auto_load with legacy lists.
+        if "execution_guard" not in auto_load:
+            insert_at = auto_load.index("runtime_middleware") if "runtime_middleware" in auto_load else len(auto_load)
+            auto_load.insert(insert_at, "execution_guard")
+        elif "runtime_middleware" in auto_load and auto_load.index("execution_guard") > auto_load.index("runtime_middleware"):
+            auto_load.remove("execution_guard")
+            insert_at = auto_load.index("runtime_middleware")
+            auto_load.insert(insert_at, "execution_guard")
         if "runtime_middleware" not in auto_load:
             insert_at = auto_load.index("flush_manager") if "flush_manager" in auto_load else len(auto_load)
             auto_load.insert(insert_at, "runtime_middleware")

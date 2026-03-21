@@ -3,7 +3,7 @@
 Last updated: 2026-03-18
 
 This document describes the current runtime architecture for the
-`v5.2.0` release pack.
+`v5.3.0` release pack.
 
 For a shorter technical entrypoint, read `TECHNICAL_OVERVIEW_CURRENT.md`
 first.
@@ -25,7 +25,7 @@ It does not replace:
 
 ## Version Model
 
-- Package release: `5.2.0`
+- Package release: `5.3.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 
@@ -131,10 +131,30 @@ Its role is to provide:
 Current boundary:
 
 - internal plugin, not public API
-- capture-side only in `v5.2.0`
+- capture-side only in `v5.3.0`
 - does not replace current recall ranking or inject policy
 
-### 6. Memory v5 scoped store
+### 6. Execution guard
+
+Current tool-risk guard lives in:
+
+- `plugins/execution_guard_plugin.py`
+
+Its role is to provide:
+
+- report-first risk classification for tool events
+- secrets / credential / boundary / second-brain asset checks
+- `allow / ask / block / context` decisions
+- execution-governor guardrails export
+- structured guard metadata attached to tool events
+
+Current boundary:
+
+- internal plugin, not public API
+- report-only by default in `v5.3.0`
+- does not hard-stop host execution unless a future enforcement mode is enabled
+
+### 7. Memory v5 scoped store
 
 Current durable scoped memory lives under:
 
@@ -160,7 +180,7 @@ Main concepts:
   - zero-valued archive rows remain explicit operator backfill candidates instead
     of being silently reinterpreted at runtime
 
-### 7. Operational layer
+### 8. Operational layer
 
 Operational entrypoints include:
 

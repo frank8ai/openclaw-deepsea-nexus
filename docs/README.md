@@ -2,16 +2,17 @@
 
 Last updated: 2026-03-15
 
-This file is the documentation entrypoint for the current `v5.2.0` release
+This file is the documentation entrypoint for the current `v5.3.0` release
 pack.
 
 Current release state:
 
-- `v5.2.0` feature release baseline
+- `v5.3.0` feature release baseline
 - release note:
-  - `releases/V5_2_0_RELEASE_2026-03-18.md`
-- Chinese release note:
+  - `releases/V5_3_0_RELEASE_2026-03-21.md`
+  - `releases/V5_3_0_RELEASE_2026-03-21_ZH.md`
   - `releases/V5_2_0_RELEASE_2026-03-18_ZH.md`
+  - `releases/V5_2_0_RELEASE_2026-03-18.md`
 - previous patch:
   - `releases/V5_0_1_PATCH_2026-03-14.md`
 - official baseline:

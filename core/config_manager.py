@@ -124,12 +124,46 @@ class ConfigManager:
                 "log_path": None,
             },
         },
+        "execution_guard": {
+            "enabled": True,
+            "mode": "report_only",
+            "thresholds": {
+                "ask_score": 0.7,
+                "block_score": 0.9,
+            },
+            "report": {
+                "include_context_hint": True,
+            },
+            "host_bridge": {
+                "enabled": True,
+                "guardrails_path": None,
+            },
+            "protected_targets": {
+                "credential_patterns": [
+                    "~/.ssh",
+                    "~/.gnupg",
+                    "~/.aws",
+                    "~/.config/gcloud",
+                    ".env",
+                    "credentials",
+                ],
+                "second_brain_patterns": [
+                    "MEMORY.md",
+                    "Obsidian",
+                    ".vector_db",
+                    ".vector_db_restored",
+                    "state",
+                    "logs",
+                ],
+            },
+        },
         "plugins": {
             "auto_load": [
                 "config_manager",
                 "nexus_core",
                 "session_manager",
                 "smart_context",
+                "execution_guard",
                 "runtime_middleware",
                 "flush_manager",
             ],

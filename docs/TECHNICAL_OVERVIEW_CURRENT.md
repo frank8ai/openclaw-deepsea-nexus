@@ -2,12 +2,12 @@
 
 Last updated: 2026-03-18
 
-This document is the technical entrypoint for the current `v5.2.0` release
+This document is the technical entrypoint for the current `v5.3.0` release
 pack.
 
 ## Release Context
 
-- Package release: `5.2.0`
+- Package release: `5.3.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 - Primary rule source:
@@ -80,6 +80,20 @@ Current implementation center:
 
 - `plugins/runtime_middleware_plugin.py`
 
+### Execution guard
+
+Main responsibility:
+
+- classify tool-risk before execution-governor policy consumes it
+- detect secrets, sensitive targets, and workspace-boundary violations
+- identify obfuscated or bootstrap-style shell execution
+- emit `allow / ask / block / context` decisions in report-first mode
+- export execution-governor guardrails as a single source of truth
+
+Current implementation center:
+
+- `plugins/execution_guard_plugin.py`
+
 ### Context governance
 
 Main responsibility:
@@ -145,6 +159,7 @@ Current entrypoints:
 4. Memory core persists searchable artifacts.
 5. Memory v5 stores scoped durable items when enabled.
 6. runtime middleware can pre-process tool output into `tool_event` items before they enter scoped memory.
+7. execution guard can attach risk decisions to tool events before host bridge/reporting.
 
 ### Recall / inject flow
 
@@ -174,6 +189,10 @@ Current entrypoints:
   - it does not replace current recall ranking
   - it does not bypass SmartContext / ContextEngine policy
   - fail-open remains the default if tool-output transformation fails
+- execution guard is report-first in v1
+  - it does not hard-block host execution by default
+  - it emits recommendations for execution-governor / operators
+  - it stores guard decisions alongside `tool_event` metadata
 - Memory v5 lifecycle governance is explicit, not silent background mutation
   - recall applies TTL expiry and decay weighting through the same lifecycle rules
   - lifecycle audit is report-first

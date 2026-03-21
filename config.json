@@ -23,8 +23,8 @@
     "max_line_length": 80
   },
   "project": {
-    "version": "5.2.0",
-    "name": "OpenClaw Deep-Sea Nexus v5.2.0",
+    "version": "5.3.0",
+    "name": "OpenClaw Deep-Sea Nexus v5.3.0",
     "author": "OpenClaw"
   },
   "session": {
@@ -43,8 +43,43 @@
       "nexus_core",
       "session_manager",
       "smart_context",
+      "execution_guard",
+      "runtime_middleware",
       "flush_manager"
     ]
+  },
+  "execution_guard": {
+    "enabled": true,
+    "mode": "report_only",
+    "thresholds": {
+      "ask_score": 0.7,
+      "block_score": 0.9
+    },
+    "report": {
+      "include_context_hint": true
+    },
+    "host_bridge": {
+      "enabled": true,
+      "guardrails_path": ""
+    },
+    "protected_targets": {
+      "credential_patterns": [
+        "~/.ssh",
+        "~/.gnupg",
+        "~/.aws",
+        "~/.config/gcloud",
+        ".env",
+        "credentials"
+      ],
+      "second_brain_patterns": [
+        "MEMORY.md",
+        "Obsidian",
+        ".vector_db",
+        ".vector_db_restored",
+        "state",
+        "logs"
+      ]
+    }
   },
   "smart_context": {
     "full_rounds": 8,

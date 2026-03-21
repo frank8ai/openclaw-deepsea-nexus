@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from ..core.plugin_system import NexusPlugin, PluginMetadata
+from ..core.plugin_system import NexusPlugin, PluginMetadata, PluginState, get_plugin_registry
 from ..memory_v5 import MemoryScope, MemoryV5Service
 from ..plugins.context_engine_runtime import ContextEngineRuntimeState
 from ..runtime_paths import resolve_log_path
@@ -357,7 +357,7 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
             name="runtime_middleware",
             version="3.0.0",
             description="RTK-style runtime middleware for tool output capture",
-            dependencies=["config_manager"],
+            dependencies=["config_manager", "execution_guard"],
             hot_reloadable=True,
         )
         self._config: Dict[str, Any] = {}
@@ -455,6 +455,9 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
 
         self._stats["token_before"] += compressed.token_before
         self._stats["token_after"] += compressed.token_after
+        guard_decision = self._evaluate_guard(normalized_event, compressed, scope)
+        if guard_decision and guard_decision.get("decision") in {"context", "ask", "block"}:
+            force_store = True
 
         decision = {"action": "store", "mode": "fallback"} if force_store else self._capture_decision(compressed)
         if decision["action"] == "skip":
@@ -487,7 +490,7 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
 
         evidence_path = self._write_evidence_snapshot(normalized_event, compressed)
         compressed.evidence_ref = evidence_path
-        stored = self._persist_compressed_event(compressed, scope)
+        stored = self._persist_compressed_event(compressed, scope, guard_decision=guard_decision)
         payload = {
             "event": "tool_event_stored",
             "tool_name": compressed.tool_name,
@@ -499,10 +502,14 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
             "compression_mode": compressed.compression_mode,
             "evidence_ref": evidence_path,
             "stored": bool(stored.get("stored")),
+            "host_recommendation": (guard_decision or {}).get("recommended_action", "allow"),
         }
         self._stats["stored"] += 1 if stored.get("stored") else 0
         self._stats["last_event"] = payload
         self._record_metric(payload)
+        if guard_decision:
+            stored["guard_decision"] = guard_decision
+            stored["host_recommendation"] = guard_decision.get("recommended_action", "allow")
         return stored
 
     def _capture_decision(self, event: CompressedToolEvent) -> Dict[str, Any]:
@@ -554,29 +561,32 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
             return {"action": "store", "mode": "light"}
         return {"action": "skip"}
 
-    def _persist_compressed_event(self, event: CompressedToolEvent, scope: MemoryScope) -> Dict[str, Any]:
+    def _persist_compressed_event(self, event: CompressedToolEvent, scope: MemoryScope, guard_decision: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         if self._mem_v5_service is None:
             return {"enabled": False, "stored": False, "reason": "memory_v5_unavailable"}
         try:
             content = self._build_memory_content(event)
+            metadata = {
+                "tool_name": event.tool_name,
+                "event_kind": event.event_kind,
+                "exit_code": event.structured.get("exit_code", 0),
+                "token_before": event.token_before,
+                "token_after": event.token_after,
+                "reduction_ratio": event.reduction_ratio,
+                "salience_score": event.salience_score,
+                "compression_mode": event.compression_mode,
+                "source_runtime": event.source_runtime,
+                "warnings": list(event.warnings),
+                "evidence_ref": event.evidence_ref,
+            }
+            if guard_decision:
+                metadata["guard"] = guard_decision
             result = self._mem_v5_service.ingest_tool_event(
                 title=f"{event.event_kind}:{event.tool_name}",
                 summary=content,
                 structured=event.structured,
                 scope=scope,
-                metadata={
-                    "tool_name": event.tool_name,
-                    "event_kind": event.event_kind,
-                    "exit_code": event.structured.get("exit_code", 0),
-                    "token_before": event.token_before,
-                    "token_after": event.token_after,
-                    "reduction_ratio": event.reduction_ratio,
-                    "salience_score": event.salience_score,
-                    "compression_mode": event.compression_mode,
-                    "source_runtime": event.source_runtime,
-                    "warnings": list(event.warnings),
-                    "evidence_ref": event.evidence_ref,
-                },
+                metadata=metadata,
             )
             return {"enabled": True, "stored": bool(result.get("stored")), "item_id": result.get("item_id", ""), "evidence_ref": event.evidence_ref}
         except Exception as exc:
@@ -633,6 +643,18 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
             source_runtime=event.source_runtime,
         )
 
+    def _evaluate_guard(self, event: ToolEvent, compressed: CompressedToolEvent, scope: MemoryScope) -> Dict[str, Any]:
+        registry = get_plugin_registry()
+        plugin = registry.get("execution_guard")
+        if plugin is None or plugin.state != PluginState.ACTIVE or not hasattr(plugin, "analyze_tool_event"):
+            return {}
+        try:
+            return dict(plugin.analyze_tool_event(event, compressed=compressed, scope=scope) or {})
+        except Exception as exc:
+            logger.warning("runtime_middleware execution_guard degraded: %s", exc)
+            self._record_metric({"event": "guard_failed", "tool_name": event.tool_name, "error": str(exc)})
+            return {}
+
     def _scope_from_context(self, payload: Any) -> MemoryScope:
         raw = payload if isinstance(payload, dict) else {}
         service_scope = self._mem_v5_service.scope if self._mem_v5_service is not None else MemoryScope()
@@ -650,7 +672,7 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
         try:
             os.makedirs(os.path.dirname(self._metrics_path), exist_ok=True)
             record = dict(payload)
-            record.setdefault("schema_version", "5.2.0")
+            record.setdefault("schema_version", "5.3.0")
             record.setdefault("component", "runtime_middleware")
             record.setdefault("ts", _now_iso())
             with open(self._metrics_path, "a", encoding="utf-8") as fh:

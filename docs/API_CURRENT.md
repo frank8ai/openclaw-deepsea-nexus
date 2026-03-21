@@ -3,7 +3,7 @@
 Last updated: 2026-03-18
 
 This document describes the supported public API surface for the current
-`v5.2.0` release pack.
+`v5.3.0` release pack.
 
 ## Import Rules
 
@@ -83,7 +83,8 @@ Current contract:
 - `app.plugins["nexus_core"]` is the current memory plugin
 - the plugin registry is shared with sync compatibility paths in-process
 - current internal plugin set also includes `runtime_middleware`
-- it is intentionally internal in `v5.2.0`
+- current internal plugin set also includes `execution_guard`
+- they are intentionally internal in `v5.3.0`
   - do not build new integrations directly against it as if it were public API
 
 ### 3. Memory v5 scoped API
@@ -160,9 +161,13 @@ Current CLI status payloads now also surface:
 
 - `health`
   - `plugins.runtime_middleware.summary`
+  - `plugins.execution_guard.summary`
 - `paths`
   - `runtime_middleware_metrics_path`
   - `runtime_middleware_last_metrics`
+  - `execution_guard_metrics_path`
+  - `execution_governor_guardrails_path`
+  - `execution_guard_last_metrics`
 
 ### 5. Compatibility context helpers
 
@@ -196,6 +201,22 @@ Current boundary:
 
 - keep it internal in `v5.2.0`
 - configure and observe it through runtime config / CLI status
+- do not treat it as stable public Python API yet
+
+### 7. Internal execution guard
+
+Current release includes an internal `execution_guard` plugin with:
+
+- tool-risk taxonomy classification
+- secrets / credentials / boundary checks
+- report-first `allow / ask / block / context` decisions
+- execution-governor guardrails export
+- `tool_event.metadata.guard` attachment
+
+Current boundary:
+
+- keep it internal in `v5.3.0`
+- expose health and path information through CLI / reports only
 - do not treat it as stable public Python API yet
 
 ## Version Contract

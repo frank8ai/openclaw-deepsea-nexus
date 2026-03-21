@@ -1,4 +1,4 @@
-# OpenClaw Deep-Sea Nexus v5.2.0 本地部署
+# OpenClaw Deep-Sea Nexus v5.3.0 本地部署
 
 ## 目标
 将当前仓库版本部署到本地 OpenClaw 工作区，并确保门禁与运行态可用。
@@ -110,6 +110,44 @@ python3 -m deepsea_nexus paths --json
 - `runtime_middleware.token_gate.*`
 - `runtime_middleware.capture_policy.*`
 - `runtime_middleware.metrics.log_path`
+
+## Execution guard 运维入口
+
+当前版本默认启用内部 `execution_guard` 插件，用于在 execution-governor 联动面之前提供 report-first 风险判定：
+
+- tool-risk taxonomy 分类
+- secrets / credentials 风险识别
+- workspace boundary 风险识别
+- second-brain 关键资产风险识别
+- `allow / ask / block / context` recommendation
+
+默认路径：
+
+- metrics：`<resolved workspace>/logs/execution_guard_metrics.log`
+- guardrails：`<OPENCLAW_HOME>/state/execution-governor-guardrails.json`
+
+查看摘要：
+
+```bash
+python3 scripts/execution_guard_report.py --json
+python3 scripts/sync_execution_governor_guardrails.py --json
+```
+
+也可以直接查看：
+
+```bash
+python3 -m deepsea_nexus health --json
+python3 -m deepsea_nexus paths --json
+```
+
+可配置项（`config.json`）：
+
+- `execution_guard.enabled`
+- `execution_guard.mode`
+- `execution_guard.thresholds.*`
+- `execution_guard.report.include_context_hint`
+- `execution_guard.protected_targets.*`
+- `execution_guard.host_bridge.*`
 
 ## 写入护栏（防止写错库）
 当前版本默认启用写入护栏，所有主要写入入口都会检查：

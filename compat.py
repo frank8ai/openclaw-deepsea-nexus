@@ -474,7 +474,7 @@ def nexus_health() -> Dict[str, Any]:
         "plugins": {},
     }
     
-    for name in ["nexus_core", "session_manager", "runtime_middleware", "flush_manager"]:
+    for name in ["nexus_core", "session_manager", "execution_guard", "runtime_middleware", "flush_manager"]:
         plugin = registry.get(name)
         if plugin:
             health["plugins"][name] = {

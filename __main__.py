@@ -89,6 +89,9 @@ def _build_paths_payload(package: Any) -> Dict[str, Any]:
     runtime_middleware_module = importlib.import_module(
         f"{package.__name__}.plugins.runtime_middleware_plugin"
     )
+    execution_guard_module = importlib.import_module(
+        f"{package.__name__}.plugins.execution_guard_plugin"
+    )
     config_path = package.resolve_default_config_path()
     config = package.ConfigManager(config_path)
     cfg = config.get_all()
@@ -117,6 +120,15 @@ def _build_paths_payload(package: Any) -> Dict[str, Any]:
         "brain_base_path": config.get("brain.base_path"),
         "runtime_middleware_metrics_path": metrics_path,
         "runtime_middleware_last_metrics": runtime_middleware_module.read_runtime_middleware_metrics_summary(metrics_path),
+        "execution_guard_metrics_path": runtime_paths.resolve_log_path(
+            cfg,
+            "execution_guard_metrics.log",
+            allow_nexus_base=True,
+        ),
+        "execution_governor_guardrails_path": execution_guard_module.resolve_execution_governor_guardrails_path(cfg),
+        "execution_guard_last_metrics": execution_guard_module.read_execution_guard_metrics_summary(
+            runtime_paths.resolve_log_path(cfg, "execution_guard_metrics.log", allow_nexus_base=True)
+        ),
         "package_version": package.__version__,
         "api_version": package.get_version(),
     }
@@ -180,6 +192,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"Collection: {payload.get('collection')}")
             print(f"Brain base path: {payload.get('brain_base_path') or '<none>'}")
             print(f"Runtime middleware metrics: {payload.get('runtime_middleware_metrics_path') or '<none>'}")
+            print(f"Execution guard metrics: {payload.get('execution_guard_metrics_path') or '<none>'}")
+            print(f"Execution governor guardrails: {payload.get('execution_governor_guardrails_path') or '<none>'}")
         return 0
 
     parser.print_help()
