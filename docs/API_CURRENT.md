@@ -3,7 +3,7 @@
 Last updated: 2026-03-22
 
 This document describes the supported public API surface for the current
-`v5.4.0` release pack.
+`v5.5.0` release pack.
 
 ## Import Rules
 
@@ -85,7 +85,8 @@ Current contract:
 - current internal plugin set also includes `runtime_middleware`
 - current internal plugin set also includes `execution_guard`
 - current internal plugin set also includes `capability_autotune_lab`
-- they are intentionally internal in `v5.4.0`
+- current internal plugin set also includes `codex_periodic_ingest`
+- they are intentionally internal in `v5.5.0`
   - do not build new integrations directly against it as if it were public API
 
 ### 3. Memory v5 scoped API
@@ -164,6 +165,7 @@ Current CLI status payloads now also surface:
   - `plugins.runtime_middleware.summary`
   - `plugins.execution_guard.summary`
   - `plugins.capability_autotune_lab.summary`
+  - `plugins.codex_periodic_ingest.summary`
 - `paths`
   - `runtime_middleware_metrics_path`
   - `runtime_middleware_last_metrics`
@@ -172,6 +174,10 @@ Current CLI status payloads now also surface:
   - `execution_guard_last_metrics`
   - `capability_autotune_report_path`
   - `capability_autotune_last_report`
+  - `codex_home`
+  - `codex_periodic_ingest_workspace_base`
+  - `codex_periodic_ingest_state_path`
+  - `codex_periodic_ingest_metrics_path`
 
 ### 5. Compatibility context helpers
 
@@ -203,7 +209,7 @@ Current release includes an internal `runtime_middleware` plugin with:
 
 Current boundary:
 
-- keep it internal in `v5.4.0`
+- keep it internal in `v5.5.0`
 - configure and observe it through runtime config / CLI status
 - do not treat it as stable public Python API yet
 
@@ -219,7 +225,7 @@ Current release includes an internal `execution_guard` plugin with:
 
 Current boundary:
 
-- keep it internal in `v5.4.0`
+- keep it internal in `v5.5.0`
 - expose health and path information through CLI / reports only
 - do not treat it as stable public Python API yet
 
@@ -234,8 +240,24 @@ Current release includes an internal `capability_autotune_lab` plugin with:
 
 Current boundary:
 
-- keep it internal in `v5.4.0`
+- keep it internal in `v5.5.0`
 - do not auto-apply rule changes
+- do not treat it as stable public Python API yet
+
+### 9. Internal Codex periodic ingest
+
+Current release includes an internal `codex_periodic_ingest` plugin with:
+
+- zero-intrusion scanning of local `~/.codex` session and history artifacts
+- incremental stateful ingest into Memory v5
+- CLI-observable scan paths and last metrics
+- CLI-observable resolved Codex ingest workspace base
+- scheduled-task oriented runner / installer scripts
+
+Current boundary:
+
+- keep it internal in `v5.5.0`
+- use `scripts/codex_periodic_ingest.py` and `scripts/install_codex_periodic_ingest_task.py` instead of importing it as a public API
 - do not treat it as stable public Python API yet
 
 ## Version Contract

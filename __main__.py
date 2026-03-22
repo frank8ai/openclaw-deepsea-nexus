@@ -95,9 +95,13 @@ def _build_paths_payload(package: Any) -> Dict[str, Any]:
     capability_autotune_module = importlib.import_module(
         f"{package.__name__}.plugins.capability_autotune_lab_plugin"
     )
+    codex_ingest_module = importlib.import_module(
+        f"{package.__name__}.plugins.codex_periodic_ingest_plugin"
+    )
     config_path = package.resolve_default_config_path()
     config = package.ConfigManager(config_path)
     cfg = config.get_all()
+    codex_cfg = cfg.get("codex_periodic_ingest", {}) if isinstance(cfg.get("codex_periodic_ingest", {}), dict) else {}
     middleware_cfg = cfg.get("runtime_middleware", {}) if isinstance(cfg, dict) else {}
     metrics_path = (
         middleware_cfg.get("metrics", {}).get("log_path")
@@ -136,6 +140,15 @@ def _build_paths_payload(package: Any) -> Dict[str, Any]:
         "capability_autotune_last_report": capability_autotune_module.read_capability_autotune_report_summary(
             capability_autotune_module.resolve_capability_autotune_report_path(cfg)
         ),
+        "codex_home": str(Path(codex_cfg.get("codex_home") or runtime_paths.resolve_codex_home()).expanduser()),
+        "codex_periodic_ingest_workspace_base": codex_ingest_module.resolve_codex_periodic_ingest_workspace_base(cfg),
+        "codex_periodic_ingest_state_path": codex_ingest_module.resolve_codex_periodic_ingest_state_path(cfg),
+        "codex_periodic_ingest_metrics_path": codex_ingest_module.resolve_codex_periodic_ingest_metrics_path(cfg),
+        "codex_periodic_ingest_last_metrics": codex_ingest_module.read_codex_periodic_ingest_metrics_summary(
+            codex_ingest_module.resolve_codex_periodic_ingest_metrics_path(cfg)
+        ),
+        "codex_periodic_ingest_runner_path": str((Path(__file__).resolve().parent / "scripts" / "codex_periodic_ingest.py").resolve()),
+        "codex_periodic_ingest_installer_path": str((Path(__file__).resolve().parent / "scripts" / "install_codex_periodic_ingest_task.py").resolve()),
         "package_version": package.__version__,
         "api_version": package.get_version(),
     }
@@ -202,6 +215,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"Execution guard metrics: {payload.get('execution_guard_metrics_path') or '<none>'}")
             print(f"Execution governor guardrails: {payload.get('execution_governor_guardrails_path') or '<none>'}")
             print(f"Capability autotune report: {payload.get('capability_autotune_report_path') or '<none>'}")
+            print(f"Codex home: {payload.get('codex_home') or '<none>'}")
+            print(f"Codex ingest workspace: {payload.get('codex_periodic_ingest_workspace_base') or '<none>'}")
+            print(f"Codex ingest state: {payload.get('codex_periodic_ingest_state_path') or '<none>'}")
+            print(f"Codex ingest metrics: {payload.get('codex_periodic_ingest_metrics_path') or '<none>'}")
         return 0
 
     parser.print_help()

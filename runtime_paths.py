@@ -25,6 +25,13 @@ def resolve_openclaw_workspace(default: Optional[str] = None) -> str:
     return os.path.join(resolve_openclaw_home(), "workspace")
 
 
+def resolve_codex_home(default: Optional[str] = None) -> str:
+    candidate = os.environ.get("CODEX_HOME")
+    if candidate:
+        return os.path.expanduser(str(candidate))
+    return os.path.expanduser(str(default or "~/.codex"))
+
+
 def resolve_workspace_base(
     config: Optional[Dict[str, Any]] = None,
     *,

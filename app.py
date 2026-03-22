@@ -22,6 +22,7 @@ from .plugins.smart_context import SmartContextPlugin
 from .plugins.runtime_middleware_plugin import RuntimeMiddlewarePlugin
 from .plugins.execution_guard_plugin import ExecutionGuardPlugin
 from .plugins.capability_autotune_lab_plugin import CapabilityAutotuneLabPlugin
+from .plugins.codex_periodic_ingest_plugin import CodexPeriodicIngestPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,7 @@ class NexusApplication:
         flush_manager = FlushManagerPlugin()
         runtime_middleware = RuntimeMiddlewarePlugin()
         capability_autotune_lab = CapabilityAutotuneLabPlugin()
+        codex_periodic_ingest = CodexPeriodicIngestPlugin()
 
         config_manager = ConfigManagerPlugin()
 
@@ -142,6 +144,7 @@ class NexusApplication:
             (execution_guard, execution_guard.metadata),
             (runtime_middleware, runtime_middleware.metadata),
             (capability_autotune_lab, capability_autotune_lab.metadata),
+            (codex_periodic_ingest, codex_periodic_ingest.metadata),
             (flush_manager, flush_manager.metadata),
         ]
 
@@ -188,6 +191,7 @@ class NexusApplication:
             "execution_guard",
             "runtime_middleware",
             "capability_autotune_lab",
+            "codex_periodic_ingest",
             "flush_manager",
         ]))
 
@@ -206,6 +210,9 @@ class NexusApplication:
         if "capability_autotune_lab" not in auto_load:
             insert_at = auto_load.index("flush_manager") if "flush_manager" in auto_load else len(auto_load)
             auto_load.insert(insert_at, "capability_autotune_lab")
+        if "codex_periodic_ingest" not in auto_load:
+            insert_at = auto_load.index("flush_manager") if "flush_manager" in auto_load else len(auto_load)
+            auto_load.insert(insert_at, "codex_periodic_ingest")
 
         # Load in order
         for plugin_name in auto_load:

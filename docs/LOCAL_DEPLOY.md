@@ -1,7 +1,7 @@
-# OpenClaw Deep-Sea Nexus v5.4.0 本地部署
+# OpenClaw Deep-Sea Nexus v5.5.0 本地部署
 
 ## 目标
-将当前仓库版本部署到本地 OpenClaw 工作区，并确保门禁与运行态可用。
+将当前仓库版本部署到本地运行环境，并确保门禁与运行态可用。OpenClaw 路径仍受支持，但 `v5.5.0` 同时支持不依赖 OpenClaw 的 Codex 本机离线记忆接入。
 
 ## 前置条件
 - 路径：当前仓库根目录
@@ -183,6 +183,58 @@ python3 -m deepsea_nexus paths --json
 - `capability_autotune_lab.enabled`
 - `capability_autotune_lab.report_path`
 - `capability_autotune_lab.include_context_scorecard`
+
+## Codex periodic ingest 运维入口
+
+当前版本默认启用内部 `codex_periodic_ingest` 插件，用于**不改 Codex 启动方式**地把本机 Codex 使用痕迹按周期写入第二大脑：
+
+- 扫描 `~/.codex/sessions/**/*.jsonl`
+- 扫描 `~/.codex/history.jsonl`
+- 只做增量 ingest
+- 默认写入 `~/.codex/deepsea-nexus-workspace/memory/95_MemoryV5`
+
+默认路径：
+
+- workspace：`~/.codex/deepsea-nexus-workspace`
+- state：`<codex workspace>/logs/codex_periodic_ingest_state.json`
+- metrics：`<codex workspace>/logs/codex_periodic_ingest_metrics.log`
+
+手动运行：
+
+```bash
+python3 scripts/codex_periodic_ingest.py --json
+```
+
+Windows 安装每小时计划任务：
+
+```powershell
+python scripts\install_codex_periodic_ingest_task.py --interval-hours 1
+```
+
+也可以直接查看：
+
+```bash
+python3 -m deepsea_nexus health --json
+python3 -m deepsea_nexus paths --json
+```
+
+可配置项（`config.json`）：
+
+- `codex_periodic_ingest.enabled`
+- `codex_periodic_ingest.codex_home`
+- `codex_periodic_ingest.workspace_base`
+- `codex_periodic_ingest.scan_interval_hours`
+- `codex_periodic_ingest.state_path`
+- `codex_periodic_ingest.metrics_path`
+- `codex_periodic_ingest.max_session_messages`
+- `codex_periodic_ingest.max_history_lines`
+- `codex_periodic_ingest.sources.*`
+
+CLI 当前也会暴露：
+
+- `codex_periodic_ingest_workspace_base`
+- `codex_periodic_ingest_state_path`
+- `codex_periodic_ingest_metrics_path`
 
 ## 写入护栏（防止写错库）
 当前版本默认启用写入护栏，所有主要写入入口都会检查：

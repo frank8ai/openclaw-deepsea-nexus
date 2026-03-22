@@ -199,6 +199,7 @@ def nexus_init(config_path: Optional[str] = None) -> bool:
             "execution_guard",
             "runtime_middleware",
             "capability_autotune_lab",
+            "codex_periodic_ingest",
             "flush_manager",
         ]
         missing = [
@@ -235,6 +236,7 @@ def nexus_init(config_path: Optional[str] = None) -> bool:
             "execution_guard",
             "runtime_middleware",
             "capability_autotune_lab",
+            "codex_periodic_ingest",
             "flush_manager",
         ]
     cfg["plugins"] = plugins_cfg
@@ -269,6 +271,7 @@ def nexus_init(config_path: Optional[str] = None) -> bool:
             "execution_guard",
             "runtime_middleware",
             "capability_autotune_lab",
+            "codex_periodic_ingest",
             "flush_manager",
         ]
 
@@ -504,6 +507,7 @@ def nexus_health() -> Dict[str, Any]:
         "execution_guard",
         "runtime_middleware",
         "capability_autotune_lab",
+        "codex_periodic_ingest",
         "flush_manager",
     ]:
         plugin = registry.get(name)

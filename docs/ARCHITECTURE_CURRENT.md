@@ -3,7 +3,7 @@
 Last updated: 2026-03-22
 
 This document describes the current runtime architecture for the
-`v5.4.0` release pack.
+`v5.5.0` release pack.
 
 For a shorter technical entrypoint, read `TECHNICAL_OVERVIEW_CURRENT.md`
 first.
@@ -25,7 +25,7 @@ It does not replace:
 
 ## Version Model
 
-- Package release: `5.4.0`
+- Package release: `5.5.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 
@@ -131,7 +131,7 @@ Its role is to provide:
 Current boundary:
 
 - internal plugin, not public API
-- capture-side only in `v5.4.0`
+- capture-side only in `v5.5.0`
 - does not replace current recall ranking or inject policy
 - compression rules are now configurable and can be tuned offline by the autotune lab
 
@@ -152,7 +152,7 @@ Its role is to provide:
 Current boundary:
 
 - internal plugin, not public API
-- report-only by default in `v5.4.0`
+- report-only by default in `v5.5.0`
 - does not hard-stop host execution unless a future enforcement mode is enabled
 
 ### 7. Capability autotune lab
@@ -174,10 +174,32 @@ Its role is to provide:
 Current boundary:
 
 - internal plugin, not public API
-- offline only in `v5.4.0`
+- offline only in `v5.5.0`
 - does not auto-apply config mutations
 
-### 8. Memory v5 scoped store
+### 8. Codex periodic ingest
+
+Current zero-intrusion Codex ingest lives in:
+
+- `plugins/codex_periodic_ingest_plugin.py`
+- `scripts/codex_periodic_ingest.py`
+- `scripts/install_codex_periodic_ingest_task.py`
+
+Its role is to provide:
+
+- local `~/.codex` session/history scanning without replacing the Codex launch path
+- incremental digest generation for session and history artifacts
+- durable Memory v5 writes for Codex-derived summaries
+- scheduled-task friendly hourly/offline operation with state + metrics
+
+Current boundary:
+
+- internal plugin, not public API
+- offline/periodic only in `v5.5.0`
+- no OpenClaw dependency required
+- no reverse injection into active Codex sessions
+
+### 9. Memory v5 scoped store
 
 Current durable scoped memory lives under:
 
@@ -203,7 +225,7 @@ Main concepts:
   - zero-valued archive rows remain explicit operator backfill candidates instead
     of being silently reinterpreted at runtime
 
-### 9. Operational layer
+### 10. Operational layer
 
 Operational entrypoints include:
 

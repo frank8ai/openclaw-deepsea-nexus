@@ -1880,6 +1880,173 @@ class TestExecutionGuardScripts(unittest.TestCase):
         self.assertIn("tool_risk_decision", written["signals"])
 
 
+class TestCodexPeriodicIngest(unittest.TestCase):
+    def setUp(self):
+        deepsea_nexus.reset_plugin_registry()
+        self.temp_dir = tempfile.mkdtemp()
+        self.workspace = Path(self.temp_dir) / "workspace"
+        self.workspace.mkdir(parents=True, exist_ok=True)
+        self.codex_home = Path(self.temp_dir) / ".codex"
+        self.sessions_dir = self.codex_home / "sessions" / "2026" / "03" / "22"
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        self.history_path = self.codex_home / "history.jsonl"
+        self.session_path = self.sessions_dir / "rollout-2026-03-22T20-00-00-00000000-0000-0000-0000-000000000000.jsonl"
+        self.session_path.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-22T12:00:00.000Z",
+                            "type": "session_meta",
+                            "payload": {
+                                "id": "session-1",
+                                "timestamp": "2026-03-22T12:00:00.000Z",
+                                "cwd": str(self.workspace),
+                                "originator": "Codex Desktop",
+                                "source": "vscode",
+                                "model_provider": "openai",
+                            },
+                        },
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-22T12:01:00.000Z",
+                            "type": "response_item",
+                            "payload": {
+                                "type": "message",
+                                "role": "user",
+                                "content": [
+                                    {"type": "input_text", "text": "请把 Codex 记忆接入第二大脑"}
+                                ],
+                            },
+                        },
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        {
+                            "timestamp": "2026-03-22T12:02:00.000Z",
+                            "type": "response_item",
+                            "payload": {
+                                "type": "message",
+                                "role": "assistant",
+                                "content": [
+                                    {"type": "output_text", "text": "会用零侵入的每小时离线扫描方式接入。"}
+                                ],
+                            },
+                        },
+                        ensure_ascii=False,
+                    ),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        self.history_path.write_text(
+            json.dumps(
+                {
+                    "session_id": "session-1",
+                    "ts": 1771653236,
+                    "text": "把扫描频率设成每小时一次",
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        self.config = {
+            "paths": {"base": str(self.workspace)},
+            "memory_v5": {
+                "enabled": True,
+                "root": "memory/95_MemoryV5",
+                "async_ingest": False,
+                "graph_enabled": False,
+                "fts_enabled": True,
+                "scope": {"agent_id": "main", "user_id": "default"},
+            },
+            "codex_periodic_ingest": {
+                "enabled": True,
+                "codex_home": str(self.codex_home),
+                "scan_interval_hours": 1,
+                "max_session_messages": 12,
+                "max_history_lines": 50,
+            },
+        }
+        self.module = importlib.import_module(
+            f"{deepsea_nexus.__name__}.plugins.codex_periodic_ingest_plugin"
+        )
+        self.plugin = self.module.CodexPeriodicIngestPlugin()
+        self.assertTrue(asyncio.run(self.plugin.initialize(self.config)))
+
+    def tearDown(self):
+        import shutil
+
+        deepsea_nexus.reset_plugin_registry()
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_scan_once_ingests_session_and_history_incrementally(self):
+        first = self.plugin.scan_once()
+
+        self.assertEqual(first["session_documents"], 1)
+        self.assertEqual(first["history_documents"], 1)
+        self.assertEqual(first["stored_documents"], 2)
+
+        hits = self.plugin._mem_v5_service.recall("零侵入 扫描", limit=10)
+        self.assertTrue(any(hit.metadata.get("kind") == "codex_session" for hit in hits))
+        self.assertTrue(any("每小时一次" in hit.content for hit in hits))
+
+        second = self.plugin.scan_once()
+        self.assertEqual(second["stored_documents"], 0)
+        self.assertEqual(second["session_documents"], 0)
+        self.assertEqual(second["history_documents"], 0)
+
+        with self.session_path.open("a", encoding="utf-8") as fh:
+            fh.write(
+                json.dumps(
+                    {
+                        "timestamp": "2026-03-22T12:03:00.000Z",
+                        "type": "response_item",
+                        "payload": {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [
+                                {"type": "output_text", "text": "会保留会话摘要和来源信息。"}
+                            ],
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+        with self.history_path.open("a", encoding="utf-8") as fh:
+            fh.write(
+                json.dumps(
+                    {
+                        "session_id": "session-1",
+                        "ts": 1771656836,
+                        "text": "把结果写进记忆库并保持自动增量",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+        third = self.plugin.scan_once()
+        self.assertEqual(third["session_documents"], 1)
+        self.assertEqual(third["history_documents"], 1)
+        self.assertEqual(third["stored_documents"], 2)
+
+    def test_health_summary_exposes_last_scan_and_paths(self):
+        self.plugin.scan_once()
+
+        health = self.plugin.get_health_summary()
+        self.assertTrue(health["enabled"])
+        self.assertEqual(health["codex_home"], str(self.codex_home))
+        self.assertTrue(health["state_path"].endswith("codex_periodic_ingest_state.json"))
+        self.assertTrue(health["metrics_path"].endswith("codex_periodic_ingest_metrics.log"))
+        self.assertEqual(health["last_scan"]["stored_documents"], 2)
+
+
 class TestPackageRootExports(unittest.TestCase):
     def test_documented_exports_exist(self):
         required = [
@@ -1942,6 +2109,10 @@ class TestVersionAndEntrypoints(unittest.TestCase):
                         "paths": {"base": temp_dir},
                         "memory_v5": {"root": "memory/95_MemoryV5"},
                         "brain": {"base_path": temp_dir},
+                        "codex_periodic_ingest": {
+                            "enabled": True,
+                            "codex_home": str(Path(temp_dir) / ".codex"),
+                        },
                         "nexus": {
                             "vector_db_path": str(Path(temp_dir) / "vector-db"),
                             "collection_name": "test_collection",
@@ -1983,6 +2154,54 @@ class TestVersionAndEntrypoints(unittest.TestCase):
         self.assertEqual(payload["execution_guard_last_metrics"], {})
         self.assertTrue(payload["capability_autotune_report_path"].endswith("capability_autotune_latest.json"))
         self.assertEqual(payload["capability_autotune_last_report"], {})
+        self.assertEqual(payload["codex_home"], str(Path(temp_dir) / ".codex"))
+        self.assertEqual(payload["codex_periodic_ingest_workspace_base"], temp_dir)
+        self.assertTrue(payload["codex_periodic_ingest_state_path"].endswith("codex_periodic_ingest_state.json"))
+        self.assertTrue(payload["codex_periodic_ingest_metrics_path"].endswith("codex_periodic_ingest_metrics.log"))
+        self.assertTrue(payload["codex_periodic_ingest_runner_path"].endswith("scripts\\codex_periodic_ingest.py"))
+        self.assertTrue(payload["codex_periodic_ingest_installer_path"].endswith("scripts\\install_codex_periodic_ingest_task.py"))
+
+    def test_cli_paths_json_prefers_codex_ingest_workspace_override(self):
+        cli = importlib.import_module(f"{deepsea_nexus.__name__}.__main__")
+        stdout = io.StringIO()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            codex_workspace = str(Path(temp_dir) / ".codex" / "deepsea-nexus-workspace")
+            config_path = Path(temp_dir) / "config.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "paths": {"base": str(Path(temp_dir) / ".openclaw" / "workspace")},
+                        "codex_periodic_ingest": {
+                            "enabled": True,
+                            "codex_home": str(Path(temp_dir) / ".codex"),
+                            "workspace_base": codex_workspace,
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(
+                deepsea_nexus,
+                "resolve_default_config_path",
+                return_value=str(config_path),
+            ):
+                with contextlib.redirect_stdout(stdout):
+                    exit_code = cli.main(["paths", "--json"])
+
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["codex_periodic_ingest_workspace_base"], codex_workspace)
+        self.assertEqual(
+            payload["codex_periodic_ingest_state_path"],
+            str(Path(codex_workspace) / "logs" / "codex_periodic_ingest_state.json"),
+        )
+        self.assertEqual(
+            payload["codex_periodic_ingest_metrics_path"],
+            str(Path(codex_workspace) / "logs" / "codex_periodic_ingest_metrics.log"),
+        )
 
     def test_cli_health_json_includes_runtime_middleware(self):
         cli = importlib.import_module(f"{deepsea_nexus.__name__}.__main__")
@@ -2000,6 +2219,8 @@ class TestVersionAndEntrypoints(unittest.TestCase):
         self.assertIn("summary", payload["plugins"]["execution_guard"])
         self.assertIn("capability_autotune_lab", payload["plugins"])
         self.assertIn("summary", payload["plugins"]["capability_autotune_lab"])
+        self.assertIn("codex_periodic_ingest", payload["plugins"])
+        self.assertIn("summary", payload["plugins"]["codex_periodic_ingest"])
 
     def test_repo_shim_package_supports_standard_imports(self):
         result = subprocess.run(
@@ -2012,6 +2233,51 @@ class TestVersionAndEntrypoints(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["package_version"], deepsea_nexus.__version__)
         self.assertEqual(payload["api_version"], deepsea_nexus.get_version())
+
+
+class TestCodexPeriodicIngestScripts(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_root = Path(self.temp_dir) / "repo"
+        self.repo_root.mkdir(parents=True, exist_ok=True)
+        self.config_path = self.repo_root / "config.json"
+        self.config_path.write_text(
+            json.dumps(
+                {
+                    "paths": {"base": str(self.repo_root)},
+                    "codex_periodic_ingest": {
+                        "enabled": True,
+                        "codex_home": str(self.repo_root / ".codex"),
+                        "scan_interval_hours": 1,
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        self.install_script = _load_script_module("install_codex_periodic_ingest_task")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_install_codex_periodic_ingest_task_builds_expected_schtasks_command(self):
+        command = self.install_script.build_schtasks_command(
+            task_name="Deepsea-Nexus-Codex-Memory",
+            python_executable=sys.executable,
+            runner_script=REPO_ROOT / "scripts" / "codex_periodic_ingest.py",
+            config_path=self.config_path,
+            interval_hours=1,
+        )
+
+        joined = " ".join(command)
+        self.assertIn("/Create", joined)
+        self.assertIn("/SC", joined)
+        self.assertIn("HOURLY", joined)
+        self.assertIn("Deepsea-Nexus-Codex-Memory", joined)
+        self.assertIn("codex_periodic_ingest.py", joined)
+        self.assertIn(str(self.config_path), joined)
 
 
 class TestCurrentRuntimeFixes(unittest.TestCase):

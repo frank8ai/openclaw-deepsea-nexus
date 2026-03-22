@@ -23,8 +23,8 @@
     "max_line_length": 80
   },
   "project": {
-    "version": "5.4.0",
-    "name": "OpenClaw Deep-Sea Nexus v5.4.0",
+    "version": "5.5.0",
+    "name": "OpenClaw Deep-Sea Nexus v5.5.0",
     "author": "OpenClaw"
   },
   "session": {
@@ -46,6 +46,7 @@
       "execution_guard",
       "runtime_middleware",
       "capability_autotune_lab",
+      "codex_periodic_ingest",
       "flush_manager"
     ]
   },
@@ -53,6 +54,20 @@
     "enabled": true,
     "report_path": "",
     "include_context_scorecard": true
+  },
+  "codex_periodic_ingest": {
+    "enabled": true,
+    "codex_home": "~/.codex",
+    "workspace_base": "~/.codex/deepsea-nexus-workspace",
+    "scan_interval_hours": 1,
+    "state_path": "",
+    "metrics_path": "",
+    "max_session_messages": 12,
+    "max_history_lines": 50,
+    "sources": {
+      "sessions": true,
+      "history": true
+    }
   },
   "execution_guard": {
     "enabled": true,

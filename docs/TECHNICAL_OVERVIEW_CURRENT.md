@@ -2,12 +2,12 @@
 
 Last updated: 2026-03-22
 
-This document is the technical entrypoint for the current `v5.4.0` release
+This document is the technical entrypoint for the current `v5.5.0` release
 pack.
 
 ## Release Context
 
-- Package release: `5.4.0`
+- Package release: `5.5.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 - Primary rule source:
@@ -109,6 +109,21 @@ Current implementation centers:
 - `scripts/capability_autotune_lab.py`
 - `scripts/capability_autotune_report.py`
 
+### Codex periodic ingest
+
+Main responsibility:
+
+- scan local Codex session/history artifacts without modifying Codex startup flow
+- summarize `sessions/**/*.jsonl` and appended `history.jsonl` content into durable memory
+- persist incremental scan state and metrics for hourly/offline runs
+- keep the integration zero-intrusion and OpenClaw-independent
+
+Current implementation centers:
+
+- `plugins/codex_periodic_ingest_plugin.py`
+- `scripts/codex_periodic_ingest.py`
+- `scripts/install_codex_periodic_ingest_task.py`
+
 ### Context governance
 
 Main responsibility:
@@ -176,6 +191,7 @@ Current entrypoints:
 6. runtime middleware can pre-process tool output into `tool_event` items before they enter scoped memory.
 7. execution guard can attach risk decisions to tool events before host bridge/reporting.
 8. capability autotune lab can evaluate alternate compression-rule candidates offline and emit promotion recommendations.
+9. codex periodic ingest can ingest local Codex session/history summaries into Memory v5 without host-hook integration.
 
 ### Recall / inject flow
 
@@ -213,6 +229,10 @@ Current entrypoints:
   - it does not mutate runtime config automatically
   - it recommends `runtime_middleware.compression.*` overrides from offline eval results
   - it uses repo-local compression golden cases plus current recall scorecard as guardrails
+- codex periodic ingest is periodic/offline in v1
+  - it does not modify Codex runtime behavior or inject memory back into live Codex turns
+  - it currently scans only `sessions/**/*.jsonl` and `history.jsonl`
+  - it is intended for scheduled hourly runs, not real-time streaming capture
 - Memory v5 lifecycle governance is explicit, not silent background mutation
   - recall applies TTL expiry and decay weighting through the same lifecycle rules
   - lifecycle audit is report-first

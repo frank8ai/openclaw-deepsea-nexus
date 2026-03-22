@@ -1,4 +1,4 @@
-# Deep-Sea Nexus v5.4.0
+# Deep-Sea Nexus v5.5.0
 
 Local-first long-term memory and context-governance tooling for agent
 workflows.
@@ -54,6 +54,8 @@ model is:
   - `docs/LOCAL_DEPLOY.md`
   - `docs/sop/Context_Policy_v2_EventDriven.md`
 - Release notes:
+  - `docs/releases/V5_5_0_RELEASE_2026-03-22.md`
+  - `docs/releases/V5_5_0_RELEASE_2026-03-22_ZH.md`
   - `docs/releases/V5_4_0_RELEASE_2026-03-22.md`
   - `docs/releases/V5_4_0_RELEASE_2026-03-22_ZH.md`
   - `docs/releases/V5_3_0_RELEASE_2026-03-21.md`
@@ -73,6 +75,8 @@ Detailed current source of truth remains in Chinese.
 - runtime middleware with configurable compression rules
 - report-first execution guard for tool-risk classification
 - offline capability autotune lab for compression-rule evaluation
+- zero-intrusion Codex periodic ingest from local `~/.codex` session/history data
+  - including resolved Codex ingest workspace visibility from `paths --json`
 - local deploy / doctor / smoke / benchmark workflows
 
 ## Validation
@@ -82,4 +86,5 @@ python3 -m unittest tests.test_memory_v5 -v
 python3 run_tests.py
 bash scripts/nexus_doctor_local.sh --check --skip-deploy
 python3 scripts/memory_v5_smoke.py
+python3 scripts/codex_periodic_ingest.py --json
 ```

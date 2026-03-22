@@ -9,6 +9,24 @@
 > - `docs/ARCHITECTURE_CURRENT.md`
 > - `docs/API_CURRENT.md`
 
+## Version 5.5.0 (2026-03-22)
+### 🔄 Zero-Intrusion Codex Memory Ingest
+- ✅ package version advanced to `5.5.0`
+- ✅ added internal `codex_periodic_ingest` plugin
+  - scans local `~/.codex/sessions/**/*.jsonl`
+  - scans appended `~/.codex/history.jsonl`
+  - persists incremental state and metrics
+  - writes Codex digests into Memory v5 without OpenClaw hooks
+- ✅ added operator entrypoints:
+  - `scripts/codex_periodic_ingest.py`
+  - `scripts/install_codex_periodic_ingest_task.py`
+- ✅ extended CLI observability:
+  - `health --json` now exposes `plugins.codex_periodic_ingest.summary`
+  - `paths --json` now exposes Codex ingest paths and helper scripts
+- ✅ release docs aligned:
+  - `docs/releases/V5_5_0_RELEASE_2026-03-22.md`
+  - `docs/releases/V5_5_0_RELEASE_2026-03-22_ZH.md`
+
 ## Version 5.1.0 (2026-03-14, in progress)
 ### 🚧 Governance Optimization Kickoff
 - ✅ package version advanced to `5.1.0` (upgrade lane)

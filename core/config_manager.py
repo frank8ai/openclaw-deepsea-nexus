@@ -172,6 +172,20 @@ class ConfigManager:
             "report_path": None,
             "include_context_scorecard": True,
         },
+        "codex_periodic_ingest": {
+            "enabled": True,
+            "codex_home": "~/.codex",
+            "workspace_base": None,
+            "scan_interval_hours": 1,
+            "state_path": None,
+            "metrics_path": None,
+            "max_session_messages": 12,
+            "max_history_lines": 50,
+            "sources": {
+                "sessions": True,
+                "history": True,
+            },
+        },
         "plugins": {
             "auto_load": [
                 "config_manager",
@@ -181,6 +195,7 @@ class ConfigManager:
                 "execution_guard",
                 "runtime_middleware",
                 "capability_autotune_lab",
+                "codex_periodic_ingest",
                 "flush_manager",
             ],
             "hot_reload": True,
