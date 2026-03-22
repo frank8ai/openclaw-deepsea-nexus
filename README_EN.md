@@ -1,11 +1,11 @@
-# Deep-Sea Nexus v5.1.0
+# Deep-Sea Nexus v5.4.0
 
 Local-first long-term memory and context-governance tooling for agent
 workflows.
 
 [简体中文](README.md)
 
-Last updated: 2026-03-15
+Last updated: 2026-03-22
 
 ## Comparison
 
@@ -54,6 +54,10 @@ model is:
   - `docs/LOCAL_DEPLOY.md`
   - `docs/sop/Context_Policy_v2_EventDriven.md`
 - Release notes:
+  - `docs/releases/V5_4_0_RELEASE_2026-03-22.md`
+  - `docs/releases/V5_4_0_RELEASE_2026-03-22_ZH.md`
+  - `docs/releases/V5_3_0_RELEASE_2026-03-21.md`
+  - `docs/releases/V5_3_0_RELEASE_2026-03-21_ZH.md`
   - `docs/releases/V5_0_0_OFFICIAL_2026-03-14.md`
   - `docs/releases/V5_0_0_HOTFIX_1_2026-03-14.md`
   - `docs/releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
@@ -66,6 +70,9 @@ Detailed current source of truth remains in Chinese.
 - async runtime and plugin lifecycle
 - Memory v5 scoped memory (`agent_id` / `user_id` physical partition + `app_id` / `run_id` / `workspace` record-level isolation)
 - context-governed recall / inject / compress / rescue
+- runtime middleware with configurable compression rules
+- report-first execution guard for tool-risk classification
+- offline capability autotune lab for compression-rule evaluation
 - local deploy / doctor / smoke / benchmark workflows
 
 ## Validation

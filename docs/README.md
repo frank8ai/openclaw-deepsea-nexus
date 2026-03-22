@@ -1,14 +1,16 @@
 # Deep-Sea Nexus Docs Guide
 
-Last updated: 2026-03-15
+Last updated: 2026-03-22
 
-This file is the documentation entrypoint for the current `v5.3.0` release
+This file is the documentation entrypoint for the current `v5.4.0` release
 pack.
 
 Current release state:
 
-- `v5.3.0` feature release baseline
+- `v5.4.0` feature release baseline
 - release note:
+  - `releases/V5_4_0_RELEASE_2026-03-22.md`
+  - `releases/V5_4_0_RELEASE_2026-03-22_ZH.md`
   - `releases/V5_3_0_RELEASE_2026-03-21.md`
   - `releases/V5_3_0_RELEASE_2026-03-21_ZH.md`
   - `releases/V5_2_0_RELEASE_2026-03-18_ZH.md`
@@ -137,6 +139,8 @@ Recommended local verification order:
 ```bash
 python3 -m unittest tests.test_memory_v5 -v
 python3 scripts/context_recall_scorecard.py --golden docs/evals/context_recall_golden_cases.json
+python3 scripts/capability_autotune_lab.py --json
+python3 scripts/capability_autotune_report.py --json
 python3 run_tests.py
 bash scripts/nexus_doctor_local.sh --check --skip-deploy
 python3 scripts/memory_v5_smoke.py

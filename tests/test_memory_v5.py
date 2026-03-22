@@ -1616,6 +1616,14 @@ class TestRuntimeMiddleware(unittest.TestCase):
             "runtime_middleware": {
                 "enabled": True,
                 "fail_open": True,
+                "compression": {
+                    "failure_preview_limit": 12,
+                    "tail_preview_limit": 8,
+                    "grep_match_limit": 10,
+                    "diff_preview_limit": 6,
+                    "generic_signal_limit": 8,
+                    "operational_signal_limit": 8,
+                },
                 "token_gate": {
                     "enabled": True,
                     "min_reduction_ratio": 0.05,
@@ -1703,6 +1711,70 @@ class TestRuntimeMiddleware(unittest.TestCase):
         self.assertTrue(result["stored"])
         health = self.plugin.get_health_summary()
         self.assertEqual(health["fallbacks"], 1)
+
+    def test_runtime_middleware_respects_configured_compression_limits(self):
+        tuned_config = json.loads(json.dumps(self.config))
+        tuned_config["runtime_middleware"]["compression"] = {
+            "failure_preview_limit": 2,
+            "tail_preview_limit": 3,
+            "grep_match_limit": 2,
+            "diff_preview_limit": 2,
+            "generic_signal_limit": 3,
+            "operational_signal_limit": 3,
+        }
+
+        plugin = RuntimeMiddlewarePlugin()
+        self.assertTrue(asyncio.run(plugin.initialize(tuned_config)))
+
+        test_event = ToolEvent(
+            tool_name="pytest",
+            args=["-q"],
+            stdout="\n".join(
+                [
+                    "FAILED case_1 - AssertionError",
+                    "FAILED case_2 - AssertionError",
+                    "FAILED case_3 - AssertionError",
+                    "FAILED case_4 - AssertionError",
+                ]
+            ),
+            exit_code=1,
+            cwd=self.temp_dir,
+        )
+        grep_event = ToolEvent(
+            tool_name="rg",
+            args=["TODO", "."],
+            stdout="\n".join(
+                [
+                    "src/a.py:1 TODO one",
+                    "src/b.py:2 TODO two",
+                    "src/c.py:3 TODO three",
+                ]
+            ),
+            exit_code=0,
+            cwd=self.temp_dir,
+        )
+        generic_event = ToolEvent(
+            tool_name="bash",
+            args=["-lc", "echo lines"],
+            stdout="\n".join(
+                [
+                    "alpha",
+                    "beta",
+                    "gamma",
+                    "delta",
+                ]
+            ),
+            exit_code=0,
+            cwd=self.temp_dir,
+        )
+
+        test_payload = plugin._transformer.transform(test_event)
+        grep_payload = plugin._transformer.transform(grep_event)
+        generic_payload = plugin._transformer.transform(generic_event)
+
+        self.assertEqual(len(test_payload.structured["failures"]), 2)
+        self.assertEqual(len(grep_payload.structured["matches"]), 2)
+        self.assertEqual(len(generic_payload.structured["signals"]), 3)
 
 
 class TestExecutionGuard(unittest.TestCase):
@@ -1909,6 +1981,8 @@ class TestVersionAndEntrypoints(unittest.TestCase):
         self.assertTrue(payload["execution_guard_metrics_path"].endswith("execution_guard_metrics.log"))
         self.assertTrue(payload["execution_governor_guardrails_path"].endswith("execution-governor-guardrails.json"))
         self.assertEqual(payload["execution_guard_last_metrics"], {})
+        self.assertTrue(payload["capability_autotune_report_path"].endswith("capability_autotune_latest.json"))
+        self.assertEqual(payload["capability_autotune_last_report"], {})
 
     def test_cli_health_json_includes_runtime_middleware(self):
         cli = importlib.import_module(f"{deepsea_nexus.__name__}.__main__")
@@ -1924,6 +1998,8 @@ class TestVersionAndEntrypoints(unittest.TestCase):
         self.assertIn("summary", payload["plugins"]["runtime_middleware"])
         self.assertIn("execution_guard", payload["plugins"])
         self.assertIn("summary", payload["plugins"]["execution_guard"])
+        self.assertIn("capability_autotune_lab", payload["plugins"])
+        self.assertIn("summary", payload["plugins"]["capability_autotune_lab"])
 
     def test_repo_shim_package_supports_standard_imports(self):
         result = subprocess.run(
@@ -3894,6 +3970,78 @@ class TestContextRecallScorecardScript(unittest.TestCase):
         self.assertIn("decision-case", markdown)
         self.assertIn("Avg prompt token ratio", markdown)
         self.assertEqual(payload["summary"]["pass_rate"], 1.0)
+
+
+class TestCapabilityAutotuneLabAssets(unittest.TestCase):
+    def test_capability_autotune_lab_script_and_eval_pack_exist(self):
+        self.assertTrue((REPO_ROOT / "scripts" / "capability_autotune_lab.py").exists())
+        self.assertTrue((REPO_ROOT / "scripts" / "capability_autotune_report.py").exists())
+        self.assertTrue((REPO_ROOT / "docs" / "evals" / "runtime_middleware_compression_golden_cases.json").exists())
+
+
+class TestCapabilityAutotuneLabScripts(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.config_path = Path(self.temp_dir) / "config.json"
+        self.json_out = Path(self.temp_dir) / "autotune.json"
+        self.md_out = Path(self.temp_dir) / "autotune.md"
+        self.config_path.write_text(
+            json.dumps(
+                {
+                    "paths": {"base": self.temp_dir},
+                    "runtime_middleware": {
+                        "compression": {
+                            "failure_preview_limit": 12,
+                            "tail_preview_limit": 8,
+                            "grep_match_limit": 10,
+                            "diff_preview_limit": 6,
+                            "generic_signal_limit": 8,
+                            "operational_signal_limit": 8,
+                        }
+                    },
+                    "capability_autotune_lab": {
+                        "enabled": True,
+                        "include_context_scorecard": True,
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        self.lab_script = _load_script_module("capability_autotune_lab")
+        self.report_script = _load_script_module("capability_autotune_report")
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_capability_autotune_lab_run_writes_report_artifacts(self):
+        payload = self.lab_script.run(
+            config_path=self.config_path,
+            json_out=self.json_out,
+            md_out=self.md_out,
+        )
+
+        self.assertTrue(self.json_out.exists())
+        self.assertTrue(self.md_out.exists())
+        self.assertEqual(payload["best_experiment"]["id"], "baseline")
+        self.assertEqual(payload["recommended_action"], "keep_for_lab")
+        self.assertEqual(payload["context_scorecard"]["cases"], 22)
+
+        summary = self.report_script.build_summary(json.loads(self.json_out.read_text(encoding="utf-8")))
+        self.assertEqual(summary["best_experiment"]["id"], "baseline")
+        self.assertEqual(summary["context_scorecard"]["cases"], 22)
+
+    def test_capability_autotune_report_uses_config_resolved_latest_report(self):
+        payload = self.lab_script.run(config_path=self.config_path)
+
+        summary = self.report_script.run(config_path=self.config_path)
+
+        self.assertEqual(summary["generated_at"], payload["generated_at"])
+        self.assertEqual(summary["best_experiment"]["id"], "baseline")
+        self.assertEqual(summary["context_scorecard"]["cases"], 22)
+        self.assertTrue(summary["report_path"].endswith("logs\\capability_autotune_latest.json"))
 
 class TestContextEngineRuntimeState(unittest.TestCase):
     def test_budget_from_config_reads_context_engine_section(self):

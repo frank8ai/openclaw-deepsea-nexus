@@ -1,9 +1,9 @@
 # Deep-Sea Nexus Current API
 
-Last updated: 2026-03-18
+Last updated: 2026-03-22
 
 This document describes the supported public API surface for the current
-`v5.3.0` release pack.
+`v5.4.0` release pack.
 
 ## Import Rules
 
@@ -84,7 +84,8 @@ Current contract:
 - the plugin registry is shared with sync compatibility paths in-process
 - current internal plugin set also includes `runtime_middleware`
 - current internal plugin set also includes `execution_guard`
-- they are intentionally internal in `v5.3.0`
+- current internal plugin set also includes `capability_autotune_lab`
+- they are intentionally internal in `v5.4.0`
   - do not build new integrations directly against it as if it were public API
 
 ### 3. Memory v5 scoped API
@@ -162,12 +163,15 @@ Current CLI status payloads now also surface:
 - `health`
   - `plugins.runtime_middleware.summary`
   - `plugins.execution_guard.summary`
+  - `plugins.capability_autotune_lab.summary`
 - `paths`
   - `runtime_middleware_metrics_path`
   - `runtime_middleware_last_metrics`
   - `execution_guard_metrics_path`
   - `execution_governor_guardrails_path`
   - `execution_guard_last_metrics`
+  - `capability_autotune_report_path`
+  - `capability_autotune_last_report`
 
 ### 5. Compatibility context helpers
 
@@ -199,7 +203,7 @@ Current release includes an internal `runtime_middleware` plugin with:
 
 Current boundary:
 
-- keep it internal in `v5.2.0`
+- keep it internal in `v5.4.0`
 - configure and observe it through runtime config / CLI status
 - do not treat it as stable public Python API yet
 
@@ -215,8 +219,23 @@ Current release includes an internal `execution_guard` plugin with:
 
 Current boundary:
 
-- keep it internal in `v5.3.0`
+- keep it internal in `v5.4.0`
 - expose health and path information through CLI / reports only
+- do not treat it as stable public Python API yet
+
+### 8. Internal capability autotune lab
+
+Current release includes an internal `capability_autotune_lab` plugin with:
+
+- offline compression-profile evaluation
+- report-first recommendations for `runtime_middleware.compression.*`
+- latest autotune report exposure through CLI health / paths
+- repo-local golden-case coverage for runtime compression tuning
+
+Current boundary:
+
+- keep it internal in `v5.4.0`
+- do not auto-apply rule changes
 - do not treat it as stable public Python API yet
 
 ## Version Contract

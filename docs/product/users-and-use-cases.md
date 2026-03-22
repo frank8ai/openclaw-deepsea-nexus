@@ -1,6 +1,6 @@
 # OpenClaw Deep-Sea Nexus 用户与用例
 
-Last updated: 2026-03-14
+Last updated: 2026-03-22
 
 ## 主要用户画像
 
@@ -41,12 +41,28 @@ Last updated: 2026-03-14
 - 长任务和跨天项目能否持续记住关键上下文
 - 重要决策是否能被后续 agent 回忆出来
 - 记忆是否能按 agent / user 作用域隔离
+- 压缩规则是否会把关键失败、阻塞、差异信息压没
 
 他们最常走的路径：
 
 - `docs/product/positioning.md`
 - `docs/product/capabilities.md`
 - `docs/LOCAL_DEPLOY.md`
+
+### 4. 规则调优操作者
+
+关心的问题：
+
+- 压缩规则改动会不会伤到记忆质量
+- 是否能先离线评测，再决定要不要推广
+- 最近一次离线评测结果和建议在哪里看
+
+他们最常走的路径：
+
+- `docs/LOCAL_DEPLOY.md`
+- `docs/TECHNICAL_OVERVIEW_CURRENT.md`
+- `scripts/capability_autotune_lab.py`
+- `scripts/capability_autotune_report.py`
 
 ## 核心用例
 
@@ -108,6 +124,21 @@ Last updated: 2026-03-14
 - `scripts/deploy_local_v5.sh`
 - `scripts/nexus_doctor_local.sh`
 - `scripts/memory_v5_benchmark.py`
+
+### 用例 E: 离线优化压缩规则，再决定是否推广
+
+目标：
+
+- 先离线比较候选压缩规则
+- 确认不会伤到 recall / inject 质量
+- 只生成建议，不直接改生产配置
+
+推荐入口：
+
+- `scripts/capability_autotune_lab.py`
+- `scripts/capability_autotune_report.py`
+- `docs/evals/runtime_middleware_compression_golden_cases.json`
+- `docs/LOCAL_DEPLOY.md`
 
 ## 采用路径
 

@@ -1,16 +1,17 @@
 # Deep-Sea Nexus 产品文档总览
 
-Last updated: 2026-03-14
+Last updated: 2026-03-22
 
-本目录是当前 `v5.1.0` 升级周期（`v5.0.0` 稳定基线）的产品层真源。
+本目录是当前 `v5.4.0` 发布周期的产品层真源。
 
 当前发布状态：
 
-- `v5.0.0` 正式版
-- `v5.1.0` 升级开发中
-- 发布说明：
-  - `../releases/V5_0_0_OFFICIAL_2026-03-14.md`
-  - `../releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
+- `v5.4.0` feature release
+- 近期发布说明：
+  - `../releases/V5_4_0_RELEASE_2026-03-22.md`
+  - `../releases/V5_4_0_RELEASE_2026-03-22_ZH.md`
+  - `../releases/V5_3_0_RELEASE_2026-03-21.md`
+  - `../releases/V5_3_0_RELEASE_2026-03-21_ZH.md`
 
 它只回答四个问题：
 

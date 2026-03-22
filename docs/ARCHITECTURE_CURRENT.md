@@ -1,9 +1,9 @@
 # Deep-Sea Nexus Current Architecture
 
-Last updated: 2026-03-18
+Last updated: 2026-03-22
 
 This document describes the current runtime architecture for the
-`v5.3.0` release pack.
+`v5.4.0` release pack.
 
 For a shorter technical entrypoint, read `TECHNICAL_OVERVIEW_CURRENT.md`
 first.
@@ -25,7 +25,7 @@ It does not replace:
 
 ## Version Model
 
-- Package release: `5.3.0`
+- Package release: `5.4.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 
@@ -131,8 +131,9 @@ Its role is to provide:
 Current boundary:
 
 - internal plugin, not public API
-- capture-side only in `v5.3.0`
+- capture-side only in `v5.4.0`
 - does not replace current recall ranking or inject policy
+- compression rules are now configurable and can be tuned offline by the autotune lab
 
 ### 6. Execution guard
 
@@ -151,10 +152,32 @@ Its role is to provide:
 Current boundary:
 
 - internal plugin, not public API
-- report-only by default in `v5.3.0`
+- report-only by default in `v5.4.0`
 - does not hard-stop host execution unless a future enforcement mode is enabled
 
-### 7. Memory v5 scoped store
+### 7. Capability autotune lab
+
+Current offline optimization lab lives in:
+
+- `plugins/capability_autotune_lab_plugin.py`
+- `scripts/capability_autotune_lab.py`
+- `scripts/capability_autotune_report.py`
+- `docs/evals/runtime_middleware_compression_golden_cases.json`
+
+Its role is to provide:
+
+- repo-local golden evals for compression behavior
+- baseline vs candidate compression-profile comparison
+- report-first recommendations for `runtime_middleware.compression.*`
+- latest report exposure through health/path observability
+
+Current boundary:
+
+- internal plugin, not public API
+- offline only in `v5.4.0`
+- does not auto-apply config mutations
+
+### 8. Memory v5 scoped store
 
 Current durable scoped memory lives under:
 
@@ -180,7 +203,7 @@ Main concepts:
   - zero-valued archive rows remain explicit operator backfill candidates instead
     of being silently reinterpreted at runtime
 
-### 8. Operational layer
+### 9. Operational layer
 
 Operational entrypoints include:
 
@@ -202,6 +225,10 @@ Operational entrypoints include:
     stale-summary/stale-evidence, contradictory blocker/constraint,
     cross-session drift, evidence-vs-replay conflict, no-scope recovery
     fallback, and topic-switch slices
+- `scripts/capability_autotune_lab.py`
+  - runs offline compression-profile experiments and writes the latest recommendation report
+- `scripts/capability_autotune_report.py`
+  - summarizes the latest autotune report for operators
 
 This layer is part of the current release because the product promise includes
 local verification and operability, not just library APIs.

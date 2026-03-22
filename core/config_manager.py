@@ -107,6 +107,16 @@ class ConfigManager:
             "enabled": True,
             "transformer": "rtk",
             "fail_open": True,
+            "compression": {
+                "line_char_limit": 220,
+                "diff_file_limit": 20,
+                "diff_preview_limit": 6,
+                "grep_match_limit": 10,
+                "failure_preview_limit": 12,
+                "tail_preview_limit": 8,
+                "operational_signal_limit": 8,
+                "generic_signal_limit": 8,
+            },
             "token_gate": {
                 "enabled": True,
                 "min_reduction_ratio": 0.15,
@@ -157,6 +167,11 @@ class ConfigManager:
                 ],
             },
         },
+        "capability_autotune_lab": {
+            "enabled": True,
+            "report_path": None,
+            "include_context_scorecard": True,
+        },
         "plugins": {
             "auto_load": [
                 "config_manager",
@@ -165,6 +180,7 @@ class ConfigManager:
                 "smart_context",
                 "execution_guard",
                 "runtime_middleware",
+                "capability_autotune_lab",
                 "flush_manager",
             ],
             "hot_reload": True,

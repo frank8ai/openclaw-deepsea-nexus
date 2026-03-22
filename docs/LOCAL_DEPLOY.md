@@ -1,4 +1,4 @@
-# OpenClaw Deep-Sea Nexus v5.3.0 本地部署
+# OpenClaw Deep-Sea Nexus v5.4.0 本地部署
 
 ## 目标
 将当前仓库版本部署到本地 OpenClaw 工作区，并确保门禁与运行态可用。
@@ -110,6 +110,7 @@ python3 -m deepsea_nexus paths --json
 - `runtime_middleware.token_gate.*`
 - `runtime_middleware.capture_policy.*`
 - `runtime_middleware.metrics.log_path`
+- `runtime_middleware.compression.*`
 
 ## Execution guard 运维入口
 
@@ -148,6 +149,40 @@ python3 -m deepsea_nexus paths --json
 - `execution_guard.report.include_context_hint`
 - `execution_guard.protected_targets.*`
 - `execution_guard.host_bridge.*`
+
+## Capability autotune lab 运维入口
+
+当前版本默认启用内部 `capability_autotune_lab` 插件，用于离线评测第二大脑的压缩规则能力，并生成手工推广建议：
+
+- baseline / candidate compression profile 对比
+- failure / diff / grep 关键证据保真检查
+- `context_recall_scorecard` recall guardrail
+- 推荐输出到最新 autotune 报告
+
+默认路径：
+
+- latest report：`<resolved workspace>/logs/capability_autotune_latest.json`
+- markdown report：`<resolved workspace>/logs/capability_autotune_latest.md`
+
+运行：
+
+```bash
+python3 scripts/capability_autotune_lab.py --json
+python3 scripts/capability_autotune_report.py --json
+```
+
+也可以直接查看：
+
+```bash
+python3 -m deepsea_nexus health --json
+python3 -m deepsea_nexus paths --json
+```
+
+可配置项（`config.json`）：
+
+- `capability_autotune_lab.enabled`
+- `capability_autotune_lab.report_path`
+- `capability_autotune_lab.include_context_scorecard`
 
 ## 写入护栏（防止写错库）
 当前版本默认启用写入护栏，所有主要写入入口都会检查：
@@ -285,11 +320,7 @@ ${NEXUS_PYTHON_PATH:-${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}/.venv-nexu
   - `available: true`
   - `initialized: true`
   - `plugin_version: "3.0.0"`（插件协议版本）
-<<<<<<< HEAD
-  - `package_version: "5.1.0"`（当前升级版本）
-=======
-  - `package_version: "5.2.0"`（发布版本）
->>>>>>> f78dcc1 (docs: publish v5.2.0 release notes)
+  - `package_version: "5.4.0"`（当前发布版本）
 - v5 benchmark 输出至少满足：
   - `any_scope_hit > 0`
   - `any_scope_score > 0`

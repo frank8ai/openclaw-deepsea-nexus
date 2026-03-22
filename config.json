@@ -23,8 +23,8 @@
     "max_line_length": 80
   },
   "project": {
-    "version": "5.3.0",
-    "name": "OpenClaw Deep-Sea Nexus v5.3.0",
+    "version": "5.4.0",
+    "name": "OpenClaw Deep-Sea Nexus v5.4.0",
     "author": "OpenClaw"
   },
   "session": {
@@ -45,8 +45,14 @@
       "smart_context",
       "execution_guard",
       "runtime_middleware",
+      "capability_autotune_lab",
       "flush_manager"
     ]
+  },
+  "capability_autotune_lab": {
+    "enabled": true,
+    "report_path": "",
+    "include_context_scorecard": true
   },
   "execution_guard": {
     "enabled": true,
@@ -158,6 +164,43 @@
     "rescue_blockers": true,
     "rescue_evidence": true,
     "rescue_replay": true
+  },
+  "runtime_middleware": {
+    "enabled": true,
+    "transformer": "rtk",
+    "fail_open": true,
+    "compression": {
+      "line_char_limit": 220,
+      "diff_file_limit": 20,
+      "diff_preview_limit": 6,
+      "grep_match_limit": 10,
+      "failure_preview_limit": 12,
+      "tail_preview_limit": 8,
+      "operational_signal_limit": 8,
+      "generic_signal_limit": 8
+    },
+    "token_gate": {
+      "enabled": true,
+      "min_reduction_ratio": 0.15,
+      "high_salience_threshold": 0.7,
+      "low_salience_threshold": 0.35,
+      "digest_repeat_threshold": 3
+    },
+    "capture_policy": {
+      "default": {},
+      "test": {
+        "force_store": true
+      },
+      "lint": {
+        "force_store": true
+      },
+      "git_diff": {
+        "force_store": true
+      }
+    },
+    "metrics": {
+      "log_path": ""
+    }
   },
   "context_engine": {
     "max_tokens": 1000,

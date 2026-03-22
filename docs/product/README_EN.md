@@ -1,10 +1,10 @@
 # OpenClaw Deep-Sea Nexus Product Docs
 
-Last updated: 2026-03-14
+Last updated: 2026-03-22
 
 This file is the minimal English entrypoint for the current product narrative.
 
-Current release: `v5.0.1` patch release
+Current release: `v5.4.0` feature release
 
 ## Product Summary
 
@@ -16,6 +16,7 @@ Current product promises:
 - durable memory through context governance rather than raw transcript hoarding
 - gradual migration from older sync automation
 - scoped memory with `agent_id` / `user_id`
+- report-first tool-risk classification and offline compression-rule evaluation
 - observable local operation through deploy / doctor / smoke / benchmark flows
 - lifecycle maintenance with thresholded status / alerts / hot-scope summaries
 

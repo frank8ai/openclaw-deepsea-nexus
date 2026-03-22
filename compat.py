@@ -189,14 +189,32 @@ def nexus_init(config_path: Optional[str] = None) -> bool:
         results = nexus_recall("Python")
     """
     registry = get_plugin_registry()
-    
+    resolved_config_path = config_path or resolve_default_config_path()
+
     # Check if already initialized
     plugin = registry.get("nexus_core")
     if plugin and plugin.state == PluginState.ACTIVE:
-        return True
-    
+        required_plugins = [
+            "session_manager",
+            "execution_guard",
+            "runtime_middleware",
+            "capability_autotune_lab",
+            "flush_manager",
+        ]
+        missing = [
+            name for name in required_plugins
+            if registry.get(name) is None or registry.get(name).state != PluginState.ACTIVE
+        ]
+        if not missing:
+            return True
+        try:
+            from .app import create_app
+        except ImportError:
+            from app import create_app
+        app = create_app(resolved_config_path)
+        return bool(run_coro_sync(app.initialize()))
+
     # Load configuration (prefer explicit path; otherwise auto-discover config.json)
-    resolved_config_path = config_path or resolve_default_config_path()
     config = get_config_manager(resolved_config_path)
     if resolved_config_path:
         config.load_file(resolved_config_path)
@@ -214,6 +232,9 @@ def nexus_init(config_path: Optional[str] = None) -> bool:
             "nexus_core",
             "session_manager",
             "smart_context",
+            "execution_guard",
+            "runtime_middleware",
+            "capability_autotune_lab",
             "flush_manager",
         ]
     cfg["plugins"] = plugins_cfg
@@ -245,6 +266,9 @@ def nexus_init(config_path: Optional[str] = None) -> bool:
             "nexus_core",
             "session_manager",
             "smart_context",
+            "execution_guard",
+            "runtime_middleware",
+            "capability_autotune_lab",
             "flush_manager",
         ]
 
@@ -474,7 +498,14 @@ def nexus_health() -> Dict[str, Any]:
         "plugins": {},
     }
     
-    for name in ["nexus_core", "session_manager", "execution_guard", "runtime_middleware", "flush_manager"]:
+    for name in [
+        "nexus_core",
+        "session_manager",
+        "execution_guard",
+        "runtime_middleware",
+        "capability_autotune_lab",
+        "flush_manager",
+    ]:
         plugin = registry.get(name)
         if plugin:
             health["plugins"][name] = {

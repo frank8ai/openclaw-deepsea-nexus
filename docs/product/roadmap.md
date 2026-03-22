@@ -1,6 +1,6 @@
 # Deep-Sea Nexus 产品路线图
 
-Last updated: 2026-03-14
+Last updated: 2026-03-22
 
 这不是逐 commit 的工程任务单，而是当前产品层的 `Now / Next / Later`
 视图。
@@ -13,9 +13,11 @@ Last updated: 2026-03-14
 - 兼容旧 sync API 的渐进接入
 - Memory v5 scoped memory
 - SmartContext / ContextEngine / hook 联动的上下文治理
+- runtime middleware 的工具输出压缩与 token 感知 capture
+- execution guard 的 report-first 风险判定
+- capability autotune lab 的离线压缩规则评测
 - 本地 deploy / doctor / smoke / benchmark 运维链路
-- `v5.0.0` 正式版发布基线（2026-03-14）
-- `v5.1.0` 升级开发启动（治理层优化）
+- `v5.4.0` feature release（2026-03-22）
 
 当前阶段最重要的目标：
 
@@ -25,8 +27,8 @@ Last updated: 2026-03-14
 
 正式发布说明：
 
-- `../releases/V5_0_0_OFFICIAL_2026-03-14.md`
-- `../releases/V5_1_0_UPGRADE_PLAN_2026-03-14.md`
+- `../releases/V5_4_0_RELEASE_2026-03-22.md`
+- `../releases/V5_4_0_RELEASE_2026-03-22_ZH.md`
 
 ## Next
 
@@ -36,13 +38,19 @@ Last updated: 2026-03-14
 
 - `../exec-plans/2026-03-14-core-context-governance-polish.md`
 
-### 1. 生命周期治理补齐
+### 1. 离线优化面扩展
+
+- 继续扩充 golden cases，不只覆盖 3 个压缩样例
+- 把更多上下文管理参数纳入离线评测，而不只是压缩阈值
+- 让推荐结果更容易人工审核和推广
+
+### 2. 生命周期治理补齐
 
 - 继续完善 Memory v5 的 TTL / decay / archive / audit 叙事
 - 让“记忆对象化”从设计概念变成更明确的产品承诺
 - 把 lifecycle audit / backfill / explicit archive 收束成稳定巡检入口，而不是散落脚本
 
-### 2. 评测与证据产品化
+### 3. 评测与证据产品化
 
 - 把 benchmark、smoke、doctor 从工程脚本提升为标准采用路径
 - 明确“用户如何知道记忆真的工作”
@@ -51,13 +59,13 @@ Last updated: 2026-03-14
     contradictory constraints、no-scope recovery fallback
   - 现阶段还需要继续把 repo-local eval 扩成更完整的长会话生命周期评测
 
-### 3. 上下文治理闭环继续收紧
+### 4. 上下文治理闭环继续收紧
 
 - 持续强化 evidence-driven durable decision 规则
 - 继续收束 SmartContext、ContextEngine、execution-governor 的边界
 - 让 replay / rescue / evidence 指针更一致
 
-### 4. 多作用域运维能力增强
+### 5. 多作用域运维能力增强
 
 - 更清晰的多 agent / 多用户视图
 - 更可控的维护、巡检、审计路径

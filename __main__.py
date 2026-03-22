@@ -92,6 +92,9 @@ def _build_paths_payload(package: Any) -> Dict[str, Any]:
     execution_guard_module = importlib.import_module(
         f"{package.__name__}.plugins.execution_guard_plugin"
     )
+    capability_autotune_module = importlib.import_module(
+        f"{package.__name__}.plugins.capability_autotune_lab_plugin"
+    )
     config_path = package.resolve_default_config_path()
     config = package.ConfigManager(config_path)
     cfg = config.get_all()
@@ -128,6 +131,10 @@ def _build_paths_payload(package: Any) -> Dict[str, Any]:
         "execution_governor_guardrails_path": execution_guard_module.resolve_execution_governor_guardrails_path(cfg),
         "execution_guard_last_metrics": execution_guard_module.read_execution_guard_metrics_summary(
             runtime_paths.resolve_log_path(cfg, "execution_guard_metrics.log", allow_nexus_base=True)
+        ),
+        "capability_autotune_report_path": capability_autotune_module.resolve_capability_autotune_report_path(cfg),
+        "capability_autotune_last_report": capability_autotune_module.read_capability_autotune_report_summary(
+            capability_autotune_module.resolve_capability_autotune_report_path(cfg)
         ),
         "package_version": package.__version__,
         "api_version": package.get_version(),
@@ -194,6 +201,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"Runtime middleware metrics: {payload.get('runtime_middleware_metrics_path') or '<none>'}")
             print(f"Execution guard metrics: {payload.get('execution_guard_metrics_path') or '<none>'}")
             print(f"Execution governor guardrails: {payload.get('execution_governor_guardrails_path') or '<none>'}")
+            print(f"Capability autotune report: {payload.get('capability_autotune_report_path') or '<none>'}")
         return 0
 
     parser.print_help()

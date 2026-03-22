@@ -21,6 +21,7 @@ from .plugins.flush_manager import FlushManagerPlugin
 from .plugins.smart_context import SmartContextPlugin
 from .plugins.runtime_middleware_plugin import RuntimeMiddlewarePlugin
 from .plugins.execution_guard_plugin import ExecutionGuardPlugin
+from .plugins.capability_autotune_lab_plugin import CapabilityAutotuneLabPlugin
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,7 @@ class NexusApplication:
         execution_guard = ExecutionGuardPlugin()
         flush_manager = FlushManagerPlugin()
         runtime_middleware = RuntimeMiddlewarePlugin()
+        capability_autotune_lab = CapabilityAutotuneLabPlugin()
 
         config_manager = ConfigManagerPlugin()
 
@@ -139,6 +141,7 @@ class NexusApplication:
             (smart_context, smart_context.metadata),  # 智能上下文
             (execution_guard, execution_guard.metadata),
             (runtime_middleware, runtime_middleware.metadata),
+            (capability_autotune_lab, capability_autotune_lab.metadata),
             (flush_manager, flush_manager.metadata),
         ]
 
@@ -184,6 +187,7 @@ class NexusApplication:
             "smart_context",  # 智能上下文（核心功能）
             "execution_guard",
             "runtime_middleware",
+            "capability_autotune_lab",
             "flush_manager",
         ]))
 
@@ -199,7 +203,10 @@ class NexusApplication:
         if "runtime_middleware" not in auto_load:
             insert_at = auto_load.index("flush_manager") if "flush_manager" in auto_load else len(auto_load)
             auto_load.insert(insert_at, "runtime_middleware")
-        
+        if "capability_autotune_lab" not in auto_load:
+            insert_at = auto_load.index("flush_manager") if "flush_manager" in auto_load else len(auto_load)
+            auto_load.insert(insert_at, "capability_autotune_lab")
+
         # Load in order
         for plugin_name in auto_load:
             plugin = self.registry.get(plugin_name)

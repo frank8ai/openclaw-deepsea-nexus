@@ -1,8 +1,8 @@
 # OpenClaw Deep-Sea Nexus 能力地图与范围边界
 
-Last updated: 2026-03-15
+Last updated: 2026-03-22
 
-## GitHub 介绍页能力展示（v5.1）
+## GitHub 介绍页能力展示（v5.4）
 
 仓库根目录 README 需要对外统一展示以下主能力：
 
@@ -37,6 +37,7 @@ Last updated: 2026-03-15
 - sync compatibility API
 - SmartContext summary ingestion
 - 兼容脚本与批量写入脚本
+- runtime middleware 的工具输出 capture、压缩、结构化与 token 感知门控
 
 ### 2. Recall
 
@@ -81,6 +82,8 @@ Last updated: 2026-03-15
 - summary / rescue / replay / evidence discipline
 - evidence-gated durable decisions
 - 与 OpenClaw hook 和 execution-governor 的联动
+- execution guard 的 report-first 风险建议
+- capability autotune lab 的离线规则评测与人工推广建议
 
 当前规则真源：
 
@@ -104,6 +107,7 @@ Last updated: 2026-03-15
 - 支持兼容 API、async runtime、Memory v5 三条使用路径
 - 支持 Memory v5 作用域隔离
 - 支持 context-governed recall / inject / compress / rescue
+- 支持工具输出的压缩式 capture 与离线规则评测
 - 支持本地 deploy / doctor / smoke / benchmark
 - 支持在旧工作流上做渐进迁移，而不是强制一次性重写
 

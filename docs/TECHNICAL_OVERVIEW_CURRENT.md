@@ -1,13 +1,13 @@
 # Deep-Sea Nexus Technical Overview
 
-Last updated: 2026-03-18
+Last updated: 2026-03-22
 
-This document is the technical entrypoint for the current `v5.3.0` release
+This document is the technical entrypoint for the current `v5.4.0` release
 pack.
 
 ## Release Context
 
-- Package release: `5.3.0`
+- Package release: `5.4.0`
 - Async plugin runtime protocol: `3.0.0`
 - Current context-governance baseline: `8 / 20 / 35`
 - Primary rule source:
@@ -94,6 +94,21 @@ Current implementation center:
 
 - `plugins/execution_guard_plugin.py`
 
+### Capability autotune lab
+
+Main responsibility:
+
+- evaluate offline compression-rule candidates against repo-local golden cases
+- keep runtime optimization report-first and human-reviewed
+- reuse current recall scorecard as a guardrail before promoting candidate rules
+- expose latest lab recommendation through health/path tooling
+
+Current implementation centers:
+
+- `plugins/capability_autotune_lab_plugin.py`
+- `scripts/capability_autotune_lab.py`
+- `scripts/capability_autotune_report.py`
+
 ### Context governance
 
 Main responsibility:
@@ -160,6 +175,7 @@ Current entrypoints:
 5. Memory v5 stores scoped durable items when enabled.
 6. runtime middleware can pre-process tool output into `tool_event` items before they enter scoped memory.
 7. execution guard can attach risk decisions to tool events before host bridge/reporting.
+8. capability autotune lab can evaluate alternate compression-rule candidates offline and emit promotion recommendations.
 
 ### Recall / inject flow
 
@@ -193,6 +209,10 @@ Current entrypoints:
   - it does not hard-block host execution by default
   - it emits recommendations for execution-governor / operators
   - it stores guard decisions alongside `tool_event` metadata
+- capability autotune lab is report-first in v1
+  - it does not mutate runtime config automatically
+  - it recommends `runtime_middleware.compression.*` overrides from offline eval results
+  - it uses repo-local compression golden cases plus current recall scorecard as guardrails
 - Memory v5 lifecycle governance is explicit, not silent background mutation
   - recall applies TTL expiry and decay weighting through the same lifecycle rules
   - lifecycle audit is report-first

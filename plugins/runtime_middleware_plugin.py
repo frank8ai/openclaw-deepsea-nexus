@@ -21,6 +21,18 @@ from ..runtime_paths import resolve_log_path
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_COMPRESSION_RULES: Dict[str, int] = {
+    "line_char_limit": 220,
+    "diff_file_limit": 20,
+    "diff_preview_limit": 6,
+    "grep_match_limit": 10,
+    "failure_preview_limit": 12,
+    "tail_preview_limit": 8,
+    "operational_signal_limit": 8,
+    "generic_signal_limit": 8,
+}
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -125,8 +137,29 @@ class RtkTransformer(ToolOutputTransformer):
         "assertionerror",
     )
 
-    def __init__(self) -> None:
+    def __init__(self, compression_rules: Optional[Dict[str, Any]] = None) -> None:
         self._token_runtime = ContextEngineRuntimeState()
+        self._compression_rules = self._normalized_rules(compression_rules)
+
+    def _normalized_rules(self, compression_rules: Optional[Dict[str, Any]]) -> Dict[str, int]:
+        incoming = compression_rules if isinstance(compression_rules, dict) else {}
+        resolved = dict(DEFAULT_COMPRESSION_RULES)
+        for key, default in DEFAULT_COMPRESSION_RULES.items():
+            try:
+                value = int(incoming.get(key, default))
+            except (TypeError, ValueError):
+                value = default
+            resolved[key] = max(1, value)
+        return resolved
+
+    def update_rules(self, compression_rules: Optional[Dict[str, Any]]) -> None:
+        self._compression_rules = self._normalized_rules(compression_rules)
+
+    def _limit(self, key: str) -> int:
+        return int(self._compression_rules.get(key, DEFAULT_COMPRESSION_RULES[key]))
+
+    def _trim_line(self, line: str) -> str:
+        return str(line)[: self._limit("line_char_limit")]
 
     def estimate_tokens(self, text: str) -> int:
         return self._token_runtime.estimate_tokens(text)
@@ -200,6 +233,8 @@ class RtkTransformer(ToolOutputTransformer):
         deletions = 0
         hunks = 0
         preview: List[str] = []
+        file_limit = self._limit("diff_file_limit")
+        preview_limit = self._limit("diff_preview_limit")
         for line in lines:
             if line.startswith("diff --git"):
                 parts = line.split(" ")
@@ -209,16 +244,16 @@ class RtkTransformer(ToolOutputTransformer):
                 hunks += 1
             elif line.startswith("+") and not line.startswith("+++"):
                 additions += 1
-                if len(preview) < 6:
-                    preview.append(line[:180])
+                if len(preview) < preview_limit:
+                    preview.append(self._trim_line(line))
             elif line.startswith("-") and not line.startswith("---"):
                 deletions += 1
-                if len(preview) < 6:
-                    preview.append(line[:180])
+                if len(preview) < preview_limit:
+                    preview.append(self._trim_line(line))
         file_preview = ", ".join(files[:4]) if files else "unknown files"
         summary = f"git diff touched {len(files)} file(s) ({file_preview}); +{additions}/-{deletions} line changes across {hunks} hunks."
         structured = {
-            "files": files[:20],
+            "files": files[:file_limit],
             "file_count": len(files),
             "additions": additions,
             "deletions": deletions,
@@ -226,68 +261,73 @@ class RtkTransformer(ToolOutputTransformer):
             "preview": preview,
             "exit_code": event.exit_code,
         }
-        warnings = ["git diff file list truncated"] if len(files) > 20 else []
+        warnings = ["git diff file list truncated"] if len(files) > file_limit else []
         return structured, summary, warnings, "git_diff"
 
     def _compress_grep(self, event: ToolEvent, lines: List[str]) -> tuple[Dict[str, Any], str, List[str], str]:
         unique: List[str] = []
         seen = set()
+        match_limit = self._limit("grep_match_limit")
         for line in lines:
-            trimmed = line[:220]
+            trimmed = self._trim_line(line)
             if trimmed in seen:
                 continue
             seen.add(trimmed)
             unique.append(trimmed)
-        summary = f"{event.tool_name} returned {len(lines)} matching line(s); {len(unique[:10])} unique preview line(s) kept."
-        structured = {"matches": unique[:10], "match_count": len(lines), "unique_count": len(unique), "exit_code": event.exit_code}
-        warnings = ["grep matches truncated"] if len(unique) > 10 else []
+        summary = f"{event.tool_name} returned {len(lines)} matching line(s); {len(unique[:match_limit])} unique preview line(s) kept."
+        structured = {"matches": unique[:match_limit], "match_count": len(lines), "unique_count": len(unique), "exit_code": event.exit_code}
+        warnings = ["grep matches truncated"] if len(unique) > match_limit else []
         return structured, summary, warnings, "grep"
 
     def _compress_failures(self, event: ToolEvent, lines: List[str], event_kind: str) -> tuple[Dict[str, Any], str, List[str], str]:
         failures: List[str] = []
         tail: List[str] = []
+        failure_limit = self._limit("failure_preview_limit")
+        tail_limit = self._limit("tail_preview_limit")
         for line in lines:
             lowered = line.lower()
-            if any(pattern in lowered for pattern in self.ERROR_PATTERNS) and len(failures) < 12:
-                failures.append(line[:220])
-            if len(tail) < 8:
-                tail.append(line[:220])
+            if any(pattern in lowered for pattern in self.ERROR_PATTERNS) and len(failures) < failure_limit:
+                failures.append(self._trim_line(line))
+            if len(tail) < tail_limit:
+                tail.append(self._trim_line(line))
             else:
-                tail = tail[1:] + [line[:220]]
+                tail = tail[1:] + [self._trim_line(line)]
         selected = failures or tail
         summary = f"{event_kind} run exited with code {event.exit_code}; captured {len(selected)} notable line(s) from {len(lines)} total line(s)."
         structured = {"failures": selected, "failure_count": len(failures), "line_count": len(lines), "exit_code": event.exit_code}
-        warnings = [f"{event_kind} failures truncated"] if len(failures) > 12 else []
+        warnings = [f"{event_kind} failures truncated"] if len(failures) > failure_limit else []
         return structured, summary, warnings, event_kind
 
     def _compress_operational(self, event: ToolEvent, lines: List[str], event_kind: str) -> tuple[Dict[str, Any], str, List[str], str]:
         unique: List[str] = []
         seen = set()
+        signal_limit = self._limit("operational_signal_limit")
         for line in lines:
-            trimmed = line[:220]
+            trimmed = self._trim_line(line)
             if trimmed in seen:
                 continue
             seen.add(trimmed)
             unique.append(trimmed)
-        kept = unique[:8]
+        kept = unique[:signal_limit]
         summary = f"{event_kind} command exited with code {event.exit_code}; {len(lines)} line(s) reduced to {len(kept)} operational signal line(s)."
         structured = {"signals": kept, "line_count": len(lines), "exit_code": event.exit_code}
-        warnings = [f"{event_kind} output truncated"] if len(unique) > 8 else []
+        warnings = [f"{event_kind} output truncated"] if len(unique) > signal_limit else []
         return structured, summary, warnings, event_kind
 
     def _compress_generic(self, event: ToolEvent, lines: List[str]) -> tuple[Dict[str, Any], str, List[str], str]:
         unique: List[str] = []
         seen = set()
+        signal_limit = self._limit("generic_signal_limit")
         for line in lines:
-            trimmed = line[:220]
+            trimmed = self._trim_line(line)
             if trimmed in seen:
                 continue
             seen.add(trimmed)
             unique.append(trimmed)
-        kept = unique[:8]
+        kept = unique[:signal_limit]
         summary = f"{event.tool_name} exited with code {event.exit_code}; {len(lines)} line(s) reduced to {len(kept)} concise signal line(s)."
         structured = {"signals": kept, "line_count": len(lines), "exit_code": event.exit_code}
-        warnings = ["generic output truncated"] if len(unique) > 8 else []
+        warnings = ["generic output truncated"] if len(unique) > signal_limit else []
         return structured, summary, warnings, "generic"
 
     def _score_salience(self, event: ToolEvent, event_kind: str, combined: str, structured: Dict[str, Any]) -> float:
@@ -385,6 +425,7 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
         middleware_cfg = self._config.get("runtime_middleware", {}) if isinstance(self._config, dict) else {}
         self._enabled = bool(middleware_cfg.get("enabled", True))
         self._fail_open = bool(middleware_cfg.get("fail_open", True))
+        self._transformer = RtkTransformer(middleware_cfg.get("compression"))
         self._metrics_path = resolve_log_path(
             self._config,
             "runtime_middleware_metrics.log",

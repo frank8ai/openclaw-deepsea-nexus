@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "cases": [
+    {
+      "id": "pytest-failures-keep-core-errors",
+      "event": {
+        "tool_name": "pytest",
+        "args": ["-q", "tests/test_api.py"],
+        "stdout": "FAILED tests/test_api.py::test_alpha - AssertionError\nFAILED tests/test_api.py::test_beta - ValueError\nFAILED tests/test_api.py::test_gamma - RuntimeError\nFAILED tests/test_api.py::test_delta - TimeoutError",
+        "stderr": "",
+        "exit_code": 1,
+        "cwd": "."
+      },
+      "expect": {
+        "event_kind": "test",
+        "structured_list_key": "failures",
+        "summary_contains": ["captured"],
+        "structured_contains": ["AssertionError", "ValueError"],
+        "min_reduction_ratio": 0.0
+      }
+    },
+    {
+      "id": "grep-dedupes-and-truncates-preview",
+      "event": {
+        "tool_name": "rg",
+        "args": ["TODO", "."],
+        "stdout": "src/a.py:1 TODO alpha\nsrc/b.py:2 TODO beta\nsrc/c.py:3 TODO gamma\nsrc/c.py:3 TODO gamma",
+        "stderr": "",
+        "exit_code": 0,
+        "cwd": "."
+      },
+      "expect": {
+        "event_kind": "grep",
+        "structured_list_key": "matches",
+        "summary_contains": ["matching line"],
+        "structured_contains": ["TODO alpha", "TODO beta"],
+        "min_reduction_ratio": 0.0
+      }
+    },
+    {
+      "id": "git-diff-preserves-file-preview",
+      "event": {
+        "tool_name": "git",
+        "args": ["diff", "--", "README.md"],
+        "stdout": "diff --git a/README.md b/README.md\n@@ -1,2 +1,2 @@\n-old line\n+new line\ndiff --git a/app.py b/app.py\n@@ -10,0 +11,1 @@\n+print('x')",
+        "stderr": "",
+        "exit_code": 0,
+        "cwd": "."
+      },
+      "expect": {
+        "event_kind": "git_diff",
+        "structured_list_key": "preview",
+        "summary_contains": ["touched 2 file"],
+        "structured_contains": ["+new line", "+print('x')"],
+        "min_reduction_ratio": 0.0
+      }
+    }
+  ]
+}
