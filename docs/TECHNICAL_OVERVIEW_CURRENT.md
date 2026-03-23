@@ -210,8 +210,14 @@ Current entrypoints:
 1. Runtime evaluates rounds and pressure.
 2. `8 / 20 / 35` determines full, summary, and compressed phases.
 3. Before compression, typed state is rescued:
-   - `goal/status/constraints/blockers/decisions/next/questions/evidence/replay`
+   - `goal/status/decisions/decision_reversal_conditions/waiting_on/assumptions`
+   - `constraints/blockers/modified_files/change_scope/key_changes`
+   - `verification_subject/verification_command/verification_result/verification_status`
+   - `failure_fingerprint/rollback_trigger/rollback_target/rollback_notes`
+   - `next/questions/evidence/replay`
 4. Summary output keeps pointers, not raw evidence payloads.
+   - successful tool events keep concise summary + `PASS/FAIL`
+   - failed tool events keep concise summary + `FAIL` + `failure_fingerprint`
 
 ## Current Governance Notes
 

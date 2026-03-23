@@ -20,6 +20,12 @@
 bash scripts/deploy_local_v5.sh --full
 ```
 
+Windows 可直接使用：
+
+```powershell
+scripts\deploy_local_v5.cmd --full
+```
+
 说明：
 - `--full`：执行 `run_tests.py` 全量门禁 + 运行态 smoke 检查
 - `--quick`：仅执行 `tests/test_memory_v5.py` + 运行态 smoke + v5 benchmark
@@ -83,6 +89,22 @@ scripts\nexus_doctor_local.cmd
 - token 估算
 - token-aware capture gating
 - evidence snapshot 落盘
+- 失败工具事件的最小保留包
+  - `verification_command`
+  - `verification_result`
+  - `failure_fingerprint`
+
+当前压缩保留基线也会同步保留：
+
+- `decision_reversal_conditions`
+- `waiting_on`
+- `assumptions`
+- `modified_files`
+- `change_scope`
+- `key_changes`
+- `rollback_trigger`
+- `rollback_target`
+- `rollback_notes`
 
 默认路径：
 

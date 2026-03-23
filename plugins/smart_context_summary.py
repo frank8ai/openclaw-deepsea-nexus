@@ -89,6 +89,10 @@ def build_turn_summary(
         rescue_blockers=True,
         rescue_evidence=True,
         rescue_replay=True,
+        rescue_modified_files=True,
+        rescue_key_changes=True,
+        rescue_verification=True,
+        rescue_rollback=True,
     )
     actions = _merge_items(
         rescue_updates.get("next_actions", []),
@@ -115,6 +119,20 @@ def build_turn_summary(
 
     constraints = rescue_updates.get("constraints", [])[:3]
     blockers = rescue_updates.get("blockers", [])[:3]
+    modified_files = rescue_updates.get("modified_files", [])[:6]
+    change_scope = rescue_updates.get("change_scope", [])[:3]
+    key_changes = rescue_updates.get("key_changes", [])[:4]
+    decision_reversal_conditions = rescue_updates.get("decision_reversal_conditions", [])[:3]
+    waiting_on = rescue_updates.get("waiting_on", [])[:3]
+    assumptions = rescue_updates.get("assumptions", [])[:3]
+    verification_subject = str(rescue_updates.get("verification_subject", "") or "").strip()
+    verification_command = str(rescue_updates.get("verification_command", "") or "").strip()
+    verification_result = str(rescue_updates.get("verification_result", "") or "").strip()
+    verification_status = str(rescue_updates.get("verification_status", "") or "").strip()
+    failure_fingerprint = str(rescue_updates.get("failure_fingerprint", "") or "").strip()
+    rollback_notes = rescue_updates.get("rollback_notes", [])[:3]
+    rollback_trigger = str(rescue_updates.get("rollback_trigger", "") or "").strip()
+    rollback_target = str(rescue_updates.get("rollback_target", "") or "").strip()
     evidence = [
         item
         for item in (rescue_updates.get("evidence_pointers", []) or [])
@@ -135,11 +153,40 @@ def build_turn_summary(
     if "status" in fields and status:
         lines.append(f"Status: {status}")
     if "decisions" in fields and decision_items:
-        lines.append(f"Decisions: {'; '.join(decision_items[:3])}")
+        for item in decision_items[:3]:
+            lines.append(f"Decision: {item}")
+    if "decision_reversal_conditions" in fields and decision_reversal_conditions:
+        lines.append(f"Decision Reversal: {'; '.join(decision_reversal_conditions[:3])}")
+    if "waiting_on" in fields and waiting_on:
+        lines.append(f"Waiting On: {'; '.join(waiting_on[:3])}")
+    if "assumptions" in fields and assumptions:
+        lines.append(f"Assumptions: {'; '.join(assumptions[:3])}")
+    if "modified_files" in fields and modified_files:
+        lines.append(f"Modified Files: {'; '.join(modified_files[:6])}")
+    if "change_scope" in fields and change_scope:
+        lines.append(f"Change Scope: {'; '.join(change_scope[:3])}")
+    if "key_changes" in fields and key_changes:
+        lines.append(f"Key Changes: {'; '.join(key_changes[:4])}")
+    if "verification_subject" in fields and verification_subject:
+        lines.append(f"Verification Subject: {verification_subject}")
+    if "verification_command" in fields and verification_command:
+        lines.append(f"Verification Command: {verification_command}")
+    if "verification_result" in fields and verification_result:
+        lines.append(f"Verification Result: {verification_result}")
+    if "verification_status" in fields and verification_status:
+        lines.append(f"Verification: {verification_status}")
+    if "failure_fingerprint" in fields and failure_fingerprint:
+        lines.append(f"Failure Fingerprint: {failure_fingerprint}")
     if "constraints" in fields and constraints:
         lines.append(f"Constraints: {'; '.join(constraints[:3])}")
     if "blockers" in fields and blockers:
         lines.append(f"Blockers: {'; '.join(blockers[:3])}")
+    if "rollback_trigger" in fields and rollback_trigger:
+        lines.append(f"Rollback Trigger: {rollback_trigger}")
+    if "rollback_target" in fields and rollback_target:
+        lines.append(f"Rollback Target: {rollback_target}")
+    if "rollback_notes" in fields and rollback_notes:
+        lines.append(f"Rollback: {'; '.join(rollback_notes[:3])}")
     if "topics" in fields and topics:
         lines.append(f"Topics: {', '.join(topics[:4])}")
     if "next_actions" in fields and actions:
@@ -161,12 +208,26 @@ def build_turn_summary(
             "goal": goal,
             "status": status,
             "decisions": decision_items,
+            "decision_reversal_conditions": decision_reversal_conditions,
+            "waiting_on": waiting_on,
+            "assumptions": assumptions,
             "constraints": constraints,
             "blockers": blockers,
             "next_actions": actions,
             "questions": questions,
             "evidence": evidence,
             "replay": replay_commands,
+            "modified_files": modified_files,
+            "change_scope": change_scope,
+            "key_changes": key_changes,
+            "verification_subject": verification_subject,
+            "verification_command": verification_command,
+            "verification_result": verification_result,
+            "verification_status": verification_status,
+            "failure_fingerprint": failure_fingerprint,
+            "rollback_notes": rollback_notes,
+            "rollback_trigger": rollback_trigger,
+            "rollback_target": rollback_target,
             "topics": topics,
             "keywords": keywords,
             "entities": entities,

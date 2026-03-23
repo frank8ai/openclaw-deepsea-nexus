@@ -82,8 +82,22 @@ class ContextCompressionConfig:
         "goal",
         "status",
         "decisions",
+        "decision_reversal_conditions",
+        "waiting_on",
+        "assumptions",
+        "modified_files",
+        "change_scope",
+        "key_changes",
+        "verification_subject",
+        "verification_command",
+        "verification_result",
+        "verification_status",
+        "failure_fingerprint",
         "constraints",
         "blockers",
+        "rollback_trigger",
+        "rollback_target",
+        "rollback_notes",
         "next_actions",
         "questions",
         "evidence",
@@ -151,6 +165,10 @@ class ContextCompressionConfig:
     rescue_blockers: bool = True
     rescue_evidence: bool = True
     rescue_replay: bool = True
+    rescue_modified_files: bool = True
+    rescue_key_changes: bool = True
+    rescue_verification: bool = True
+    rescue_rollback: bool = True
 
 
 @dataclass
@@ -260,8 +278,22 @@ class SmartContextPlugin(NexusPlugin):
                                 "goal",
                                 "status",
                                 "decisions",
+                                "decision_reversal_conditions",
+                                "waiting_on",
+                                "assumptions",
+                                "modified_files",
+                                "change_scope",
+                                "key_changes",
+                                "verification_subject",
+                                "verification_command",
+                                "verification_result",
+                                "verification_status",
+                                "failure_fingerprint",
                                 "constraints",
                                 "blockers",
+                                "rollback_trigger",
+                                "rollback_target",
+                                "rollback_notes",
                                 "next_actions",
                                 "questions",
                                 "evidence",
@@ -323,6 +355,10 @@ class SmartContextPlugin(NexusPlugin):
                     rescue_blockers=smart_cfg.get("rescue_blockers", True),
                     rescue_evidence=smart_cfg.get("rescue_evidence", True),
                     rescue_replay=smart_cfg.get("rescue_replay", True),
+                    rescue_modified_files=smart_cfg.get("rescue_modified_files", True),
+                    rescue_key_changes=smart_cfg.get("rescue_key_changes", True),
+                    rescue_verification=smart_cfg.get("rescue_verification", True),
+                    rescue_rollback=smart_cfg.get("rescue_rollback", True),
                 )
             graph_cfg = config.get("graph", {}) if isinstance(config.get("graph", {}), dict) else {}
             self._graph_enabled = bool(graph_cfg.get("enabled", False))

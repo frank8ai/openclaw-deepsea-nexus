@@ -86,7 +86,7 @@ done
 NEXUS_VECTOR_DB_VALUE="${NEXUS_VECTOR_DB:-${OPENCLAW_WORKSPACE_DIR}/memory/.vector_db_restored}"
 NEXUS_COLLECTION_VALUE="${NEXUS_COLLECTION:-deepsea_nexus_restored}"
 
-echo "[deploy] Deep-Sea Nexus local deploy (v5.0.0)"
+echo "[deploy] Deep-Sea Nexus local deploy (v5.5.0)"
 echo "[deploy] root=${ROOT_DIR}"
 echo "[deploy] python=${PYTHON_BIN}"
 echo "[deploy] workspace=${OPENCLAW_WORKSPACE_DIR}"

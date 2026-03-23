@@ -263,8 +263,23 @@ Ephemeral typed state used to keep long tasks continuous:
 
 - goal
 - status
+- decisions
+- decision reversal conditions
+- waiting on
+- assumptions
 - constraints
 - blockers
+- modified files
+- change scope
+- key changes
+- verification subject
+- verification command
+- verification result
+- verification status
+- failure fingerprint (only when failed)
+- rollback trigger
+- rollback target
+- rollback notes
 - next actions
 - open questions
 - evidence pointers
@@ -368,7 +383,13 @@ Key subtrees include:
    - `21-35`: compressed summary + rescued state
    - `>35`: compressed mode with stronger archive posture
 3. Before compression, typed state is rescued.
+   - architecture and durable decisions stay as explicit decision lines
+   - execution-resume package keeps waiting, assumptions, file/scope/change details
+   - minimum verification package keeps subject / command / result / status
+   - rollback package keeps trigger / target / notes
 4. Output keeps evidence pointers and replay hints, not raw logs.
+   - successful tool events keep concise summary + `PASS/FAIL`
+   - failed tool events additionally keep `failure_fingerprint`
 5. Lifecycle maintenance stays explicit.
    - `audit_lifecycle()` reports TTL / decay / archive posture
    - `archive_due_items()` only archives when explicitly invoked

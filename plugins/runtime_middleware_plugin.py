@@ -164,6 +164,9 @@ class RtkTransformer(ToolOutputTransformer):
     def estimate_tokens(self, text: str) -> int:
         return self._token_runtime.estimate_tokens(text)
 
+    def _command_string(self, event: ToolEvent) -> str:
+        return " ".join([event.tool_name] + list(event.args or [])).strip()
+
     def transform(self, event: ToolEvent) -> CompressedToolEvent:
         event = event.normalized()
         combined = event.combined_output()
@@ -275,7 +278,14 @@ class RtkTransformer(ToolOutputTransformer):
             seen.add(trimmed)
             unique.append(trimmed)
         summary = f"{event.tool_name} returned {len(lines)} matching line(s); {len(unique[:match_limit])} unique preview line(s) kept."
-        structured = {"matches": unique[:match_limit], "match_count": len(lines), "unique_count": len(unique), "exit_code": event.exit_code}
+        structured = {
+            "matches": unique[:match_limit],
+            "match_count": len(lines),
+            "unique_count": len(unique),
+            "exit_code": event.exit_code,
+            "verification_command": self._command_string(event),
+            "verification_result": "PASS" if event.exit_code == 0 else "FAIL",
+        }
         warnings = ["grep matches truncated"] if len(unique) > match_limit else []
         return structured, summary, warnings, "grep"
 
@@ -293,10 +303,49 @@ class RtkTransformer(ToolOutputTransformer):
             else:
                 tail = tail[1:] + [self._trim_line(line)]
         selected = failures or tail
-        summary = f"{event_kind} run exited with code {event.exit_code}; captured {len(selected)} notable line(s) from {len(lines)} total line(s)."
-        structured = {"failures": selected, "failure_count": len(failures), "line_count": len(lines), "exit_code": event.exit_code}
+        focus = self._failure_focus(selected[0] if selected else "")
+        fingerprint = self._failure_fingerprint(selected[0] if selected else "")
+        status = "passed" if event.exit_code == 0 else "failed"
+        focus_text = f" ({focus})" if focus else ""
+        summary = (
+            f"{event_kind} run {status}{focus_text}; "
+            f"captured {len(selected)} notable line(s) from {len(lines)} total line(s)."
+        )
+        structured = {
+            "failures": selected,
+            "failure_count": len(failures),
+            "line_count": len(lines),
+            "exit_code": event.exit_code,
+            "verification_command": self._command_string(event),
+            "verification_result": "PASS" if event.exit_code == 0 else "FAIL",
+            "failure_fingerprint": fingerprint,
+        }
         warnings = [f"{event_kind} failures truncated"] if len(failures) > failure_limit else []
         return structured, summary, warnings, event_kind
+
+    def _failure_focus(self, line: str) -> str:
+        text = str(line or "").strip()
+        if not text:
+            return ""
+        match = re.search(r"::test_([a-z0-9_]+)", text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).replace("_", " ").strip()
+        match = re.search(r"\btest[_: -]+([a-z0-9_]+)", text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).replace("_", " ").strip()
+        match = re.search(r"([A-Za-z0-9_./-]+\.[A-Za-z0-9_./-]+)", text)
+        if match:
+            return match.group(1).strip()
+        return ""
+
+    def _failure_fingerprint(self, line: str) -> str:
+        text = str(line or "").strip()
+        if not text:
+            return ""
+        focus = self._failure_focus(text)
+        if focus:
+            return focus
+        return re.sub(r"\s+", " ", text).strip()[:120]
 
     def _compress_operational(self, event: ToolEvent, lines: List[str], event_kind: str) -> tuple[Dict[str, Any], str, List[str], str]:
         unique: List[str] = []
@@ -310,7 +359,13 @@ class RtkTransformer(ToolOutputTransformer):
             unique.append(trimmed)
         kept = unique[:signal_limit]
         summary = f"{event_kind} command exited with code {event.exit_code}; {len(lines)} line(s) reduced to {len(kept)} operational signal line(s)."
-        structured = {"signals": kept, "line_count": len(lines), "exit_code": event.exit_code}
+        structured = {
+            "signals": kept,
+            "line_count": len(lines),
+            "exit_code": event.exit_code,
+            "verification_command": self._command_string(event),
+            "verification_result": "PASS" if event.exit_code == 0 else "FAIL",
+        }
         warnings = [f"{event_kind} output truncated"] if len(unique) > signal_limit else []
         return structured, summary, warnings, event_kind
 
@@ -326,7 +381,13 @@ class RtkTransformer(ToolOutputTransformer):
             unique.append(trimmed)
         kept = unique[:signal_limit]
         summary = f"{event.tool_name} exited with code {event.exit_code}; {len(lines)} line(s) reduced to {len(kept)} concise signal line(s)."
-        structured = {"signals": kept, "line_count": len(lines), "exit_code": event.exit_code}
+        structured = {
+            "signals": kept,
+            "line_count": len(lines),
+            "exit_code": event.exit_code,
+            "verification_command": self._command_string(event),
+            "verification_result": "PASS" if event.exit_code == 0 else "FAIL",
+        }
         warnings = ["generic output truncated"] if len(unique) > signal_limit else []
         return structured, summary, warnings, "generic"
 
@@ -636,15 +697,15 @@ class RuntimeMiddlewarePlugin(NexusPlugin):
             return {"enabled": True, "stored": False, "reason": str(exc)}
 
     def _build_memory_content(self, event: CompressedToolEvent) -> str:
+        result_label = "PASS" if _safe_int(event.structured.get("exit_code", 0)) == 0 else "FAIL"
         lines = [event.summary.strip()]
-        for key in ("failures", "signals", "matches", "preview"):
-            values = event.structured.get(key)
-            if not isinstance(values, list):
-                continue
-            for value in values[:6]:
-                text = str(value).strip()
-                if text:
-                    lines.append(text)
+        verification_command = str(event.structured.get("verification_command", "") or "").strip()
+        if verification_command:
+            lines.append(f"Verification Command: {verification_command}")
+        lines.append(f"Result: {result_label}")
+        failure_fingerprint = str(event.structured.get("failure_fingerprint", "") or "").strip()
+        if failure_fingerprint and result_label == "FAIL":
+            lines.append(f"Failure: {failure_fingerprint}")
         return "\n".join([line for line in lines if line]).strip()
 
     def _write_evidence_snapshot(self, event: ToolEvent, compressed: CompressedToolEvent) -> str:

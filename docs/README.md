@@ -98,6 +98,7 @@ Current docs are split into four layers:
 
 - `LOCAL_DEPLOY.md`
 - `../scripts/deploy_local_v5.sh`
+- `../scripts/deploy_local_v5.cmd`
 - `../scripts/nexus_doctor_local.sh`
 - `../scripts/memory_v5_smoke.py`
 

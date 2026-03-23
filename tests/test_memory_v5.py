@@ -1672,6 +1672,16 @@ class TestRuntimeMiddleware(unittest.TestCase):
         self.assertTrue(any(hit.metadata.get("event_kind") == "test" for hit in hits))
         self.assertTrue(any(hit.metadata.get("tool_name") == "pytest" for hit in hits))
         self.assertTrue(any(isinstance(hit.metadata.get("guard"), dict) for hit in hits))
+        tool_rows = [
+            row
+            for row in self.plugin._mem_v5_service.list_items(scope=MemoryScope(agent_id="main", user_id="default"))
+            if row.get("kind") == "tool_event"
+        ]
+        self.assertTrue(tool_rows)
+        self.assertTrue(any("Result: FAIL" in row.get("content", "") for row in tool_rows))
+        self.assertTrue(any("Failure: provider metrics" in row.get("content", "") for row in tool_rows))
+        self.assertFalse(any("AssertionError" in row.get("content", "") for row in tool_rows))
+        self.assertFalse(any("Traceback" in row.get("content", "") for row in tool_rows))
 
     def test_low_signal_repetition_aggregates_runtime_digest(self):
         event = ToolEvent(
@@ -4114,6 +4124,10 @@ class TestOperationalEntrypathCleanup(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, msg=f"{relative_path}: {result.stderr}")
 
+    def test_windows_deploy_wrapper_routes_to_repo_bash_cmd(self):
+        wrapper = (REPO_ROOT / "scripts" / "deploy_local_v5.cmd").read_text(encoding="utf-8")
+        self.assertIn('call ".\\bash.cmd" "scripts/deploy_local_v5.sh" %*', wrapper)
+
 
 class TestContextRecallScorecardScript(unittest.TestCase):
     def setUp(self):
@@ -4756,8 +4770,33 @@ class TestSmartContextSummaryHelpers(unittest.TestCase):
 
     def test_build_turn_summary_formats_requested_sections(self):
         result = smart_context_summary.build_turn_summary(
-            "Goal: 稳定 relay audit\nStatus: blocked\nConstraint: 不能破坏兼容\n还缺什么？",
-            "## Relay Runtime\n保留 FastAPI 并更新 server.py\nBlocker: provider metrics missing\nEvidence: tests/test_relay.py\nReplay: pytest -q tests/test_relay.py\nNext: add tests",
+            (
+                "Goal: 稳定 relay audit\n"
+                "Status: blocked\n"
+                "Constraint: 不能破坏兼容\n"
+                "Waiting On: user confirmation for prod toggle\n"
+                "Assumption: provider metrics API remains stable this week\n"
+                "Modified Files: server.py; config/runtime.json\n"
+                "Change Scope: main...feature/runtime-guard @ 123abc..456def\n"
+                "Verification Subject: provider metrics capture path\n"
+                "Verification Command: pytest -q tests/test_relay.py\n"
+                "Verification Result: FAIL\n"
+                "Failure Fingerprint: provider metrics assertion drift\n"
+                "Reversal: if provider metrics remain flaky after retry budget increase\n"
+                "Verification: FAIL - pytest -q tests/test_relay.py\n"
+                "Rollback Trigger: smoke still fails after deploy\n"
+                "Rollback Target: 恢复 server.py 的 provider metrics 改动\n"
+                "还缺什么？"
+            ),
+            (
+                "## Relay Runtime\n"
+                "保留 FastAPI 并更新 server.py\n"
+                "Key Change: tightening capture gating before durable write\n"
+                "Blocker: provider metrics missing\n"
+                "Evidence: tests/test_relay.py\n"
+                "Replay: pytest -q tests/test_relay.py\n"
+                "Next: add tests"
+            ),
             ["决定保留 FastAPI"],
             summary_template_enabled=True,
             summary_template_fields=(
@@ -4765,8 +4804,21 @@ class TestSmartContextSummaryHelpers(unittest.TestCase):
                 "goal",
                 "status",
                 "decisions",
+                "decision_reversal_conditions",
+                "waiting_on",
+                "assumptions",
+                "modified_files",
+                "change_scope",
+                "key_changes",
+                "verification_subject",
+                "verification_command",
+                "verification_result",
+                "verification_status",
+                "failure_fingerprint",
                 "constraints",
                 "blockers",
+                "rollback_trigger",
+                "rollback_target",
                 "topics",
                 "next_actions",
                 "questions",
@@ -4781,9 +4833,22 @@ class TestSmartContextSummaryHelpers(unittest.TestCase):
         self.assertIn("Summary:", result.text)
         self.assertIn("Goal: 稳定 relay audit", result.text)
         self.assertIn("Status: blocked", result.text)
-        self.assertIn("Decisions: 决定保留 FastAPI", result.text)
+        self.assertIn("Decision: 决定保留 FastAPI", result.text)
+        self.assertIn("Decision Reversal: if provider metrics remain flaky after retry budget increase", result.text)
+        self.assertIn("Waiting On: user confirmation for prod toggle", result.text)
+        self.assertIn("Assumptions: provider metrics API remains stable this week", result.text)
+        self.assertIn("Modified Files: server.py; config/runtime.json", result.text)
+        self.assertIn("Change Scope: main...feature/runtime-guard @ 123abc..456def", result.text)
+        self.assertIn("Key Changes: tightening capture gating before durable write", result.text)
+        self.assertIn("Verification Subject: provider metrics capture path", result.text)
+        self.assertIn("Verification Command: pytest -q tests/test_relay.py", result.text)
+        self.assertIn("Verification Result: FAIL", result.text)
+        self.assertIn("Verification: FAIL - pytest -q tests/test_relay.py", result.text)
+        self.assertIn("Failure Fingerprint: provider metrics assertion drift", result.text)
         self.assertIn("Constraints: 不能破坏兼容", result.text)
         self.assertIn("Blockers: provider metrics missing", result.text)
+        self.assertIn("Rollback Trigger: smoke still fails after deploy", result.text)
+        self.assertIn("Rollback Target: 恢复 server.py 的 provider metrics 改动", result.text)
         self.assertIn("Topics: Relay Runtime", result.text)
         self.assertIn("Next: add tests", result.text)
         self.assertIn("Questions: 还缺什么？", result.text)
@@ -4792,8 +4857,30 @@ class TestSmartContextSummaryHelpers(unittest.TestCase):
         self.assertEqual(result.typed_context["goal"], "稳定 relay audit")
         self.assertEqual(result.typed_context["status"], "blocked")
         self.assertEqual(result.typed_context["decisions"], ["决定保留 FastAPI"])
+        self.assertEqual(
+            result.typed_context["decision_reversal_conditions"],
+            ["if provider metrics remain flaky after retry budget increase"],
+        )
+        self.assertEqual(result.typed_context["waiting_on"], ["user confirmation for prod toggle"])
+        self.assertEqual(
+            result.typed_context["assumptions"],
+            ["provider metrics API remains stable this week"],
+        )
+        self.assertEqual(result.typed_context["modified_files"], ["server.py", "config/runtime.json"])
+        self.assertEqual(
+            result.typed_context["change_scope"],
+            ["main...feature/runtime-guard @ 123abc..456def"],
+        )
+        self.assertEqual(result.typed_context["key_changes"], ["tightening capture gating before durable write"])
+        self.assertEqual(result.typed_context["verification_subject"], "provider metrics capture path")
+        self.assertEqual(result.typed_context["verification_command"], "pytest -q tests/test_relay.py")
+        self.assertEqual(result.typed_context["verification_result"], "FAIL")
+        self.assertEqual(result.typed_context["verification_status"], "FAIL - pytest -q tests/test_relay.py")
+        self.assertEqual(result.typed_context["failure_fingerprint"], "provider metrics assertion drift")
         self.assertEqual(result.typed_context["constraints"], ["不能破坏兼容"])
         self.assertEqual(result.typed_context["blockers"], ["provider metrics missing"])
+        self.assertEqual(result.typed_context["rollback_trigger"], "smoke still fails after deploy")
+        self.assertEqual(result.typed_context["rollback_target"], "恢复 server.py 的 provider metrics 改动")
         self.assertEqual(result.typed_context["next_actions"], ["add tests"])
         self.assertEqual(result.typed_context["questions"], ["还缺什么？"])
         self.assertEqual(result.typed_context["evidence"], ["tests/test_relay.py"])
@@ -4831,6 +4918,19 @@ class TestTypedContextContract(unittest.TestCase):
                 "questions": ["是否需要 smoke？"],
                 "evidence": ["tests/test_relay.py"],
                 "replay": ["pytest -q tests/test_relay.py"],
+                "decision_reversal_conditions": ["if provider metrics regress again"],
+                "waiting_on": ["user confirmation for prod toggle"],
+                "assumptions": ["provider metrics API remains stable this week"],
+                "modified_files": ["server.py", "config/runtime.json"],
+                "change_scope": ["main...feature/runtime-guard @ 123abc..456def"],
+                "key_changes": ["tighten capture gating", "drop raw tool output"],
+                "verification_subject": "provider metrics capture path",
+                "verification_command": "pytest -q tests/test_relay.py",
+                "verification_result": "PASS",
+                "verification_status": "PASS - pytest -q tests/test_relay.py",
+                "failure_fingerprint": "",
+                "rollback_trigger": "smoke still fails after deploy",
+                "rollback_target": "恢复 server.py 的 provider metrics 改动",
                 "keywords": ["relay", "fastapi"],
                 "entities": ["FastAPI"],
                 "project": "relay-audit",
@@ -4842,6 +4942,18 @@ class TestTypedContextContract(unittest.TestCase):
         self.assertEqual(normalized["goal"], "收口主链")
         self.assertEqual(normalized["decisions"], ["保留 FastAPI"])
         self.assertEqual(normalized["evidence"], ["tests/test_relay.py"])
+        self.assertEqual(normalized["decision_reversal_conditions"], ["if provider metrics regress again"])
+        self.assertEqual(normalized["waiting_on"], ["user confirmation for prod toggle"])
+        self.assertEqual(normalized["assumptions"], ["provider metrics API remains stable this week"])
+        self.assertEqual(normalized["modified_files"], ["server.py", "config/runtime.json"])
+        self.assertEqual(normalized["change_scope"], ["main...feature/runtime-guard @ 123abc..456def"])
+        self.assertEqual(normalized["key_changes"], ["tighten capture gating", "drop raw tool output"])
+        self.assertEqual(normalized["verification_subject"], "provider metrics capture path")
+        self.assertEqual(normalized["verification_command"], "pytest -q tests/test_relay.py")
+        self.assertEqual(normalized["verification_result"], "PASS")
+        self.assertEqual(normalized["verification_status"], "PASS - pytest -q tests/test_relay.py")
+        self.assertEqual(normalized["rollback_trigger"], "smoke still fails after deploy")
+        self.assertEqual(normalized["rollback_target"], "恢复 server.py 的 provider metrics 改动")
 
         legacy = context_contract.normalize_typed_context(
             {
@@ -4849,6 +4961,18 @@ class TestTypedContextContract(unittest.TestCase):
                 "决策上下文": "保留 FastAPI",
                 "下一步": "补测试",
                 "问题": "是否需要 smoke？",
+                "决策反转条件": "if provider metrics regress again",
+                "等待项": "user confirmation for prod toggle",
+                "关键假设": "provider metrics API remains stable this week",
+                "已修改文件": "server.py; config/runtime.json",
+                "变更范围": "main...feature/runtime-guard @ 123abc..456def",
+                "关键变更": "tighten capture gating; drop raw tool output",
+                "验证对象": "provider metrics capture path",
+                "验证命令": "pytest -q tests/test_relay.py",
+                "验证结果": "PASS",
+                "验证状态": "PASS - pytest -q tests/test_relay.py",
+                "回滚触发": "smoke still fails after deploy",
+                "回滚目标": "恢复 server.py 的 provider metrics 改动",
                 "搜索关键词": ["relay", "fastapi"],
                 "实体": ["FastAPI"],
                 "项目关联": "relay-audit",
@@ -4860,6 +4984,18 @@ class TestTypedContextContract(unittest.TestCase):
         self.assertEqual(legacy["decisions"], ["保留 FastAPI"])
         self.assertEqual(legacy["next_actions"], ["补测试"])
         self.assertEqual(legacy["questions"], ["是否需要 smoke？"])
+        self.assertEqual(legacy["decision_reversal_conditions"], ["if provider metrics regress again"])
+        self.assertEqual(legacy["waiting_on"], ["user confirmation for prod toggle"])
+        self.assertEqual(legacy["assumptions"], ["provider metrics API remains stable this week"])
+        self.assertEqual(legacy["modified_files"], ["server.py", "config/runtime.json"])
+        self.assertEqual(legacy["change_scope"], ["main...feature/runtime-guard @ 123abc..456def"])
+        self.assertEqual(legacy["key_changes"], ["tighten capture gating", "drop raw tool output"])
+        self.assertEqual(legacy["verification_subject"], "provider metrics capture path")
+        self.assertEqual(legacy["verification_command"], "pytest -q tests/test_relay.py")
+        self.assertEqual(legacy["verification_result"], "PASS")
+        self.assertEqual(legacy["verification_status"], "PASS - pytest -q tests/test_relay.py")
+        self.assertEqual(legacy["rollback_trigger"], "smoke still fails after deploy")
+        self.assertEqual(legacy["rollback_target"], "恢复 server.py 的 provider metrics 改动")
         self.assertEqual(legacy["project"], "relay-audit")
 
     def test_structured_summary_round_trips_canonical_payload(self):
@@ -4875,6 +5011,19 @@ class TestTypedContextContract(unittest.TestCase):
                 "questions": ["是否需要 smoke？"],
                 "evidence": ["tests/test_relay.py"],
                 "replay": ["pytest -q tests/test_relay.py"],
+                "decision_reversal_conditions": ["if provider metrics regress again"],
+                "waiting_on": ["user confirmation for prod toggle"],
+                "assumptions": ["provider metrics API remains stable this week"],
+                "modified_files": ["server.py", "config/runtime.json"],
+                "change_scope": ["main...feature/runtime-guard @ 123abc..456def"],
+                "key_changes": ["tighten capture gating", "drop raw tool output"],
+                "verification_subject": "provider metrics capture path",
+                "verification_command": "pytest -q tests/test_relay.py",
+                "verification_result": "PASS",
+                "verification_status": "PASS - pytest -q tests/test_relay.py",
+                "failure_fingerprint": "",
+                "rollback_trigger": "smoke still fails after deploy",
+                "rollback_target": "恢复 server.py 的 provider metrics 改动",
                 "keywords": ["relay", "fastapi"],
                 "entities": ["FastAPI"],
                 "project": "relay-audit",
@@ -4886,11 +5035,28 @@ class TestTypedContextContract(unittest.TestCase):
         self.assertEqual(summary.search_keywords, ["relay", "fastapi"])
         self.assertEqual(summary.typed_context["goal"], "收口主链")
         self.assertEqual(summary.typed_context["replay"], ["pytest -q tests/test_relay.py"])
+        self.assertEqual(summary.typed_context["decision_reversal_conditions"], ["if provider metrics regress again"])
+        self.assertEqual(summary.typed_context["waiting_on"], ["user confirmation for prod toggle"])
+        self.assertEqual(summary.typed_context["modified_files"], ["server.py", "config/runtime.json"])
+        self.assertEqual(summary.typed_context["change_scope"], ["main...feature/runtime-guard @ 123abc..456def"])
+        self.assertEqual(summary.typed_context["verification_command"], "pytest -q tests/test_relay.py")
+        self.assertEqual(summary.typed_context["verification_status"], "PASS - pytest -q tests/test_relay.py")
 
         exported = summary.to_dict()
         self.assertEqual(exported["summary"], "稳定 relay audit")
         self.assertEqual(exported["本次核心产出"], "稳定 relay audit")
         self.assertEqual(exported["decisions"], ["保留 FastAPI"])
+        self.assertEqual(exported["decision_reversal_conditions"], ["if provider metrics regress again"])
+        self.assertEqual(exported["waiting_on"], ["user confirmation for prod toggle"])
+        self.assertEqual(exported["modified_files"], ["server.py", "config/runtime.json"])
+        self.assertEqual(exported["change_scope"], ["main...feature/runtime-guard @ 123abc..456def"])
+        self.assertEqual(exported["key_changes"], ["tighten capture gating", "drop raw tool output"])
+        self.assertEqual(exported["verification_subject"], "provider metrics capture path")
+        self.assertEqual(exported["verification_command"], "pytest -q tests/test_relay.py")
+        self.assertEqual(exported["verification_result"], "PASS")
+        self.assertEqual(exported["verification_status"], "PASS - pytest -q tests/test_relay.py")
+        self.assertEqual(exported["rollback_trigger"], "smoke still fails after deploy")
+        self.assertEqual(exported["rollback_target"], "恢复 server.py 的 provider metrics 改动")
         self.assertEqual(exported["project"], "relay-audit")
 
     def test_sanitize_typed_context_for_durable_write_requires_evidence(self):
@@ -5070,6 +5236,19 @@ class TestSmartContextRescueHelpers(unittest.TestCase):
                 "Constraint: 不能破坏兼容\n"
                 "#GOLD: 保留 FastAPI\n"
                 "Blocker: provider 指标缺失\n"
+                "Waiting On: user confirmation for prod toggle\n"
+                "Assumption: provider metrics API remains stable this week\n"
+                "Modified Files: server.py; config/runtime.json\n"
+                "Change Scope: main...feature/runtime-guard @ 123abc..456def\n"
+                "Key Change: tighten capture gating\n"
+                "Verification Subject: provider metrics capture path\n"
+                "Verification Command: pytest -q tests/test_relay.py\n"
+                "Verification Result: FAIL\n"
+                "Failure Fingerprint: provider metrics assertion drift\n"
+                "Reversal: if provider metrics regress again\n"
+                "Verification: FAIL - pytest -q tests/test_relay.py\n"
+                "Rollback Trigger: smoke still fails after deploy\n"
+                "Rollback Target: 恢复 server.py 的 provider metrics 改动\n"
                 "Evidence: tests/test_relay.py\n"
                 "Replay: pytest -q tests/test_relay.py\n"
                 "Next: 先补测试\n"
@@ -5085,6 +5264,19 @@ class TestSmartContextRescueHelpers(unittest.TestCase):
         self.assertTrue(any("保留 FastAPI" in item for item in updates["decisions"]))
         self.assertEqual(updates["constraints"], ["不能破坏兼容"])
         self.assertEqual(updates["blockers"], ["provider 指标缺失"])
+        self.assertEqual(updates["waiting_on"], ["user confirmation for prod toggle"])
+        self.assertEqual(updates["assumptions"], ["provider metrics API remains stable this week"])
+        self.assertEqual(updates["modified_files"], ["server.py", "config/runtime.json"])
+        self.assertEqual(updates["change_scope"], ["main...feature/runtime-guard @ 123abc..456def"])
+        self.assertEqual(updates["key_changes"], ["tighten capture gating"])
+        self.assertEqual(updates["verification_subject"], "provider metrics capture path")
+        self.assertEqual(updates["verification_command"], "pytest -q tests/test_relay.py")
+        self.assertEqual(updates["verification_result"], "FAIL")
+        self.assertEqual(updates["verification_status"], "FAIL - pytest -q tests/test_relay.py")
+        self.assertEqual(updates["failure_fingerprint"], "provider metrics assertion drift")
+        self.assertEqual(updates["decision_reversal_conditions"], ["if provider metrics regress again"])
+        self.assertEqual(updates["rollback_trigger"], "smoke still fails after deploy")
+        self.assertEqual(updates["rollback_target"], "恢复 server.py 的 provider metrics 改动")
         self.assertEqual(updates["next_actions"], ["先补测试"])
         self.assertEqual(updates["open_questions"], ["后续补测试计划"])
         self.assertEqual(updates["evidence_pointers"], ["tests/test_relay.py"])
@@ -5095,6 +5287,11 @@ class TestSmartContextRescueHelpers(unittest.TestCase):
             "current_goal": "稳定 relay audit",
             "decisions": ["保留 FastAPI"],
             "constraints": ["不能破坏兼容"],
+            "waiting_on": ["user confirmation for prod toggle"],
+            "assumptions": ["provider metrics API remains stable this week"],
+            "modified_files": ["server.py"],
+            "change_scope": ["main...feature/runtime-guard @ 123abc..456def"],
+            "key_changes": ["tighten capture gating"],
             "next_actions": [],
             "open_questions": ["后续补测试"],
         }
@@ -5106,6 +5303,19 @@ class TestSmartContextRescueHelpers(unittest.TestCase):
                 "decisions": ["保留 FastAPI", "增加回归测试"],
                 "constraints": ["不能破坏兼容", "保留 8/20/35"],
                 "blockers": ["provider 指标缺失"],
+                "waiting_on": ["user confirmation for prod toggle", "CI rerun result"],
+                "assumptions": ["provider metrics API remains stable this week", "retry budget stays unchanged"],
+                "modified_files": ["server.py", "config/runtime.json"],
+                "change_scope": ["main...feature/runtime-guard @ 123abc..456def", "origin/main...HEAD"],
+                "key_changes": ["tighten capture gating", "drop raw tool output"],
+                "verification_subject": "provider metrics capture path",
+                "verification_command": "pytest -q tests/test_relay.py",
+                "verification_result": "PASS",
+                "verification_status": "PASS - pytest -q tests/test_relay.py",
+                "failure_fingerprint": "provider metrics assertion drift",
+                "decision_reversal_conditions": ["if provider metrics regress again"],
+                "rollback_trigger": "smoke still fails after deploy",
+                "rollback_target": "恢复 server.py 的 provider metrics 改动",
                 "next_actions": ["推进重构"],
                 "open_questions": ["后续补测试", "确认边界"],
                 "evidence_pointers": ["tests/test_relay.py"],
@@ -5121,6 +5331,18 @@ class TestSmartContextRescueHelpers(unittest.TestCase):
                 "decisions_rescued": 1,
                 "constraints_rescued": 1,
                 "blockers_rescued": 1,
+                "waiting_on_rescued": 1,
+                "assumptions_rescued": 1,
+                "modified_files_rescued": 1,
+                "change_scope_rescued": 1,
+                "key_changes_rescued": 1,
+                "verification_subject_rescued": 1,
+                "verification_command_rescued": 1,
+                "verification_result_rescued": 1,
+                "verification_rescued": 1,
+                "failure_fingerprint_rescued": 1,
+                "decision_reversal_rescued": 1,
+                "rollback_notes_rescued": 1,
                 "next_actions_rescued": 1,
                 "goals_rescued": 1,
                 "open_questions_rescued": 1,
@@ -5134,6 +5356,19 @@ class TestSmartContextRescueHelpers(unittest.TestCase):
         self.assertIn("增加回归测试", state["decisions"])
         self.assertIn("保留 8/20/35", state["constraints"])
         self.assertIn("provider 指标缺失", state["blockers"])
+        self.assertIn("CI rerun result", state["waiting_on"])
+        self.assertIn("retry budget stays unchanged", state["assumptions"])
+        self.assertIn("config/runtime.json", state["modified_files"])
+        self.assertIn("origin/main...HEAD", state["change_scope"])
+        self.assertIn("drop raw tool output", state["key_changes"])
+        self.assertEqual(state["verification_subject"], "provider metrics capture path")
+        self.assertEqual(state["verification_command"], "pytest -q tests/test_relay.py")
+        self.assertEqual(state["verification_result"], "PASS")
+        self.assertEqual(state["verification_status"], "PASS - pytest -q tests/test_relay.py")
+        self.assertEqual(state["failure_fingerprint"], "provider metrics assertion drift")
+        self.assertIn("if provider metrics regress again", state["decision_reversal_conditions"])
+        self.assertEqual(state["rollback_trigger"], "smoke still fails after deploy")
+        self.assertEqual(state["rollback_target"], "恢复 server.py 的 provider metrics 改动")
         self.assertIn("推进重构", state["next_actions"])
         self.assertIn("确认边界", state["open_questions"])
         self.assertIn("tests/test_relay.py", state["evidence_pointers"])

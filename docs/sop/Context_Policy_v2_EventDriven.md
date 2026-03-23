@@ -47,7 +47,21 @@ Before any summary-only or compressed state is emitted, preserve these fields wh
 - `Current status / phase`
 - `Hard constraints`
 - `Confirmed decisions`
+- `Decision reversal condition`
+- `Waiting on`
+- `Key assumptions`
 - `Blockers / risks`
+- `Modified files`
+- `Change scope`
+- `Key changes`
+- `Verification subject`
+- `Verification command`
+- `Verification result`
+- `Verification status`
+- `Failure fingerprint` for failed validation or tool runs
+- `Rollback trigger`
+- `Rollback target`
+- `Rollback notes`
 - `Next minimum action`
 - `Open questions`
 - `Evidence pointers`
@@ -64,6 +78,9 @@ Before any summary-only or compressed state is emitted, preserve these fields wh
 - obsolete trial branches already superseded by a later decision
 - large raw code copied into summaries when the current file path is already known
 - any decision text that lacks evidence pointer
+- raw tool output beyond the minimum execution package
+  - success: keep summary + `PASS/FAIL`
+  - failure: keep summary + `FAIL` + `failure_fingerprint`
 
 ## 6) Summary And NOW Contracts
 - Default structured summary fields:
@@ -71,8 +88,22 @@ Before any summary-only or compressed state is emitted, preserve these fields wh
   - `Goal`
   - `Status`
   - `Decisions`
+  - `Decision Reversal`
+  - `Waiting On`
+  - `Assumptions`
+  - `Modified Files`
+  - `Change Scope`
+  - `Key Changes`
+  - `Verification Subject`
+  - `Verification Command`
+  - `Verification Result`
+  - `Verification`
+  - `Failure Fingerprint`
   - `Constraints`
   - `Blockers`
+  - `Rollback Trigger`
+  - `Rollback Target`
+  - `Rollback`
   - `Next`
   - `Questions`
   - `Evidence`
@@ -80,6 +111,28 @@ Before any summary-only or compressed state is emitted, preserve these fields wh
 - NOW rescue fields must preserve the same typed state in compact form.
 - Keep the handoff human-readable and bounded.
   - target: one line per field, not verbose prose.
+
+## 6.1) Hard Retention Priority
+- `P0`: architecture decisions and durable decisions with evidence; do not collapse into one loose sentence.
+- `P1`: execution-resume package
+  - `modified_files`
+  - `change_scope`
+  - `key_changes`
+  - `waiting_on`
+  - `assumptions`
+- `P2`: minimum verification package
+  - `verification_subject`
+  - `verification_command`
+  - `verification_result`
+  - `verification_status`
+  - `failure_fingerprint` when failed
+- `P3`: rollback package
+  - `rollback_trigger`
+  - `rollback_target`
+  - `rollback_notes`
+- `P4`: tool payload bodies
+  - drop raw stdout/stderr from compressed memory
+  - keep evidence pointers in L3 only
 
 ## 7) Event-Driven Refresh
 Refresh summary state only when one of these events happens:

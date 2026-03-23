@@ -98,6 +98,84 @@ def normalize_typed_context(payload: Any) -> Dict[str, Any]:
     replay = _normalize_list(
         _pick_value(data, "replay", "replay_commands", "replay_command", "复现", "重放", "命令")
     )
+    decision_reversal_conditions = _normalize_list(
+        _pick_value(
+            data,
+            "decision_reversal_conditions",
+            "decision_reversal_condition",
+            "reversal_conditions",
+            "reversal_condition",
+            "决策反转条件",
+            "推翻条件",
+            "撤销条件",
+        )
+    )
+    waiting_on = _normalize_list(
+        _pick_value(data, "waiting_on", "waiting", "blocked_on", "等待项", "等待对象", "待确认")
+    )
+    assumptions = _normalize_list(
+        _pick_value(data, "assumptions", "assumption", "关键假设", "假设")
+    )
+    modified_files = _normalize_list(
+        _pick_value(data, "modified_files", "modified_file", "changed_files", "files_changed", "已修改文件", "修改文件")
+    )
+    change_scope = _normalize_list(
+        _pick_value(data, "change_scope", "change_scopes", "branch_scope", "变更范围", "分支范围")
+    )
+    key_changes = _normalize_list(
+        _pick_value(data, "key_changes", "key_change", "changes", "change_log", "关键变更", "关键修改")
+    )
+    verification_subject = _pick_text(
+        data,
+        "verification_subject",
+        "verify_subject",
+        "验证对象",
+        "验证主题",
+    )
+    verification_command = _pick_text(
+        data,
+        "verification_command",
+        "verify_command",
+        "验证命令",
+        "verify_cmd",
+    )
+    verification_result = _pick_text(
+        data,
+        "verification_result",
+        "verify_result",
+        "验证结果",
+    )
+    verification_status = _pick_text(
+        data,
+        "verification_status",
+        "verification",
+        "verification_result",
+        "test_status",
+        "验证状态",
+        "验证结果",
+    )
+    failure_fingerprint = _pick_text(
+        data,
+        "failure_fingerprint",
+        "error_fingerprint",
+        "失败指纹",
+        "错误指纹",
+    )
+    rollback_notes = _normalize_list(
+        _pick_value(data, "rollback_notes", "rollback_note", "rollback", "回滚笔记", "回滚说明", "回退说明")
+    )
+    rollback_trigger = _pick_text(
+        data,
+        "rollback_trigger",
+        "回滚触发",
+        "回退触发",
+    )
+    rollback_target = _pick_text(
+        data,
+        "rollback_target",
+        "回滚目标",
+        "恢复目标",
+    )
     topics = _normalize_list(_pick_value(data, "topics", "topic", "主题"))
     keywords = _normalize_list(_pick_value(data, "keywords", "search_keywords", "搜索关键词"))
     entities = _normalize_list(_pick_value(data, "entities", "entity", "实体"))
@@ -120,6 +198,20 @@ def normalize_typed_context(payload: Any) -> Dict[str, Any]:
         "questions": questions,
         "evidence": evidence,
         "replay": replay,
+        "decision_reversal_conditions": decision_reversal_conditions,
+        "waiting_on": waiting_on,
+        "assumptions": assumptions,
+        "modified_files": modified_files,
+        "change_scope": change_scope,
+        "key_changes": key_changes,
+        "verification_subject": verification_subject,
+        "verification_command": verification_command,
+        "verification_result": verification_result,
+        "verification_status": verification_status,
+        "failure_fingerprint": failure_fingerprint,
+        "rollback_notes": rollback_notes,
+        "rollback_trigger": rollback_trigger,
+        "rollback_target": rollback_target,
         "topics": topics,
         "keywords": keywords,
         "entities": entities,
@@ -139,6 +231,13 @@ def export_typed_context(payload: Any) -> Dict[str, Any]:
     question_text = "; ".join(data["questions"])
     evidence_text = "; ".join(data["evidence"])
     replay_text = "; ".join(data["replay"])
+    decision_reversal_text = "; ".join(data["decision_reversal_conditions"])
+    waiting_on_text = "; ".join(data["waiting_on"])
+    assumptions_text = "; ".join(data["assumptions"])
+    modified_files_text = "; ".join(data["modified_files"])
+    change_scope_text = "; ".join(data["change_scope"])
+    key_changes_text = "; ".join(data["key_changes"])
+    rollback_text = "; ".join(data["rollback_notes"])
     topic_text = "; ".join(data["topics"])
 
     exported = dict(data)
@@ -151,6 +250,30 @@ def export_typed_context(payload: Any) -> Dict[str, Any]:
             "decision_context": decision_text,
             "下一步": next_text,
             "问题": question_text,
+            "决策反转条件": decision_reversal_text,
+            "等待项": waiting_on_text,
+            "关键假设": assumptions_text,
+            "已修改文件": modified_files_text,
+            "修改文件": modified_files_text,
+            "变更范围": change_scope_text,
+            "关键变更": key_changes_text,
+            "关键修改": key_changes_text,
+            "验证对象": data["verification_subject"],
+            "验证命令": data["verification_command"],
+            "verification_subject": data["verification_subject"],
+            "verification_command": data["verification_command"],
+            "verification_result": data["verification_result"],
+            "验证结果": data["verification_result"],
+            "验证状态": data["verification_status"],
+            "verification_status": data["verification_status"],
+            "失败指纹": data["failure_fingerprint"],
+            "failure_fingerprint": data["failure_fingerprint"],
+            "回滚笔记": rollback_text,
+            "回滚说明": rollback_text,
+            "回滚触发": data["rollback_trigger"],
+            "回滚目标": data["rollback_target"],
+            "rollback_trigger": data["rollback_trigger"],
+            "rollback_target": data["rollback_target"],
             "搜索关键词": list(data["keywords"]),
             "search_keywords": list(data["keywords"]),
             "实体": list(data["entities"]),
@@ -208,6 +331,20 @@ def typed_context_to_searchable_text(payload: Any) -> str:
         " ".join(data["questions"]),
         " ".join(data["evidence"]),
         " ".join(data["replay"]),
+        " ".join(data["decision_reversal_conditions"]),
+        " ".join(data["waiting_on"]),
+        " ".join(data["assumptions"]),
+        " ".join(data["modified_files"]),
+        " ".join(data["change_scope"]),
+        " ".join(data["key_changes"]),
+        data["verification_subject"],
+        data["verification_command"],
+        data["verification_result"],
+        data["verification_status"],
+        data["failure_fingerprint"],
+        " ".join(data["rollback_notes"]),
+        data["rollback_trigger"],
+        data["rollback_target"],
         " ".join(data["topics"]),
         " ".join(data["keywords"]),
         " ".join(data["entities"]),
